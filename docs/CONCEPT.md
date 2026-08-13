@@ -40,6 +40,19 @@ dependency. The setup and dashboard onboarding therefore report missing
 dependencies explicitly and do not render partially broken custom-card
 configurations.
 
+## Upstream compatibility
+
+The config flow verifies the locally installed `stellantis_vehicles` manifest
+before it accepts a vehicle. The initial supported baseline is version
+`2026.7.2`, the version used to establish this dashboard's entity mapping.
+
+It then verifies that the chosen HA device belongs to a live upstream config
+entry and exposes a vehicle tracker. These checks do not poll the Stellantis
+API. An older, missing or unversioned upstream integration blocks setup; an
+existing dashboard switches to a clear compatibility state after a downgrade
+instead of rendering unknown entity IDs. Further capability checks are added
+per module as the mapping is implemented.
+
 ## Package type and frontend
 
 HACS manages this project as one **integration**. Runtime Python and frontend
