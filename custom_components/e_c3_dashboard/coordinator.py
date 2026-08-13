@@ -17,6 +17,12 @@ from .const import DEFAULT_OPTIONS, DOMAIN, CONF_VEHICLE_DEVICE_ID, UPSTREAM_DOM
 _LOGGER = logging.getLogger(__name__)
 
 
+# ``translation_key`` belongs to the upstream integration's entity contract.
+# It remains stable when a user renames an entity or changes the VIN prefix in
+# the entity ID, which makes it the only safe primary key for a portable UI.
+_REQUIRED_ENTITY_KEYS = {"vehicle", "battery", "mileage"}
+
+
 class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Discover only entities that belong to the selected Stellantis device."""
 
@@ -53,13 +59,21 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for registry_entry in entries
             if registry_entry.config_entry_id in upstream_entry_ids
         ]
-        tracker = next(
+        entity_mapping = {
+            registry_entry.translation_key: registry_entry.entity_id
+            for registry_entry in upstream_entities
+            if registry_entry.translation_key
+        }
+        tracker = entity_mapping.get("vehicle") or next(
             (
                 registry_entry.entity_id
                 for registry_entry in upstream_entities
                 if registry_entry.entity_id.startswith("device_tracker.")
             ),
             None,
+        )
+        missing_required = sorted(
+            key for key in _REQUIRED_ENTITY_KEYS if key not in entity_mapping
         )
 
         compatibility = await async_check_upstream_compatibility(self.hass)
@@ -69,7 +83,7 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "incompatible"
             if not compatibility["version_supported"]
             else "ready"
-            if device is not None and tracker is not None
+            if device is not None and tracker is not None and not missing_required
             else "incomplete"
         )
 
@@ -81,6 +95,8 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "vehicle_device_id": self.entry.data[CONF_VEHICLE_DEVICE_ID],
             "vehicle_slug": self.entry.data["vehicle_slug"],
             "vehicle_tracker": tracker,
+            "entity_mapping": entity_mapping,
+            "missing_required": missing_required,
             "upstream_entities": sorted(
                 registry_entry.entity_id for registry_entry in upstream_entities
             ),
