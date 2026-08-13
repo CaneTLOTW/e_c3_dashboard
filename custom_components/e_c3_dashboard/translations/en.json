@@ -30,7 +30,9 @@
           "charging": "Charging history and curves",
           "gps": "GPS history",
           "wakeup": "Wake-up diagnostics",
-          "notifications": "Notification adapter"
+          "notifications": "Notification adapter",
+          "trip_energy_entity": "Existing trip-energy result sensor (optional)",
+          "charge_power_entity": "Existing charge-power sensor (optional)"
         }
       }
     }
