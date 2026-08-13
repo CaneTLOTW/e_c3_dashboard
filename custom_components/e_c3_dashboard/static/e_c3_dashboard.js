@@ -309,6 +309,10 @@ ${strings.install}
 
     const tracker = attributes.vehicle_tracker;
     const modules = attributes.modules || {};
+    // This controls only history queries and the number of rows rendered.
+    // Recorder retention is deliberately a global HA setting and may be
+    // shorter than the configured display window.
+    const historyHours = Math.min(8760, Math.max(24, Number(attributes.history_window_hours ?? modules.history_hours) || 2160));
     const mapped = attributes.entity_mapping || {};
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
     const entity = (key) => mapped[key];
@@ -477,7 +481,7 @@ ${strings.install}
         entity("battery_charging_limit_number") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("battery_charging_limit_number"), name: strings.chargeLimit, icon: "mdi:battery-charging-80", show_state: true, force_icon: true } : null,
         entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: `${strings.chargeLimit} ${language(hass) === "de" ? "aktiv" : "enabled"}`, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
         bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
-        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: language(hass) === "de" ? "Ladekurve" : "Charge curve", charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), include_active: true, hours_to_show: 2160, fallback_capacity_kwh: 43.4 }, grid_options: { columns: "full" } } : null,
+        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: language(hass) === "de" ? "Ladekurve" : "Charge curve", charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: 43.4 }, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
@@ -500,8 +504,8 @@ ${strings.install}
         separator(strings.latestActivities, "mdi:history"),
         bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6),
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
-        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: 2160, max_trips: 50 } : null,
-        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: 2160, max_sessions: 50, fallback_capacity_kwh: 43.4 } : null,
+        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50 } : null,
+        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4 } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.settings, "mdi:cog-outline"),
@@ -548,7 +552,7 @@ ${strings.install}
               energy_entities: tripEnergyEntities,
               title: strings.tripHistory,
               language: language(hass),
-              hours_to_show: 2160,
+              hours_to_show: historyHours,
               max_trips: 50,
               grid_options: { columns: "full" },
             },
@@ -579,7 +583,7 @@ ${strings.install}
               mode_entity: entity("battery_charging_type"),
               capacity_entity: entity("battery_capacity"),
               result_entity: metric("last_charge_result"),
-              hours_to_show: 2160,
+              hours_to_show: historyHours,
               max_sessions: 50,
               fallback_capacity_kwh: 43.4,
               grid_options: { columns: "full" },
@@ -592,7 +596,7 @@ ${strings.install}
               power_entity: currentChargePower,
               mode_entity: entity("battery_charging_type"),
               capacity_entity: entity("battery_capacity"),
-              hours_to_show: 2160,
+              hours_to_show: historyHours,
               fallback_capacity_kwh: 43.4,
               grid_options: { columns: "full" },
             },
