@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup and support guide
+    url: https://github.com/CaneTLOTW/e_c3_dashboard/blob/main/SUPPORT.md
+    about: Check installation, entity, capability, and privacy guidance before opening an issue.
+  - name: Security advisory
+    url: https://github.com/CaneTLOTW/e_c3_dashboard/security/advisories/new
+    about: Report vulnerabilities or private-data exposure privately.

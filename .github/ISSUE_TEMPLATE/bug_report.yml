@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible e-C3 Dashboard problem without private vehicle data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include VINs, addresses, GPS coordinates, account IDs, tokens,
+        Notify recipient names, raw exports, or `.storage` files.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Home Assistant, e-C3 Dashboard, and Stellantis Vehicles versions.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the affected dashboard view/entity and anonymised logs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true

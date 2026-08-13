@@ -1,0 +1,41 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select vehicle",
+        "description": "Choose a vehicle that is already configured by Stellantis Vehicles.",
+        "data": {
+          "vehicle_device_id": "Stellantis vehicle",
+          "vehicle_slug": "Vehicle identifier"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "The selected device does not belong to Stellantis Vehicles.",
+      "upstream_not_ready": "Finish Stellantis Vehicles setup and wait for the vehicle's battery, mileage and tracker entities before adding this dashboard.",
+      "invalid_slug": "Enter a valid vehicle identifier."
+    },
+    "abort": {
+      "missing_upstream": "Set up Stellantis Vehicles and a vehicle before adding this dashboard.",
+      "already_configured": "This vehicle already has an e-C3 Dashboard entry.",
+      "unsupported_upstream_version": "Update Stellantis Vehicles to a supported version before adding this dashboard."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dashboard modules",
+        "data": {
+          "trips": "Trip history",
+          "charging": "Charging history and curves",
+          "gps": "GPS history",
+          "wakeup": "Wake-up diagnostics",
+          "notifications": "Notification and recipient controls",
+          "notification_recipients": "Selectable Notify recipients",
+          "history_hours": "History display window"
+        }
+      }
+    }
+  }
+}

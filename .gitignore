@@ -1,0 +1,22 @@
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+secrets.yaml
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local Home Assistant data and exports
+.storage/
+exports/
+
+# Python and editor artefacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+.idea/
+.vscode/
