@@ -8,6 +8,7 @@ DOMAIN = "e_c3_dashboard"
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 UPSTREAM_DOMAIN = "stellantis_vehicles"
+MIN_UPSTREAM_VERSION = "2026.7.2"
 
 CONF_VEHICLE_DEVICE_ID = "vehicle_device_id"
 CONF_VEHICLE_SLUG = "vehicle_slug"
