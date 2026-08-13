@@ -28,4 +28,4 @@ DEFAULT_OPTIONS = {
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.1.0"
+FRONTEND_VERSION = "0.1.1"
