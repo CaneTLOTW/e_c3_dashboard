@@ -16,7 +16,7 @@ from .const import DEFAULT_OPTIONS, DOMAIN, CONF_VEHICLE_DEVICE_ID, UPSTREAM_DOM
 _LOGGER = logging.getLogger(__name__)
 
 
-class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]:
+class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Discover only entities that belong to the selected Stellantis device."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
