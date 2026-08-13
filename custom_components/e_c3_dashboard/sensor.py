@@ -56,6 +56,7 @@ class Ec3DashboardStatusSensor(
                 "upstream_entity_count"
             ],
             "modules": self.coordinator.data["modules"],
+            "upstream_compatibility": self.coordinator.data["upstream_compatibility"],
         }
 
     @property
