@@ -11,6 +11,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from .compatibility import async_check_upstream_compatibility
 from .const import DEFAULT_OPTIONS, DOMAIN, CONF_VEHICLE_DEVICE_ID, UPSTREAM_DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,9 +62,16 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             None,
         )
 
+        compatibility = await async_check_upstream_compatibility(self.hass)
         options = dict(DEFAULT_OPTIONS)
         options.update(self.entry.options)
-        status = "ready" if device is not None and tracker is not None else "incomplete"
+        status = (
+            "incompatible"
+            if not compatibility["version_supported"]
+            else "ready"
+            if device is not None and tracker is not None
+            else "incomplete"
+        )
 
         return {
             "status": status,
@@ -78,4 +86,5 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
             "upstream_entity_count": len(upstream_entities),
             "modules": options,
+            "upstream_compatibility": compatibility,
         }
