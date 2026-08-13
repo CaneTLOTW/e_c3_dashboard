@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=20260812.1";
+import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.0";
 
 const TEXT = {
     de: {
@@ -239,11 +239,11 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
     }
 }
 
-customElements.define("codex-stellantis-charge-history-card-v1", CodexStellantisChargeHistoryCardV1);
+customElements.define("e-c3-dashboard-charge-history-card", CodexStellantisChargeHistoryCardV1);
 window.customCards = window.customCards ?? [];
 window.customCards.push({
-    type: "codex-stellantis-charge-history-card-v1",
-    name: "Stellantis Charge History",
+    type: "e-c3-dashboard-charge-history-card",
+    name: "e-C3 Dashboard Charge History",
     preview: true,
 });
 
@@ -480,10 +480,10 @@ class CodexStellantisChargeCurveCardV1 extends LitElement {
     }
 }
 
-customElements.define("codex-stellantis-charge-curve-card-v1", CodexStellantisChargeCurveCardV1);
+customElements.define("e-c3-dashboard-charge-curve-card", CodexStellantisChargeCurveCardV1);
 window.customCards.push({
-    type: "codex-stellantis-charge-curve-card-v1",
-    name: "Stellantis Charge Curve",
+    type: "e-c3-dashboard-charge-curve-card",
+    name: "e-C3 Dashboard Charge Curve",
     preview: true,
 });
 
@@ -580,6 +580,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 modeStates: history.modes,
                 capacityStates: this._statesFor(response, entityIds, this._config.capacity_entity),
                 fallbackCapacity: Number(this._config.fallback_capacity_kwh),
+                includeActive: Boolean(this._config.include_active),
             }).reverse();
             this._history = history;
             this._sessions = sessions;
@@ -684,9 +685,9 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     }
 }
 
-customElements.define("codex-stellantis-charge-curve-browser-card-v1", CodexStellantisChargeCurveBrowserCardV1);
+customElements.define("e-c3-dashboard-charge-curve-browser-card", CodexStellantisChargeCurveBrowserCardV1);
 window.customCards.push({
-    type: "codex-stellantis-charge-curve-browser-card-v1",
-    name: "Stellantis Charge Curve Browser",
+    type: "e-c3-dashboard-charge-curve-browser-card",
+    name: "e-C3 Dashboard Charge Curve Browser",
     preview: true,
 });
