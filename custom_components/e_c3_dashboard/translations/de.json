@@ -30,7 +30,9 @@
           "charging": "Ladehistorie und Ladekurven",
           "gps": "GPS-Historie",
           "wakeup": "Wake-up-Diagnose",
-          "notifications": "Benachrichtigungsadapter"
+          "notifications": "Benachrichtigungsadapter",
+          "trip_energy_entity": "Vorhandener Fahrtenergie-Ergebnissensor (optional)",
+          "charge_power_entity": "Vorhandener Ladeleistungssensor (optional)"
         }
       }
     }
