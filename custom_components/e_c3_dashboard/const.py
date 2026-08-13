@@ -28,8 +28,13 @@ DEFAULT_OPTIONS = {
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.3.1"
+FRONTEND_VERSION = "0.4.0"
 STATIC_VERSION = FRONTEND_VERSION
+FRONTEND_RESOURCE_URLS = (
+    "/e_c3_dashboard/trip-history-card.js",
+    "/e_c3_dashboard/charge-history-card.js",
+    FRONTEND_URL,
+)
 
 METRIC_TRAILING_CONSUMPTION = "trailing_consumption_500km"
 METRIC_DISTANCE_SINCE_CHARGE = "distance_since_charge"
