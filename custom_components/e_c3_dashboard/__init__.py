@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 
@@ -28,6 +29,9 @@ from .notifications import VehicleNotificationManager
 type Ec3DashboardConfigEntry = ConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
+
+# This integration is configured exclusively through its config flow.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def _async_register_frontend_resource(hass: HomeAssistant) -> None:
