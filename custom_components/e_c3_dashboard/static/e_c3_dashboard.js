@@ -107,6 +107,19 @@ function getStatusEntities(hass, entryId) {
 }
 
 class Ec3DashboardStrategy {
+  /**
+   * The dashboard picker in current HA versions needs an explicit editor for
+   * community strategies. Without one, selecting a community dashboard may
+   * close the picker without opening the normal "create dashboard" form.
+   */
+  static get configRequired() {
+    return true;
+  }
+
+  static getConfigElement() {
+    return document.createElement("e-c3-dashboard-strategy-editor");
+  }
+
   static getCreateSuggestions() {
     return {
       title: "e-C3 Dashboard",
@@ -262,9 +275,38 @@ ${strings.install}
   }
 }
 
+class Ec3DashboardStrategyEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config || {};
+    this.innerHTML = `
+      <div style="padding: 8px 0; line-height: 1.5;">
+        <strong>e-C3 Dashboard</strong><br>
+        Dieses Dashboard verwendet die zuvor eingerichtete e-C3-Dashboard-Integration.
+        Nach dem Erstellen werden keine vorhandenen Fahrzeug-Dashboards oder Entitäten verändert.
+      </div>`;
+    queueMicrotask(() => this.configChanged(this._config));
+  }
+
+  set hass(_hass) {}
+
+  configChanged(config) {
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        bubbles: true,
+        composed: true,
+        detail: { config },
+      })
+    );
+  }
+}
+
 customElements.define(
   "ll-strategy-dashboard-e-c3-dashboard",
   Ec3DashboardStrategy
+);
+customElements.define(
+  "e-c3-dashboard-strategy-editor",
+  Ec3DashboardStrategyEditor
 );
 
 window.customStrategies = window.customStrategies || [];
