@@ -12,7 +12,12 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
 from homeassistant.util import slugify
 
-from .const import AUTO_DASHBOARD_STORAGE_VERSION, AUTO_DASHBOARD_STRATEGY, DOMAIN
+from .const import (
+    AUTO_DASHBOARD_STORAGE_VERSION,
+    AUTO_DASHBOARD_STRATEGY,
+    DOMAIN,
+    LEGACY_AUTO_DASHBOARD_STRATEGY,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +49,10 @@ async def _async_has_matching_strategy(hass, entry_id: str) -> bool:
         except HomeAssistantError:
             continue
         strategy = dashboard_config.get("strategy")
-        if not isinstance(strategy, dict) or strategy.get("type") != AUTO_DASHBOARD_STRATEGY:
+        if not isinstance(strategy, dict) or strategy.get("type") not in {
+            AUTO_DASHBOARD_STRATEGY,
+            LEGACY_AUTO_DASHBOARD_STRATEGY,
+        }:
             continue
         selected_entry = strategy.get("entry_id")
         if selected_entry == entry_id:
@@ -54,6 +62,38 @@ async def _async_has_matching_strategy(hass, entry_id: str) -> bool:
         if selected_entry is None and package_entry_count == 1:
             return True
     return False
+
+
+async def _async_repair_legacy_generated_dashboard(hass, entry, marker: dict[str, Any]) -> None:
+    """Correct only the package-created 0.4.8 strategy configuration.
+
+    Version 0.4.8 omitted the required ``custom:`` prefix. The marker records
+    the exact dashboard created by this package, so this migration cannot touch
+    a user-created dashboard.
+    """
+    url_path = marker.get("url_path")
+    lovelace = hass.data.get(LOVELACE_DATA)
+    if not isinstance(url_path, str) or lovelace is None:
+        return
+    dashboard_config = lovelace.dashboards.get(url_path)
+    if dashboard_config is None:
+        return
+    try:
+        config = await dashboard_config.async_load(False)
+    except HomeAssistantError:
+        return
+    strategy = config.get("strategy")
+    if not isinstance(strategy, dict):
+        return
+    if (
+        strategy.get("type") != LEGACY_AUTO_DASHBOARD_STRATEGY
+        or strategy.get("entry_id") != entry.entry_id
+    ):
+        return
+    await dashboard_config.async_save(
+        {**config, "strategy": {**strategy, "type": AUTO_DASHBOARD_STRATEGY}}
+    )
+    _LOGGER.info("Repaired the e-C3 Dashboard strategy at /%s", url_path)
 
 
 async def async_ensure_dashboard(hass, entry) -> None:
@@ -68,6 +108,7 @@ async def async_ensure_dashboard(hass, entry) -> None:
     marker_store = _store(hass, entry.entry_id)
     marker = await marker_store.async_load() or {}
     if marker.get("handled"):
+        await _async_repair_legacy_generated_dashboard(hass, entry, marker)
         return
 
     lovelace = hass.data.get(LOVELACE_DATA)

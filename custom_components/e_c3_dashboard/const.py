@@ -36,7 +36,7 @@ DEFAULT_OPTIONS = {
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.4.8"
+FRONTEND_VERSION = "0.4.9"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (
     "/e_c3_dashboard/trip-history-card.js",
@@ -60,4 +60,5 @@ METRIC_KEYS = (
 )
 
 AUTO_DASHBOARD_STORAGE_VERSION = 1
-AUTO_DASHBOARD_STRATEGY = "e-c3-dashboard"
+AUTO_DASHBOARD_STRATEGY = "custom:e-c3-dashboard"
+LEGACY_AUTO_DASHBOARD_STRATEGY = "e-c3-dashboard"
