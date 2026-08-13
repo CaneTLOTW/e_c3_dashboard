@@ -85,6 +85,13 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return device.name_by_user or device.name or "e-C3"
 
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        """Expose user-configurable dashboard modules."""
+        return Ec3DashboardOptionsFlow()
+
+
 class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
     """Enable optional generated views without changing vehicle identity."""
 
@@ -111,8 +118,3 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
         )
         return self.async_show_form(step_id="init", data_schema=schema)
 
-
-@callback
-def async_get_options_flow(config_entry):
-    """Expose user-configurable dashboard modules."""
-    return Ec3DashboardOptionsFlow()
