@@ -59,11 +59,17 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for registry_entry in entries
             if registry_entry.config_entry_id in upstream_entry_ids
         ]
-        entity_mapping = {
-            registry_entry.translation_key: registry_entry.entity_id
-            for registry_entry in upstream_entities
-            if registry_entry.translation_key
-        }
+        entity_mapping: dict[str, str] = {}
+        for registry_entry in upstream_entities:
+            key = registry_entry.translation_key
+            if not key:
+                continue
+            # A few upstream capabilities deliberately share one translation
+            # key across domains (notably charge-limit number + switch).
+            # Preserve the domain-qualified address for the strategy instead
+            # of relying on entity registry iteration order.
+            entity_mapping[f"{key}_{registry_entry.domain}"] = registry_entry.entity_id
+            entity_mapping.setdefault(key, registry_entry.entity_id)
         tracker = entity_mapping.get("vehicle") or next(
             (
                 registry_entry.entity_id
