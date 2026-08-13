@@ -30,6 +30,7 @@ const TEXT = {
     foundation: "This view is prepared. Its portable data module will be added in the next implementation phase.",
     trackerUnavailable: "The selected Stellantis device currently has no usable vehicle tracker.",
     multipleVehicles: "More than one e-C3 Dashboard setup was found. Dashboard selection will be added with the multi-vehicle module.",
+    upstreamIncompatible: "Stellantis Vehicles is not compatible. Required: {minimum}; installed: {installed}.",
   },
   de: {
     name: "e-C3 Dashboard",
@@ -48,6 +49,7 @@ const TEXT = {
     foundation: "Dieser View ist vorbereitet. Das portable Datenmodul folgt in der nächsten Umsetzungsphase.",
     trackerUnavailable: "Das ausgewählte Stellantis-Gerät besitzt derzeit keinen nutzbaren Fahrzeug-Tracker.",
     multipleVehicles: "Es wurden mehrere e-C3-Dashboard-Einrichtungen gefunden. Die Auswahl folgt mit dem Mehrfahrzeug-Modul.",
+    upstreamIncompatible: "Stellantis Vehicles ist nicht kompatibel. Erforderlich: {minimum}; installiert: {installed}.",
   },
 };
 
@@ -137,6 +139,18 @@ ${strings.configure}`
     }
 
     const [statusEntity, statusState] = candidates[0];
+    const attributes = statusState.attributes || {};
+    const compatibility = attributes.upstream_compatibility || {};
+    if (compatibility.version_supported !== true) {
+      return setupDashboard(
+        hass,
+        strings.setup,
+        `## ${strings.upstreamIncompatible
+          .replace("{minimum}", compatibility.minimum_version || "—")
+          .replace("{installed}", compatibility.version || "—")}`
+      );
+    }
+
     const missing = REQUIRED_ELEMENTS
       .filter(([element]) => !customElements.get(element))
       .map(([, name]) => name);
@@ -153,7 +167,6 @@ ${strings.install}
       );
     }
 
-    const attributes = statusState.attributes || {};
     const tracker = attributes.vehicle_tracker;
     const modules = attributes.modules || {};
 
