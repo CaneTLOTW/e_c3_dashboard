@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
     OPTION_CHARGING,
     OPTION_GPS,
+    OPTION_HISTORY_HOURS,
     OPTION_NOTIFICATIONS,
     OPTION_TRIPS,
     OPTION_WAKEUP,
@@ -119,6 +120,18 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
                     OPTION_NOTIFICATIONS,
                     default=options[OPTION_NOTIFICATIONS],
                 ): bool,
+                vol.Required(
+                    OPTION_HISTORY_HOURS,
+                    default=options[OPTION_HISTORY_HOURS],
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=24,
+                        max=8760,
+                        step=24,
+                        unit_of_measurement="h",
+                        mode=selector.NumberSelectorMode.BOX,
+                    )
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
