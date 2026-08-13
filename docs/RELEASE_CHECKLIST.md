@@ -1,5 +1,14 @@
 # Release checklist
 
+## Branch flow
+
+- [ ] Development work is on `develop`; it has passed the repository checks
+      and been tested through the HACS `develop` version.
+- [ ] A pull request from `develop` to `main` describes the release scope and
+      has been reviewed before merge.
+- [ ] The GitHub release is created from the resulting `main` commit, never
+      directly from `develop`.
+
 Before changing repository visibility or publishing a release:
 
 - [x] Remove all private household references, exports and images.

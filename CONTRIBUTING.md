@@ -39,3 +39,9 @@ change an existing household dashboard as part of a package test.
 Describe the user-visible change, the upstream entity/capability it relies on,
 and how it was tested. Update documentation whenever setup, an entity, a
 calculation, a notification, or a dependency changes.
+
+Create work from the `develop` branch and open a pull request from `develop`
+to `main`. `main` contains user-ready releases only; do not commit directly to
+it. Maintainers may install the public `develop` branch through HACS in a
+designated development Home Assistant instance. It replaces the normal package
+directory, so it is not a way to run stable and development builds in parallel.
