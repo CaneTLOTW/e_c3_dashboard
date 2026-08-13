@@ -142,7 +142,15 @@ existing upstream engine/charging state changes, persist a compact local session
 cache, wait five minutes after ignition-off for delayed mileage, and do not add
 vehicle polling or alter upstream data.
 
-## Implemented V1 dashboard views\n\nThe portable core currently creates the following VIN-free views from the\nselected device mapping:\n\n- vehicle overview with battery, range, vehicle state, charging, climate,\n  remote connection and current map;\n- 90-day trip history and local ride-result data;\n- 90-day AC/DC charging history reconstructed from Recorder;\n- seven-day GPS history plus current map;\n- manual wake-up plus an integration/system diagnostics view.\n\nTrip and charging history cards are bundled under the project's namespaced\nstatic path. They use the browser locale for German/English labels and remain\nindependent from the original Stellantis vehicle card.\n\n## Reference-view fidelity
+## Implemented V1 dashboard views\n\nThe portable core currently creates the following VIN-free views from the\nselected device mapping:\n\n- vehicle overview with battery, range, vehicle state, charging, climate,\n  remote connection and current map;\n- 90-day trip history and local ride-result data;\n- 90-day AC/DC charging history reconstructed from Recorder;\n- seven-day GPS history plus current map;\n- manual wake-up plus an integration/system diagnostics view.\n\nTrip and charging history cards are bundled under the project's namespaced\nstatic path. They use the browser locale for German/English labels and remain\nindependent from the original Stellantis vehicle card.\n\n## Bundled Lovelace resources
+
+The strategy, trip-history card and charge-history/curve card are registered as
+three versioned, package-owned JavaScript modules. They use package-specific
+custom-element names. This prevents a fresh installation from relying on a
+similarly named resource that happened to be installed for another dashboard,
+and avoids clashes with the original household dashboard.
+
+## Reference-view fidelity
 
 The portable vehicle view follows the established e-C3 reference layout:
 Live vehicle card, consumption, quick actions, charging and range, vehicle
