@@ -157,6 +157,10 @@ function getStatusEntities(hass, entryId) {
     return (
       entityId.startsWith("sensor.") &&
       attributes.integration_domain === STATUS_DOMAIN &&
+      // Derived metrics carry the same integration marker.  Only the status
+      // sensor owns the complete entity mapping and therefore represents one
+      // configured vehicle.
+      typeof attributes.entity_mapping === "object" &&
       (!entryId || attributes.entry_id === entryId)
     );
   });
