@@ -43,7 +43,7 @@ function normalizeChargeType(value) {
     return null;
 }
 
-function extractIntervals(chargingStates, mergeGapMs) {
+function extractIntervals(chargingStates, mergeGapMs, includeActive = false) {
     const intervals = [];
     let start = null;
     let partialStart = false;
@@ -67,6 +67,13 @@ function extractIntervals(chargingStates, mergeGapMs) {
         start = null;
         partialStart = false;
         seenKnownState = true;
+    }
+
+    // A dashboard may explicitly request the still-running session for the
+    // live curve. The default remains completed sessions only, so historical
+    // tables are not altered by an in-progress charge.
+    if (includeActive && start !== null && !partialStart && Date.now() > start) {
+        intervals.push({ start, end: Date.now() });
     }
 
     const merged = [];
@@ -211,13 +218,16 @@ export function buildChargeSessions({
     capacityStates = [],
     fallbackCapacity = 43.4,
     mergeGapMinutes = 3,
+    includeActive = false,
 }) {
     const charging = normalizedStates(chargingStates);
     const soc = normalizedStates(socStates);
     const power = normalizedStates(powerStates);
     const modes = normalizedStates(modeStates);
     const capacities = normalizedStates(capacityStates);
-    const intervals = extractIntervals(charging, mergeGapMinutes * 60000);
+    const intervals = extractIntervals(
+        charging, mergeGapMinutes * 60000, includeActive
+    );
 
     return intervals.map((interval) => {
         const startState = stateAt(soc, interval.start);
