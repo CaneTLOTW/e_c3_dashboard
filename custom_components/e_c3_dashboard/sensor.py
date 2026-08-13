@@ -100,6 +100,7 @@ class Ec3DashboardStatusSensor(
                 "upstream_entity_count"
             ],
             "modules": self.coordinator.data["modules"],
+            "history_window_hours": self.coordinator.data["history_window_hours"],
             "upstream_compatibility": self.coordinator.data["upstream_compatibility"],
         }
 
