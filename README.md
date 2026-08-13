@@ -47,4 +47,4 @@ Home Assistant entities created by the upstream integration.
 
 ## License
 
-To be selected before the first public release.
+[MIT License](LICENSE) © 2026 CaneTLOTW.
