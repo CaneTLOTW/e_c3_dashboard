@@ -18,6 +18,7 @@ OPTION_CHARGING = "charging"
 OPTION_GPS = "gps"
 OPTION_WAKEUP = "wakeup"
 OPTION_NOTIFICATIONS = "notifications"
+OPTION_HISTORY_HOURS = "history_hours"
 
 DEFAULT_OPTIONS = {
     OPTION_TRIPS: True,
@@ -25,10 +26,13 @@ DEFAULT_OPTIONS = {
     OPTION_GPS: True,
     OPTION_WAKEUP: True,
     OPTION_NOTIFICATIONS: False,
+    # Dashboard query/display horizon only. Recorder retention remains under
+    # the user's global Home Assistant configuration.
+    OPTION_HISTORY_HOURS: 2160,
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.4.1"
+FRONTEND_VERSION = "0.4.2"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (
     "/e_c3_dashboard/trip-history-card.js",
