@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder import history as recorder_history
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.storage import Store
@@ -13,6 +15,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_VEHICLE_SLUG,
+    DEFAULT_OPTIONS,
     DOMAIN,
     METRIC_CURRENT_CHARGE_POWER,
     METRIC_CURRENT_TRIP_ENERGY,
@@ -20,6 +23,7 @@ from .const import (
     METRIC_LAST_CHARGE,
     METRIC_LAST_TRIP,
     METRIC_TRAILING_CONSUMPTION,
+    OPTION_HISTORY_HOURS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +51,7 @@ class VehicleMetricsManager:
             "active_charge": None,
             "charge_odometer_km": None,
             "charge_end_time": None,
+            "charge_baseline_source": None,
             "last_trip": None,
             "last_charge": None,
             "current_charge_power_kw": None,
@@ -87,6 +92,12 @@ class VehicleMetricsManager:
             self._schedule_charge_finalize(_RETRY_DELAY)
         elif self._is_on("battery_charging") and not self.data.get("active_charge"):
             await self.async_start_charge()
+
+        # A fresh installation must not wait for the next journey or charge.
+        # Reconcile only from Recorder data that the upstream integration has
+        # already persisted; this never triggers a Stellantis request.
+        if not self.data.get("trips") or not self.data.get("charge_odometer_km"):
+            self.hass.async_create_task(self._async_seed_from_recorder())
 
     async def async_shutdown(self) -> None:
         """Unsubscribe without changing any upstream state."""
@@ -329,6 +340,7 @@ class VehicleMetricsManager:
         if mileage is not None:
             self.data["charge_odometer_km"] = round(mileage, 3)
             self.data["charge_end_time"] = end_time.isoformat()
+            self.data["charge_baseline_source"] = "locally_observed_charge"
         self._normalise_charges()
         await self._save_and_refresh()
         self.hass.bus.async_fire(f"{DOMAIN}_charge_completed", charge)
@@ -379,6 +391,212 @@ class VehicleMetricsManager:
             return None
         return round(max(0, mileage - baseline), 2)
 
+    async def _async_seed_from_recorder(self) -> None:
+        """Backfill safe local baselines from already-recorded upstream data.
+
+        The Stellantis integration retains a timestamp for the latest charge
+        and a completed-trip row.  Their meaning is useful after a restart or
+        package installation, but it is intentionally kept separate from the
+        richer sessions observed live by this package.
+        """
+        if self._is_on("battery_charging"):
+            return
+        end = dt_util.utcnow()
+        start = end - timedelta(hours=self._history_hours())
+
+        if not self.data.get("trips"):
+            await self._async_seed_trips(start, end)
+        await self._async_seed_charge_baseline(start, end)
+
+    async def _async_seed_charge_baseline(self, start, end) -> None:
+        """Recover the latest charge boundary from upstream plus Recorder."""
+        last_charge_entity = self.mapping.get("last_charge")
+        last_charge_state = self.hass.states.get(last_charge_entity) if last_charge_entity else None
+        charge_end = dt_util.parse_datetime(last_charge_state.state) if last_charge_state else None
+        if charge_end is None or charge_end < start or charge_end > end + timedelta(minutes=5):
+            return
+
+        stored_end = dt_util.parse_datetime(str(self.data.get("charge_end_time") or ""))
+        if (
+            self._as_float(self.data.get("charge_odometer_km")) is not None
+            and stored_end is not None
+            and stored_end >= charge_end
+        ):
+            return
+
+        mileage_entity = self.mapping.get("mileage")
+        if not mileage_entity:
+            return
+        try:
+            # Include the state at the query boundary: mileage often changes
+            # only after a later drive, while the last known value at charge
+            # completion is exactly the desired baseline.
+            mileage_history = await self._async_get_history(
+                mileage_entity,
+                charge_end - timedelta(minutes=2),
+                charge_end + timedelta(minutes=15),
+            )
+        except Exception as err:  # Recorder remains optional for live use.
+            _LOGGER.debug("Could not seed e-C3 charge baseline from Recorder: %s", err)
+            return
+
+        before_end = []
+        for state in mileage_history:
+            state_time = self._history_timestamp(state)
+            if state_time is not None and state_time <= charge_end:
+                before_end.append(state)
+        candidates = before_end or mileage_history[:1]
+        if not candidates:
+            return
+        odometer = self._as_float(self._history_value(candidates[-1]))
+        if odometer is None or odometer < 0:
+            return
+
+        self.data["charge_odometer_km"] = round(odometer, 3)
+        self.data["charge_end_time"] = charge_end.isoformat()
+        self.data["charge_baseline_source"] = "upstream_last_charge_recorder"
+        await self._save_and_refresh()
+        _LOGGER.info("Seeded e-C3 charge baseline at %.3f km", odometer)
+
+    async def _async_seed_trips(self, start, end) -> None:
+        """Import usable historic upstream trip rows for the 500-km window."""
+        trip_entity = self.mapping.get("last_trip")
+        soc_entity = self.mapping.get("battery")
+        if not trip_entity or not soc_entity:
+            return
+        try:
+            trip_history = await self._async_get_history(trip_entity, start, end)
+            soc_history = await self._async_get_history(soc_entity, start, end)
+        except Exception as err:  # Recorder is not required after live data exists.
+            _LOGGER.debug("Could not seed e-C3 trip metrics from Recorder: %s", err)
+            return
+
+        imported: list[dict[str, Any]] = []
+        for state in trip_history:
+            trip = self._trip_from_upstream_history(state, soc_history)
+            if trip is not None:
+                imported.append(trip)
+        if not imported:
+            return
+
+        existing_ids = {str(item.get("id")) for item in self.data.get("trips", [])}
+        self.data["trips"].extend(
+            trip for trip in imported if str(trip.get("id")) not in existing_ids
+        )
+        self._normalise_trips()
+        await self._save_and_refresh()
+        _LOGGER.info("Seeded e-C3 500-km window with %s historic trips", len(imported))
+
+    async def _async_get_history(self, entity_id: str, start, end) -> list[Any]:
+        """Read a bounded Recorder history without blocking the event loop."""
+        history = await get_instance(self.hass).async_add_executor_job(
+            recorder_history.get_significant_states,
+            self.hass,
+            start,
+            end,
+            [entity_id],
+        )
+        return history.get(entity_id, [])
+
+    def _trip_from_upstream_history(
+        self, state: Any, soc_history: list[Any]
+    ) -> dict[str, Any] | None:
+        """Turn one upstream completed-trip row into a conservative estimate."""
+        distance = self._as_float(self._history_value(state))
+        attributes = self._history_attributes(state)
+        end_time = self._history_timestamp(state)
+        duration_seconds = self._duration_seconds(attributes.get("duration"))
+        start_mileage = self._as_float(attributes.get("start_mileage"))
+        if (
+            distance is None
+            or distance <= 0
+            or distance > 1000
+            or end_time is None
+            or duration_seconds is None
+            or duration_seconds <= 0
+            or duration_seconds > 24 * 3600
+            or start_mileage is None
+        ):
+            return None
+
+        start_time = end_time - timedelta(seconds=duration_seconds)
+        start_soc = self._history_number_at(soc_history, start_time)
+        end_soc = self._history_number_at(soc_history, end_time)
+        if start_soc is None or end_soc is None or start_soc < end_soc:
+            return None
+        capacity = self._capacity()
+        energy = round((start_soc - end_soc) * capacity / 100, 3)
+        if energy < 0 or energy > capacity:
+            return None
+        return {
+            "id": f"upstream-history:{end_time.isoformat()}",
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            "duration_seconds": duration_seconds,
+            "duration": self._duration_text(duration_seconds),
+            "distance_km": round(distance, 3),
+            "start_mileage": round(start_mileage, 3),
+            "end_mileage": round(start_mileage + distance, 3),
+            "average_speed": self._as_float(attributes.get("avg_speed")),
+            "soc_start": start_soc,
+            "soc_end": end_soc,
+            "capacity_kwh": round(capacity, 2),
+            "energy_kwh": energy,
+            "energy_per_100_km": round(energy / distance * 100, 2),
+            "estimated": True,
+            "source": "upstream_history",
+        }
+
+    def _history_hours(self) -> int:
+        try:
+            configured = int(
+                self.entry.options.get(
+                    OPTION_HISTORY_HOURS, DEFAULT_OPTIONS[OPTION_HISTORY_HOURS]
+                )
+            )
+        except (TypeError, ValueError):
+            configured = DEFAULT_OPTIONS[OPTION_HISTORY_HOURS]
+        return max(24, min(configured, 24 * 90))
+
+    @staticmethod
+    def _history_value(state: Any) -> Any:
+        return state.state if hasattr(state, "state") else state.get("state")
+
+    @staticmethod
+    def _history_attributes(state: Any) -> dict[str, Any]:
+        attributes = state.attributes if hasattr(state, "attributes") else state.get("attributes")
+        return attributes if isinstance(attributes, dict) else {}
+
+    @staticmethod
+    def _history_timestamp(state: Any) -> datetime | None:
+        value = state.last_updated if hasattr(state, "last_updated") else state.get("last_updated")
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return dt_util.parse_datetime(value)
+        return None
+
+    def _history_number_at(self, states: list[Any], timestamp) -> float | None:
+        value = None
+        for state in states:
+            updated = self._history_timestamp(state)
+            if updated is None or updated > timestamp:
+                break
+            candidate = self._as_float(self._history_value(state))
+            if candidate is not None:
+                value = candidate
+        return value
+
+    @staticmethod
+    def _duration_seconds(value: Any) -> int | None:
+        try:
+            hours, minutes, seconds = (int(part) for part in str(value).split(":"))
+        except (TypeError, ValueError):
+            return None
+        if min(hours, minutes, seconds) < 0 or minutes >= 60 or seconds >= 60:
+            return None
+        return hours * 3600 + minutes * 60 + seconds
+
     async def _save_and_refresh(self) -> None:
         self.data["updated_at"] = dt_util.utcnow().isoformat()
         await self._store.async_save(self.data)
@@ -423,6 +641,11 @@ class VehicleMetricsManager:
     @staticmethod
     def _as_float(value: Any) -> float | None:
         try:
+            if isinstance(value, str):
+                # Native Stellantis result attributes include values such as
+                # "558.0 km" and "41.62 km/h".  Their numeric prefix is the
+                # documented value; live sensor states remain plain numbers.
+                value = value.replace(",", ".").strip().split(maxsplit=1)[0]
             return float(value)
         except (TypeError, ValueError):
             return None

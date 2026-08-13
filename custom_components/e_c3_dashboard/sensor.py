@@ -184,7 +184,7 @@ class Ec3TrailingConsumptionSensor(Ec3MetricSensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         data = super().extra_state_attributes
         data.update(self.metrics.trailing_consumption())
-        data["source"] = "local completed trips"
+        data["source"] = "local completed trips and Recorder-reconstructed upstream trips"
         return data
 
 
@@ -209,7 +209,8 @@ class Ec3DistanceSinceChargeSensor(Ec3MetricSensor):
             {
                 "charge_odometer_km": self.metrics.data.get("charge_odometer_km"),
                 "charge_end_time": self.metrics.data.get("charge_end_time"),
-                "source": "local completed charge",
+                "baseline_source": self.metrics.data.get("charge_baseline_source"),
+                "source": "upstream last-charge timestamp plus local Recorder mileage",
             }
         )
         return data

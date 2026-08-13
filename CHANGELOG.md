@@ -12,6 +12,10 @@ and uses [Semantic Versioning](https://semver.org/).
 - A dedicated e-C3 dashboard is created automatically after a successful
   config-entry setup. It is isolated, per-vehicle, created only once and never
   overwritten or deleted by the package.
+- First-start reconciliation for the two rolling metrics: the package derives
+  the last-charge odometer baseline from the upstream **Last charge** timestamp
+  plus Recorder history, and imports conservative historic native trip rows
+  for the partial 500-km consumption window.
 
 ### Fixed
 

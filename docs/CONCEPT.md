@@ -115,12 +115,15 @@ sensor.<vehicle>_dashboard_current_charge_power
 sensor.<vehicle>_dashboard_last_local_charge_result
 ```
 
-Upstream recorder history may still be used to display native Stellantis
-states such as charge state, SOC, last trip and position. Older rows can
-therefore be shown where the upstream integration provides them, but package
-derived energy values start with the package installation. This is preferable
-to silently binding a shared dashboard to non-portable, installation-specific
-helpers.
+Upstream Recorder history is also used for a bounded, best-effort first-start
+reconciliation: the native **Last charge** timestamp is paired with the
+odometer at that time, and suitable native **Last trip** rows can establish a
+partial 500-km consumption window. This does not invent missing data: a
+historic trip is accepted only when distance, start mileage, duration and SOC
+boundaries are present. Rich charge rows, charging curves and future live
+sessions still begin when the package observes them itself. This remains
+portable because only the selected upstream device and the user's own
+Recorder are read; no household helper is used.
 
 ## Modules
 
