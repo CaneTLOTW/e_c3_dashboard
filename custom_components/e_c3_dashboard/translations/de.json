@@ -1,0 +1,37 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Fahrzeug auswählen",
+        "description": "Wähle ein Fahrzeug aus, das bereits durch Stellantis Vehicles eingerichtet wurde.",
+        "data": {
+          "vehicle_device_id": "Stellantis-Fahrzeug",
+          "vehicle_slug": "Fahrzeugkennung"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Das ausgewählte Gerät gehört nicht zu Stellantis Vehicles.",
+      "invalid_slug": "Gib eine gültige Fahrzeugkennung ein."
+    },
+    "abort": {
+      "missing_upstream": "Richte zuerst Stellantis Vehicles und ein Fahrzeug ein.",
+      "already_configured": "Für dieses Fahrzeug existiert bereits ein e-C3-Dashboard."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dashboard-Module",
+        "data": {
+          "trips": "Fahrtenhistorie",
+          "charging": "Ladehistorie und Ladekurven",
+          "gps": "GPS-Historie",
+          "wakeup": "Wake-up-Diagnose",
+          "notifications": "Benachrichtigungsadapter"
+        }
+      }
+    }
+  }
+}
