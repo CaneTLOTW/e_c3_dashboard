@@ -62,6 +62,30 @@ helpers, legacy dashboards, or manually created sensors.
   upstream polling.
 
 
+## Recorder retention: required user check
+
+The **History display window** option is a dashboard query limit, not a data
+retention setting. It defaults to 2,160 hours (90 days) and can be changed in
+**Settings → Devices & services → e-C3 Dashboard → Configure**.
+
+Before relying on a chosen window, the user must verify the Home Assistant
+Recorder configuration:
+
+1. `purge_keep_days` must be at least as long as the desired history window.
+   Home Assistant's default is 10 days, so the default 90-day package view
+   cannot show 90 days unless the user increases Recorder retention.
+2. If Recorder uses an `include` allowlist, it must include the selected
+   Stellantis vehicle tracker and the upstream battery, charging state,
+   charging type/capacity, and last-trip entities used by the views, as well as
+   the package-owned local result sensors.
+3. The user should size database retention for their storage and backup
+   capacity. This package never changes Recorder retention, filters, database,
+   or purge schedule.
+
+If less history exists than the display window, the cards show the available
+subset without creating an error or attempting to reconstruct missing data.
+InfluxDB remains optional for long-term analysis outside this package.
+
 ## Components that do not create Home Assistant entities
 
 The entities above are only one part of the package. The following components
