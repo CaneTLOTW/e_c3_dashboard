@@ -45,6 +45,7 @@ const TEXT = {
     currentTripEnergy: "Current trip energy",
     tripHistory: "Trip history",
     chargeHistory: "Charging history",
+    chargeCurves: "Charging curves",
     recentTrack: "Recent route",
     currentPosition: "Current position",
     manualWakeup: "Wake vehicle now",
@@ -91,6 +92,7 @@ const TEXT = {
     currentTripEnergy: "Aktuelle Fahrtenergie",
     tripHistory: "Fahrtenhistorie",
     chargeHistory: "Ladehistorie",
+    chargeCurves: "Ladekurven",
     recentTrack: "Letzte Route",
     currentPosition: "Aktuelle Position",
     manualWakeup: "Fahrzeug jetzt aufwecken",
@@ -322,6 +324,29 @@ ${strings.install}
         heading_style: "title",
         badges: [{ type: "entity", entity: statusEntity, show_state: true, show_name: false }],
       },
+      tracker
+        ? {
+            type: "custom:button-card",
+            entity: entity("battery") || tracker,
+            show_name: false,
+            show_state: false,
+            show_icon: false,
+            tap_action: { action: "more-info" },
+            custom_fields: {
+              vehicle_image: `[[[
+                const picture = states["${tracker}"]?.attributes?.entity_picture;
+                return picture
+                  ? \`<img src="\${picture}" alt="" style="width:100%;height:100%;object-fit:contain">\`
+                  : '<ha-icon icon="mdi:car-electric" style="width:110px;height:110px"></ha-icon>';
+              ]]]`,
+            },
+            styles: {
+              card: [{ height: "180px" }, { padding: "10px" }, { overflow: "hidden" }],
+              custom_fields: { vehicle_image: [{ width: "100%" }, { height: "160px" }, { display: "flex" }, { "align-items": "center" }, { "justify-content": "center" }] },
+            },
+            grid_options: { columns: "full", rows: 4 },
+          }
+        : null,
       bubble("battery", strings.battery, "mdi:battery", [
         subState("autonomy", strings.range, "mdi:map-marker-distance"),
         subState("battery_capacity", "kWh", "mdi:battery-medium"),
@@ -429,6 +454,18 @@ ${strings.install}
               capacity_entity: entity("battery_capacity"),
               hours_to_show: 2160,
               max_sessions: 50,
+              fallback_capacity_kwh: 43.4,
+              grid_options: { columns: "full" },
+            },
+            {
+              type: "custom:codex-stellantis-charge-curve-browser-card-v1",
+              title: strings.chargeCurves,
+              charging_entity: entity("battery_charging"),
+              soc_entity: entity("battery"),
+              power_entity: entity("battery_charging_rate"),
+              mode_entity: entity("battery_charging_type"),
+              capacity_entity: entity("battery_capacity"),
+              hours_to_show: 2160,
               fallback_capacity_kwh: 43.4,
               grid_options: { columns: "full" },
             },
