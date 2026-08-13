@@ -49,8 +49,9 @@ downloaded in HACS).
    Enable **Notification and recipient controls**, choose one or more existing
    Home Assistant Notify services, and submit the options form if you want to
    use vehicle notifications.
-5. Open **Settings → Dashboards → Add dashboard** and choose **e-C3 Dashboard**
-   from Community dashboards.
+5. The integration creates a new **e-C3** dashboard automatically. Open it from
+   the sidebar after setup. It is created once, never overwrites an existing
+   dashboard, and is not deleted with the integration.
 
 Installation never sends a notification and never performs an automatic
 wake-up. The generated **Notifications** and **Wake-up** views contain all

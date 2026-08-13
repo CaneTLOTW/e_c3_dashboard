@@ -21,6 +21,7 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import Ec3DashboardCoordinator
+from .dashboard import async_ensure_dashboard, async_remove_dashboard_marker
 from .metrics import VehicleMetricsManager
 from .notifications import VehicleNotificationManager
 
@@ -131,6 +132,7 @@ async def async_setup_entry(
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_ensure_dashboard(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
@@ -160,6 +162,7 @@ async def async_remove_entry(
     slug = entry.data[CONF_VEHICLE_SLUG]
     await Store(hass, 1, f"{DOMAIN}_{slug}_metrics").async_remove()
     await Store(hass, 1, f"{DOMAIN}_{slug}_notifications").async_remove()
+    await async_remove_dashboard_marker(hass, entry.entry_id)
 
 
 async def _async_reload_entry(

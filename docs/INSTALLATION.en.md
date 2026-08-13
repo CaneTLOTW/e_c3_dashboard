@@ -33,17 +33,16 @@ for it and then hard-refresh the browser.
 5. Go to **Settings → Devices & services → Add integration**.
 6. Select **e-C3 Dashboard**, select the vehicle and provide a unique local
    slug.
-7. Open **Settings → Dashboards → Add dashboard**.
-8. Choose **e-C3 Dashboard** under **Community dashboards**.
+7. The package creates a dedicated **e-C3** dashboard automatically. Refresh
+   the browser once and open it from the sidebar.
 
 ## More than one vehicle
 
 You can add one e-C3 Dashboard config entry for each Stellantis vehicle; every
 entry has its own selected device, slug, derived entities, private state, and
-notification controls. The current Community Dashboard picker deliberately
-creates one dashboard only when exactly one package entry exists. For multiple
-vehicles, it shows a clear setup message instead of guessing the vehicle. A
-picker for one generated dashboard per vehicle is a follow-up feature.
+notification controls. The package creates one dashboard per entry and stores
+the explicit config-entry ID in that dashboard's strategy, so multiple vehicles
+never depend on dashboard order or a guessed vehicle.
 
 Notifications are inactive by default. To use them, open the e-C3 Dashboard
 **Configure** dialog after setup, enable notification controls, select one or

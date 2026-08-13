@@ -9,6 +9,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A dedicated e-C3 dashboard is created automatically after a successful
+  config-entry setup. It is isolated, per-vehicle, created only once and never
+  overwritten or deleted by the package.
 - Portable configuration flow, entity mapping, Community Dashboard strategy,
   trip/charging/GPS views, local estimates, optional notifications, and
   wake-up diagnostics.

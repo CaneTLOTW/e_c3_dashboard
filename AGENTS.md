@@ -49,6 +49,6 @@ python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
 git diff --check
 ```
 
-Test a fresh config entry and the Community Dashboard picker on a non-production
-dashboard before changing a user's existing vehicle dashboard. Keep HACS,
-Home Assistant Core and Stellantis Vehicles compatibility explicit in the docs.
+Test a fresh config entry and its automatically created dashboard on a
+non-production instance before changing dashboard onboarding. Keep HACS, Home
+Assistant Core and Stellantis Vehicles compatibility explicit in the docs.

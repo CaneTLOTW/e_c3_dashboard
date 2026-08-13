@@ -19,8 +19,7 @@ HACS install
   → Home Assistant restart
   → Settings / Devices & services / e-C3 Dashboard
   → Select connected Stellantis vehicle and modules
-  → Settings / Dashboards / Add dashboard
-  → Community dashboard: e-C3 Dashboard
+  → Dedicated e-C3 dashboard appears in the sidebar
 ```
 
 No vehicle identification number, raw entity ID or copied YAML is part of the
@@ -70,13 +69,17 @@ During setup the integration:
 
 1. serves its bundled frontend module from a namespaced static path;
 2. registers the module with Home Assistant;
-3. registers `custom:e-c3-dashboard` as a Community Dashboard strategy.
+3. registers `custom:e-c3-dashboard` as a Community Dashboard strategy;
+4. creates a new storage dashboard once for each completed package setup.
 
-The strategy creates the dashboard's views dynamically. This avoids modifying
-Home Assistant's internal Lovelace storage files and allows a user to add the
-dashboard through the normal UI. A tiny YAML strategy dashboard is documented
-as a safe local fallback for HA frontend versions where the Community Dashboard
-picker fails to advance after selection.
+The strategy creates the dashboard's views dynamically. Home Assistant does
+not currently expose a public integration API for dashboard creation, so the
+package uses the same Lovelace storage path used internally by Home Assistant
+and pins that behavior to the supported HA baseline. It never modifies,
+replaces, recreates, or removes a user dashboard. A persistent per-entry marker
+prevents recreating a dashboard after a user intentionally deletes it. A tiny
+YAML strategy dashboard remains a safe local fallback for frontend versions
+where the Community Dashboard picker is preferred.
 
 ## Vehicle mapping
 
@@ -87,11 +90,9 @@ user-chosen vehicle slug. It verifies that the device belongs to a
 Entity mapping is resolved from the selected device's entity-registry entries,
 not guessed from a VIN prefix. Each dashboard config entry owns its own derived
 entities, persistent storage, events and services under its slug. This permits
-more than one vehicle in a Home Assistant installation. The current Community
-Dashboard picker intentionally stops with a clear setup message if it finds
-more than one package entry without an explicit selection. Full picker support
-for one generated dashboard per vehicle is a follow-up feature; it is not
-silently guessed from dashboard order.
+more than one vehicle in a Home Assistant installation: every automatically
+created dashboard contains the explicit config-entry ID in its strategy and
+therefore never guesses a vehicle from dashboard order.
 
 ## Data contract and entity ownership
 
