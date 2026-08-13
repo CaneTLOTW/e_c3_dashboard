@@ -67,7 +67,9 @@ During setup the integration:
 
 The strategy creates the dashboard's views dynamically. This avoids modifying
 Home Assistant's internal Lovelace storage files and allows a user to add the
-dashboard through the normal UI.
+dashboard through the normal UI. A tiny YAML strategy dashboard is documented
+as a safe local fallback for HA frontend versions where the Community Dashboard
+picker fails to advance after selection.
 
 ## Vehicle mapping
 
@@ -107,10 +109,12 @@ sensor.<slug>_average_consumption_500_km
 sensor.<slug>_distance_since_last_charge
 ```
 
-The calculations use locally emitted, completed trip/charge data and are
-restart-safe. They do not add vehicle polling or alter upstream data.
+The calculations are now implemented inside the config entry. They listen only to
+existing upstream engine/charging state changes, persist a compact local session
+cache, wait five minutes after ignition-off for delayed mileage, and do not add
+vehicle polling or alter upstream data.
 
-## Notifications
+## Implemented V1 dashboard views\n\nThe portable core currently creates the following VIN-free views from the\nselected device mapping:\n\n- vehicle overview with battery, range, vehicle state, charging, climate,\n  remote connection and current map;\n- 90-day trip history and local ride-result data;\n- 90-day AC/DC charging history reconstructed from Recorder;\n- seven-day GPS history plus current map;\n- manual wake-up plus an integration/system diagnostics view.\n\nTrip and charging history cards are bundled under the project's namespaced\nstatic path. They use the browser locale for German/English labels and remain\nindependent from the original Stellantis vehicle card.\n\n## Notifications
 
 Notifications are deliberately decoupled from a particular household. The
 integration exposes a notification event/service contract; a user's automation
