@@ -82,6 +82,34 @@ not guessed from a VIN prefix. Each dashboard config entry owns its own derived
 entities, persistent storage, events and services under its slug. This permits
 more than one vehicle in a Home Assistant installation.
 
+## Data contract and entity ownership
+
+The package has a strict portability boundary:
+
+- It reads vehicle data only from entities that belong to the selected
+  `stellantis_vehicles` device.
+- Every calculated value, result row and persistent session record is created
+  by `e_c3_dashboard` itself and is namespaced by its config entry.
+- It must never reference a household helper, a manually created sensor, or a
+  legacy entity from the original dashboard as a fallback.
+
+This applies in particular to trip energy, charge energy, charge power and
+their history. New local result entities are intentionally the only source for
+those package-derived values:
+
+```text
+sensor.<vehicle>_dashboard_last_local_trip_result
+sensor.<vehicle>_dashboard_current_charge_power
+sensor.<vehicle>_dashboard_last_local_charge_result
+```
+
+Upstream recorder history may still be used to display native Stellantis
+states such as charge state, SOC, last trip and position. Older rows can
+therefore be shown where the upstream integration provides them, but package
+derived energy values start with the package installation. This is preferable
+to silently binding a shared dashboard to non-portable, installation-specific
+helpers.
+
 ## Modules
 
 | Module | V1 role | Data retention |
