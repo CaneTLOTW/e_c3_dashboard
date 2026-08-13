@@ -24,6 +24,22 @@ const TEXT = {
     status: "Connection and setup status",
     vehicle: "Vehicle",
     overview: "Overview",
+    live: "Live",
+    consumptionUsage: "Consumption & usage",
+    quickActions: "Quick actions",
+    chargingRange: "Charging & range",
+    chargeLimit: "Charging limit",
+    chargeStart: "Charging start",
+    highVoltageBattery: "High-voltage battery",
+    lastCharge: "Last charge",
+    batteryHealthCapacity: "SOH capacity",
+    batteryHealthResistance: "SOH resistance",
+    position: "Position",
+    vehicleDetails: "Vehicle",
+    batteryHealth: "Battery health",
+    latestActivities: "Latest activity",
+    settings: "Settings",
+    commandStatus: "Last remote command",
     battery: "Battery",
     range: "Range",
     mileage: "Odometer",
@@ -71,6 +87,22 @@ const TEXT = {
     status: "Verbindungs- und Einrichtungsstatus",
     vehicle: "Fahrzeug",
     overview: "Übersicht",
+    live: "Live",
+    consumptionUsage: "Verbrauch & Nutzung",
+    quickActions: "Schnellaktionen",
+    chargingRange: "Laden & Reichweite",
+    chargeLimit: "Ladelimit",
+    chargeStart: "Ladebeginn",
+    highVoltageBattery: "Hochvoltbatterie",
+    lastCharge: "Letzte Ladung",
+    batteryHealthCapacity: "SOH Kapazität",
+    batteryHealthResistance: "SOH Widerstand",
+    position: "Position",
+    vehicleDetails: "Fahrzeug",
+    batteryHealth: "Batteriegesundheit",
+    latestActivities: "Letzte Aktivitäten",
+    settings: "Einstellungen",
+    commandStatus: "Letzter Fernbefehl",
     battery: "Batterie",
     range: "Reichweite",
     mileage: "Kilometerstand",
@@ -277,7 +309,7 @@ ${strings.install}
           }
         : null;
     };
-    const bubble = (key, name, icon, subButton = []) => {
+    const bubble = (key, name, icon, subButton = [], columns = "full") => {
       const entityId = entity(key);
       return entityId
         ? {
@@ -292,7 +324,7 @@ ${strings.install}
             card_layout: "large",
             button_action: { tap_action: { action: "more-info" } },
             sub_button: subButton.filter(Boolean),
-            grid_options: { columns: "full" },
+            grid_options: { columns },
           }
         : null;
     };
@@ -330,92 +362,140 @@ ${strings.install}
     };
     const present = (cards) => cards.filter(Boolean);
 
-    const vehicleCards = present([
-      {
-        type: "heading",
-        heading: strings.overview,
-        icon: "mdi:car-electric",
-        heading_style: "title",
-        badges: [{ type: "entity", entity: statusEntity, show_state: true, show_name: false }],
-      },
-      tracker
-        ? {
-            type: "custom:button-card",
-            entity: entity("battery") || tracker,
-            show_name: false,
-            show_state: false,
-            show_icon: false,
-            tap_action: { action: "more-info" },
-            custom_fields: {
-              vehicle_image: `[[[
-                const picture = states["${tracker}"]?.attributes?.entity_picture;
-                return picture
-                  ? \`<img src="\${picture}" alt="" style="width:100%;height:100%;object-fit:contain">\`
-                  : '<ha-icon icon="mdi:car-electric" style="width:110px;height:110px"></ha-icon>';
-              ]]]`,
-            },
-            styles: {
-              card: [{ height: "180px" }, { padding: "10px" }, { overflow: "hidden" }],
-              custom_fields: { vehicle_image: [{ width: "100%" }, { height: "160px" }, { display: "flex" }, { "align-items": "center" }, { "justify-content": "center" }] },
-            },
-            grid_options: { columns: "full", rows: 4 },
-          }
-        : null,
-      bubble("battery", strings.battery, "mdi:battery", [
-        subState("autonomy", strings.range, "mdi:map-marker-distance"),
-        subState("battery_capacity", "kWh", "mdi:battery-medium"),
-      ]),
-      tile("autonomy", strings.range, "mdi:map-marker-distance"),
-      tile("mileage", strings.mileage, "mdi:road-variant"),
-      tile("temperature", strings.temperature, "mdi:thermometer"),
-      tile("service_battery_voltage", "12 V", "mdi:car-battery"),
-      tile("doors", strings.doors, "mdi:car-door"),
-      tile("alarm", strings.alarm, "mdi:shield-lock"),
-      tile("privacy_mode", strings.privacy, "mdi:shield-account", 12),
-      metric("trailing_consumption_500km")
-        ? { type: "tile", entity: metric("trailing_consumption_500km"), name: strings.trailingConsumption, icon: "mdi:lightning-bolt-circle", vertical: false, grid_options: { columns: 6 } }
-        : null,
-      metric("distance_since_charge")
-        ? { type: "tile", entity: metric("distance_since_charge"), name: strings.distanceSinceCharge, icon: "mdi:map-marker-distance", vertical: false, grid_options: { columns: 6 } }
-        : null,
-      metric("current_trip_energy")
-        ? { type: "tile", entity: metric("current_trip_energy"), name: strings.currentTripEnergy, icon: "mdi:battery-minus", vertical: false, grid_options: { columns: 12 } }
-        : null,
-      bubble("remote_commands", strings.remote, "mdi:car-wireless", [
-        press("wakeup", strings.manualWakeup, "mdi:car-key"),
-      ]),
-      bubble("preconditioning", strings.climate, "mdi:air-conditioner", [
-        press("preconditioning_start", strings.startClimate, "mdi:fan"),
-        press("preconditioning_stop", strings.stopClimate, "mdi:fan-off"),
-      ]),
-      bubble("battery_charging", strings.chargeStatus, "mdi:battery-charging", [
-        subState("battery_charging_type", "AC/DC", "mdi:current-ac"),
-        subState("battery_charging_end", "Ende", "mdi:clock-end"),
-        press("charge_start", strings.startCharging, "mdi:play"),
-        press("charge_stop", strings.stopCharging, "mdi:stop"),
-      ]),
-      tile("battery_plugged", strings.cable, "mdi:ev-plug-type2", 12),
-    ]);
+    const separator = (name, icon) => ({
+      type: "custom:bubble-card",
+      card_type: "separator",
+      name,
+      icon,
+    });
 
-    if (tracker) {
-      vehicleCards.push({
-        type: "custom:map-card",
-        focus_entity: tracker,
-        zoom: 15,
-        entities: [{ entity: tracker }],
-        grid_options: { columns: "full", rows: 7 },
-      });
-    } else {
-      vehicleCards.push(markdown(`**${strings.trackerUnavailable}**`));
-    }
+    const hero = tracker && entity("battery") ? {
+      type: "custom:button-card",
+      entity: entity("battery"),
+      show_name: false,
+      show_state: false,
+      show_icon: false,
+      tap_action: { action: "more-info" },
+      custom_fields: {
+        vehicle_image: `[[[
+          const picture = states["${tracker}"]?.attributes?.entity_picture;
+          return picture
+            ? '<img src="' + picture + '" alt="" style="width:100%;height:100%;object-fit:contain">'
+            : '<ha-icon icon="mdi:car-electric" style="width:130px;height:130px;color:var(--primary-color)"></ha-icon>';
+        ]]]`,
+        range: `[[[
+          const e = states["${entity("autonomy")}"];
+          const value = Number(e?.state);
+          return '<span class="ec3-chip"><ha-icon icon="mdi:map-marker-distance"></ha-icon>' +
+            (Number.isFinite(value) ? Math.round(value) + ' km' : '— km') + '</span>';
+        ]]]`,
+        status: `[[[
+          const charging = states["${entity("battery_charging")}"]?.state === 'on';
+          const active = charging ? states["${entity("battery_charging_end")}"] : states["${entity("temperature")}"];
+          const value = active?.state;
+          const unit = active?.attributes?.unit_of_measurement || '';
+          const icon = charging ? 'mdi:clock-end' : 'mdi:thermometer';
+          return '<span class="ec3-chip"><ha-icon icon="' + icon + '"></ha-icon>' +
+            (value && !['unknown', 'unavailable'].includes(value) ? value + (unit ? ' ' + unit : '') : '—') + '</span>';
+        ]]]`,
+        climate: `[[[ return states["${entity("preconditioning")}"]?.state === 'on' ? '<span class="ec3-indicator blue"><ha-icon icon="mdi:air-conditioner"></ha-icon></span>' : ''; ]]]`,
+        cable: `[[[ return states["${entity("battery_plugged")}"]?.state === 'on' ? '<span class="ec3-indicator green"><ha-icon icon="mdi:ev-plug-type2"></ha-icon></span>' : ''; ]]]`,
+        driving: `[[[ return states["${entity("engine")}"]?.state === 'on' ? '<span class="ec3-indicator driving"><ha-icon icon="mdi:lightning-bolt"></ha-icon></span>' : ''; ]]]`,
+        battery_bar: `[[[
+          const soc = Math.max(0, Math.min(100, Number(entity.state) || 0));
+          const charging = states["${entity("battery_charging")}"]?.state === 'on';
+          const driving = states["${entity("engine")}"]?.state === 'on';
+          const power = states["${entity("battery_charging_rate")}"];
+          const label = charging
+            ? '${strings.chargeStatus}' + (Number.isFinite(Number(power?.state)) ? ' · ' + Number(power.state).toFixed(1) + ' kW' : '')
+            : driving ? '${strings.currentTripEnergy}' : '${strings.battery}';
+          const color = charging ? 'rgba(76,175,80,.96)' : 'rgba(33,150,243,.96)';
+          const pulse = charging || driving ? ' ec3-pulse' : '';
+          return '<div class="ec3-battery' + pulse + '" style="background:linear-gradient(90deg,' + color + ' ' + soc + '%,rgba(20,20,20,.64) ' + soc + '%)"><span>' + label + '</span><strong>' + Math.round(soc) + ' %</strong></div>';
+        ]]]`,
+      },
+      styles: {
+        card: [{ position: "relative" }, { height: "270px" }, { padding: 0 }, { overflow: "hidden" }, { "border-radius": "12px" }],
+        custom_fields: {
+          vehicle_image: [{ position: "absolute" }, { inset: "0" }, { display: "flex" }, { "align-items": "center" }, { "justify-content": "center" }],
+          range: [{ position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 2 }],
+          status: [{ position: "absolute" }, { top: "12px" }, { right: "12px" }, { "z-index": 2 }],
+          climate: [{ position: "absolute" }, { top: "48px" }, { left: "12px" }, { "z-index": 2 }],
+          cable: [{ position: "absolute" }, { top: "48px" }, { right: "12px" }, { "z-index": 2 }],
+          driving: [{ position: "absolute" }, { top: "115px" }, { left: "50%" }, { transform: "translateX(-50%)" }, { "z-index": 2 }],
+          battery_bar: [{ position: "absolute" }, { left: "12px" }, { right: "12px" }, { bottom: "10px" }, { "z-index": 2 }],
+        },
+      },
+      extra_styles: `
+        .ec3-chip { display:flex; gap:4px; align-items:center; min-height:26px; padding:0 9px; border-radius:14px; background:rgba(20,20,20,.64); color:white; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.5); }
+        .ec3-chip ha-icon { width:16px; height:16px; }
+        .ec3-indicator { display:flex; width:28px; height:28px; align-items:center; justify-content:center; border-radius:50%; color:white; box-shadow:0 1px 4px rgba(0,0,0,.28); }
+        .ec3-indicator ha-icon { width:18px; height:18px; }
+        .ec3-indicator.blue { background:rgba(33,150,243,.9); }
+        .ec3-indicator.green, .ec3-indicator.driving { background:rgba(76,175,80,.92); }
+        .ec3-battery { display:flex; justify-content:space-between; align-items:center; height:22px; padding:0 12px; border-radius:11px; color:white; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.65); }
+        .ec3-pulse { animation:ec3BatteryPulse 1.6s ease-in-out infinite; }
+        @keyframes ec3BatteryPulse { 50% { filter:brightness(1.15); box-shadow:0 0 16px 3px rgba(76,175,80,.65); } }
+      `,
+      grid_options: { columns: "full", rows: 5 },
+    } : null;
+
+    const overviewSections = [
+      { type: "grid", cards: present([
+        separator(strings.live, "mdi:car-connected"),
+        hero,
+        bubble("remote_commands", strings.remote, "mdi:car-wireless", [press("wakeup", strings.manualWakeup, "mdi:car-key")]),
+        bubble("service_battery_voltage", "12 V", "mdi:car-battery", [], 6),
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.consumptionUsage, "mdi:chart-line"),
+        metric("trailing_consumption_500km") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("trailing_consumption_500km"), name: strings.trailingConsumption, icon: "mdi:lightning-bolt-circle", force_icon: true, card_layout: "large", grid_options: { columns: 6 } } : null,
+        metric("distance_since_charge") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("distance_since_charge"), name: strings.distanceSinceCharge, icon: "mdi:map-marker-distance", force_icon: true, card_layout: "large", grid_options: { columns: 6 } } : null,
+        metric("current_trip_energy") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("current_trip_energy"), name: strings.currentTripEnergy, icon: "mdi:battery-minus", force_icon: true, card_layout: "large" } : null,
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.quickActions, "mdi:lightning-bolt"),
+        bubble("command_status", strings.commandStatus, "mdi:remote"),
+        bubble("preconditioning", strings.climate, "mdi:air-conditioner", [press("preconditioning_start", strings.startClimate, "mdi:fan"), press("preconditioning_stop", strings.stopClimate, "mdi:fan-off")]),
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.chargingRange, "mdi:battery-charging"),
+        bubble("battery_charging", strings.chargeStatus, "mdi:ev-station", [subState("battery_charging_type", "AC/DC", "mdi:current-ac"), subState("battery_charging_end", "End", "mdi:clock-end"), subState("battery_charging_rate", "kW", "mdi:flash"), subState("battery_plugged", strings.cable, "mdi:ev-plug-type2")]),
+        bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
+        bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.position, "mdi:map-marker"),
+        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, entities: [{ entity: tracker }], grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.vehicleDetails, "mdi:car-info"),
+        bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]),
+        bubble("doors", strings.doors, "mdi:car-door", [], 6),
+        bubble("alarm", strings.alarm, "mdi:shield-lock", [], 6),
+        bubble("privacy_mode", strings.privacy, "mdi:shield-account", [subState("privacy", "", "mdi:shield-check")]),
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.batteryHealth, "mdi:battery-heart-variant"),
+        bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6),
+        bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6),
+        bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery"),
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.latestActivities, "mdi:history"),
+        bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6),
+        bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
+      ]) },
+    ];
 
     const views = [{
       title: strings.vehicle,
       path: "vehicle",
       icon: "mdi:car-electric",
       type: "sections",
-      max_columns: 3,
-      sections: [{ type: "grid", cards: vehicleCards }],
+      max_columns: 2,
+      badges: [{ type: "entity", entity: statusEntity, show_state: true, show_name: false }],
+      sections: overviewSections,
     }];
 
     if (modules.trips && (entity("last_trip") || metric("last_trip_result"))) {
