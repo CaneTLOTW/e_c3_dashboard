@@ -6,17 +6,20 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfEnergy, UnitOfLength
-from homeassistant.core import HomeAssistant
+from homeassistant.const import UnitOfEnergy, UnitOfLength, UnitOfPower
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DOMAIN,
+    METRIC_CURRENT_CHARGE_POWER,
     METRIC_CURRENT_TRIP_ENERGY,
     METRIC_DISTANCE_SINCE_CHARGE,
+    METRIC_LAST_CHARGE,
     METRIC_LAST_TRIP,
     METRIC_TRAILING_CONSUMPTION,
 )
@@ -29,16 +32,28 @@ async def async_setup_entry(
 ) -> None:
     """Create one diagnostics entity for the selected vehicle."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
+    status = Ec3DashboardStatusSensor(coordinator, entry)
     entities = [
-        Ec3DashboardStatusSensor(coordinator, entry),
+        status,
         Ec3TrailingConsumptionSensor(coordinator, entry),
         Ec3DistanceSinceChargeSensor(coordinator, entry),
         Ec3CurrentTripEnergySensor(coordinator, entry),
         Ec3LastTripResultSensor(coordinator, entry),
+        Ec3CurrentChargePowerSensor(coordinator, entry),
+        Ec3LastChargeResultSensor(coordinator, entry),
     ]
     for entity in entities[1:]:
         coordinator.metrics.register_entity(entity)
     async_add_entities(entities)
+
+    # The strategy reads metric entity IDs from the status entity.  Entity
+    # registration occurs asynchronously, so publish once more on the next
+    # event-loop turn after the complete platform set is registered.
+    @callback
+    def _publish_metric_mapping(_now) -> None:
+        status.async_write_ha_state()
+
+    async_call_later(hass, 0, _publish_metric_mapping)
 
 
 class Ec3DashboardStatusSensor(
@@ -85,7 +100,6 @@ class Ec3DashboardStatusSensor(
                 "upstream_entity_count"
             ],
             "modules": self.coordinator.data["modules"],
-            "history_sources": self.coordinator.data["history_sources"],
             "upstream_compatibility": self.coordinator.data["upstream_compatibility"],
         }
 
@@ -202,6 +216,27 @@ class Ec3CurrentTripEnergySensor(Ec3MetricSensor):
         return self.metrics.current_trip_energy()
 
 
+class Ec3CurrentChargePowerSensor(Ec3MetricSensor):
+    """Battery-side instantaneous estimate from successive SOC reports."""
+
+    _attr_name = "Current charge power"
+    _attr_icon = "mdi:flash"
+    _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, METRIC_CURRENT_CHARGE_POWER)
+
+    @property
+    def available(self) -> bool:
+        return self.metrics.data.get("active_charge") is not None
+
+    @property
+    def native_value(self) -> float | None:
+        return self.metrics.current_charge_power()
+
+
 class Ec3LastTripResultSensor(Ec3MetricSensor):
     _attr_name = "Last local trip result"
     _attr_icon = "mdi:map-marker-check"
@@ -228,4 +263,27 @@ class Ec3LastTripResultSensor(Ec3MetricSensor):
         # upstream raw trip entries and locally calculated results alike.
         data["start_mileage"] = trip.get("start_mileage")
         data["avg_speed"] = trip.get("average_speed")
+        return data
+
+
+class Ec3LastChargeResultSensor(Ec3MetricSensor):
+    """One durable, local result row for each completed charge."""
+
+    _attr_name = "Last local charge result"
+    _attr_icon = "mdi:battery-check"
+
+    def __init__(self, coordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, METRIC_LAST_CHARGE)
+
+    @property
+    def native_value(self) -> str | None:
+        charge = self.metrics.data.get("last_charge")
+        return charge.get("id") if isinstance(charge, dict) else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = super().extra_state_attributes
+        charge = self.metrics.data.get("last_charge")
+        if isinstance(charge, dict):
+            data.update(charge)
         return data
