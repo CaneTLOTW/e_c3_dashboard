@@ -64,6 +64,14 @@ const TEXT = {
     chargeCurves: "Charging curves",
     recentTrack: "Recent route",
     currentPosition: "Current position",
+    gpsIntro: "Select the desired period above. The map shows GPS points stored by the Home Assistant Recorder. Their spacing depends on the positions actually supplied by Stellantis; a continuous route is therefore not guaranteed. Experience shows that GPS data are usually sent only at the end of a trip. For larger periods, straight lines can connect separate trips.",
+    currentVehiclePosition: "Current vehicle position",
+    coordinates: "Coordinates",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    gpsAccuracy: "GPS accuracy",
+    positionUpdate: "Position update",
+    noGpsCoordinates: "No GPS coordinates available.",
     manualWakeup: "Wake vehicle now",
     system: "System",
     mappedEntities: "Mapped upstream entities",
@@ -127,6 +135,14 @@ const TEXT = {
     chargeCurves: "Ladekurven",
     recentTrack: "Letzte Route",
     currentPosition: "Aktuelle Position",
+    gpsIntro: "Wähle oben den gewünschten Zeitraum. Angezeigt werden die im HA-Recorder gespeicherten GPS-Punkte des Fahrzeugs. Die Abstände hängen von den tatsächlich gelieferten Stellantis-Positionsdaten ab; eine lückenlose Route ist daher nicht garantiert. Die Erfahrung zeigt, dass GPS-Daten meist erst bei Fahrtende gesendet werden. Bei größeren Zeiträumen können getrennte Fahrten durch gerade Linien miteinander verbunden werden.",
+    currentVehiclePosition: "Aktuelle Fahrzeugposition",
+    coordinates: "Koordinaten",
+    latitude: "Breitengrad",
+    longitude: "Längengrad",
+    gpsAccuracy: "GPS-Genauigkeit",
+    positionUpdate: "Positionsupdate",
+    noGpsCoordinates: "Keine GPS-Koordinaten verfügbar.",
     manualWakeup: "Fahrzeug jetzt aufwecken",
     system: "System",
     mappedEntities: "Zugeordnete Upstream-Entitäten",
@@ -586,20 +602,97 @@ ${strings.install}
     }
 
     if (modules.gps && tracker) {
+      const gpsPositionDetails = language(hass) === "de"
+        ? `{% set tracker = '${tracker}' %}
+{% set lat = state_attr(tracker, 'latitude') %}
+{% set lon = state_attr(tracker, 'longitude') %}
+{% set acc = state_attr(tracker, 'gps_accuracy') %}
+{% set updated = states[tracker].last_updated %}
+{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}
+{% if age < 60 %}{% set age_text = 'gerade eben' %}{% elif age < 3600 %}{% set age_text = 'vor ' ~ ((age / 60) | int) ~ ' Min.' %}{% elif age < 86400 %}{% set age_text = 'vor ' ~ ((age / 3600) | int) ~ ' Std.' %}{% else %}{% set age_text = 'vor ' ~ ((age / 86400) | int) ~ ' Tg.' %}{% endif %}
+### 📍 Koordinaten
+{% if lat is not none and lon is not none %}
+**Breitengrad:** {{ lat | round(6) }}  
+**Längengrad:** {{ lon | round(6) }}
+{% if acc is not none %}
+**GPS-Genauigkeit:** ± {{ acc }} m  
+{% endif %}
+**Positionsupdate:** {{ age_text }}
+{% else %}
+Keine GPS-Koordinaten verfügbar.
+{% endif %}`
+        : `{% set tracker = '${tracker}' %}
+{% set lat = state_attr(tracker, 'latitude') %}
+{% set lon = state_attr(tracker, 'longitude') %}
+{% set acc = state_attr(tracker, 'gps_accuracy') %}
+{% set updated = states[tracker].last_updated %}
+{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}
+{% if age < 60 %}{% set age_text = 'just now' %}{% elif age < 3600 %}{% set age_text = ((age / 60) | int) ~ ' min ago' %}{% elif age < 86400 %}{% set age_text = ((age / 3600) | int) ~ ' hr ago' %}{% else %}{% set age_text = ((age / 86400) | int) ~ ' days ago' %}{% endif %}
+### 📍 Coordinates
+{% if lat is not none and lon is not none %}
+**Latitude:** {{ lat | round(6) }}  
+**Longitude:** {{ lon | round(6) }}
+{% if acc is not none %}
+**GPS accuracy:** ± {{ acc }} m  
+{% endif %}
+**Position update:** {{ age_text }}
+{% else %}
+No GPS coordinates available.
+{% endif %}`;
+
       views.push({
         title: strings.gps,
         path: "gps",
         icon: "mdi:map-marker-path",
         type: "sections",
         max_columns: 2,
-        sections: [{
-          type: "grid",
-          cards: [
-            { type: "heading", heading: strings.gps, icon: "mdi:map-marker-path", heading_style: "title" },
-            { type: "map", title: strings.recentTrack, entities: [tracker], hours_to_show: 168, auto_fit: true, grid_options: { columns: "full", rows: 8 } },
-            { type: "custom:map-card", title: strings.currentPosition, focus_entity: tracker, zoom: 15, entities: [{ entity: tracker }], grid_options: { columns: "full", rows: 7 } },
-          ],
-        }],
+        sections: [
+          {
+            type: "grid",
+            cards: [
+              { type: "heading", heading: strings.gps, icon: "mdi:map-marker-path" },
+              { type: "energy-date-selection" },
+              markdown(strings.gpsIntro),
+              {
+                type: "entities",
+                title: strings.currentVehiclePosition,
+                show_header_toggle: false,
+                entities: [{ entity: tracker, name: strings.vehicle }],
+              },
+              { type: "markdown", content: gpsPositionDetails, entity_id: [tracker] },
+            ],
+          },
+          {
+            type: "grid",
+            cards: [
+              { type: "heading", heading: strings.position, icon: "mdi:map-marker-path", heading_style: "title" },
+              {
+                type: "custom:map-card",
+                grid_options: { columns: "full", rows: 8 },
+                history_date_selection: true,
+                focus_entity: tracker,
+                zoom: 11,
+                theme_mode: "auto",
+                entities: [{
+                  entity: tracker,
+                  display: "marker",
+                  label: " ",
+                  picture: markerPicture,
+                  size: 72,
+                  color: "transparent",
+                  css: "--ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;",
+                  history_line_color: "#03a9f4",
+                  history_show_dots: true,
+                  history_show_lines: true,
+                  gradual_opacity: 0.45,
+                  use_base_entity_only: true,
+                  position_update_threshold: 0,
+                }],
+                map_options: { zoomControl: true },
+              },
+            ],
+          },
+        ],
       });
     }
 
