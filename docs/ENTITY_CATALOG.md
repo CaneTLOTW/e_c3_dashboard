@@ -60,3 +60,37 @@ helpers, legacy dashboards, or manually created sensors.
 - Check the timestamp/freshness of the underlying Stellantis entity whenever a
   value looks surprising. The package does not wake the vehicle or increase
   upstream polling.
+
+
+## Components that do not create Home Assistant entities
+
+The entities above are only one part of the package. The following components
+provide the dashboard behaviour without adding automations, scripts, helpers,
+buttons, services, or event types to Home Assistant.
+
+| Component | What it does | Data source, persistence, and limitations |
+| --- | --- | --- |
+| **Trip history card** | Renders the 90-day trip table and details in the dashboard. | Uses the Home Assistant WebSocket history API to read Recorder history for the upstream **Last trip** sensor and the package **Last local trip result** sensor. It does not create one entity per trip. Historical availability is limited by the user's Recorder retention and by trips observed after package installation for local energy fields. |
+| **Charging history card and curve browser** | Reconstructs completed AC/DC charge sessions and shows a selectable charge curve. | Reads Recorder history for the selected vehicle's upstream charging state, SOC, charging type, capacity, and the package current-charge-power/last-charge-result sensors. Curves are reconstructed in the browser from timestamped SOC samples. They are not raw BMS or charger telemetry and can be sparse when the upstream API reports infrequently. |
+| **GPS history view** | Shows the selected global date range as route lines and dots, plus current coordinates and data age. | Delegates historical rendering to `ha-map-card` using the selected upstream vehicle tracker. It creates no tracker or route entity. GPS history exists only where the tracker was retained in Recorder; API positions can be sparse and separate trips can be joined by straight lines. |
+| **Local metrics manager** | Starts and finalises local trip/charge sessions, samples SOC during charging, and refreshes the seven sensors. | An event listener watches only the selected upstream engine, charging, and SOC entities. It does not poll Stellantis, schedule a recurring job, wake the vehicle, or alter the upstream integration's refresh interval. The five-minute post-drive and two-minute post-charge waits are one-shot local callbacks to allow delayed upstream data to arrive. |
+| **Restart-safe local store** | Keeps active sessions, the last result, and compact trip/charge buffers across restarts. | Uses Home Assistant's private storage under a config-entry-specific `e_c3_dashboard_<slug>_metrics` key. It retains at most 250 local trip rows and 250 charge rows. This is supporting data, not an entity and not a replacement for Recorder or InfluxDB. |
+| **Community Dashboard strategy and cards** | Registers the e-C3 dashboard views and package-owned trip/charge custom cards. | Registers versioned Lovelace JavaScript resources under `/e_c3_dashboard/`. It reads the selected-device mapping from **Dashboard status** and has no fixed VIN, tracker ID, image, or household helper. |
+| **Remote-action controls** | Exposes wake-up, charging, climate, locks, horn, and lights where the upstream device provides them. | The dashboard calls `button.press` on the existing upstream Stellantis button entity. It does not wrap it in a package script, duplicate the button, or create a new remote-command service. |
+
+### Explicit non-entities
+
+The current release deliberately creates **none** of the following:
+
+- Home Assistant automations;
+- scripts;
+- input helpers (`input_boolean`, `input_number`, `input_select`, or
+  `input_text`);
+- package-owned buttons, switches, number controls, calendars, device trackers,
+  services, events, webhooks, polling timers, or notification routes.
+
+This boundary keeps installation and removal self-contained. Removing the config
+entry removes the seven package-owned entities and its local config-entry data;
+it does not alter the selected Stellantis device, its Recorder history, or any
+household configuration.
+
