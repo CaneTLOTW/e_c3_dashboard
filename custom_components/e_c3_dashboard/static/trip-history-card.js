@@ -65,7 +65,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         this._hass = hass;
         const updateKey = [
             hass.states[this._config?.entity]?.last_updated,
-            hass.states[this._config?.energy_entity]?.last_updated,
+            ...(this._energyEntityIds().map((entityId) => hass.states[entityId]?.last_updated)),
         ].join("|");
         if (updateKey && (this._trips === undefined || updateKey !== this._lastUpdated)) {
             this._lastUpdated = updateKey;
@@ -82,13 +82,21 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         };
     }
 
+    _energyEntityIds() {
+        if (!this._config) return [];
+        return [...new Set([
+            this._config.energy_entity,
+            ...(this._config.energy_entities ?? []),
+        ].filter(Boolean))];
+    }
+
     async _loadHistory() {
         if (!this._hass || !this._config || this._loading) return;
         this._loading = true;
         this._error = null;
         try {
-            const entityIds = [this._config.entity];
-            if (this._config.energy_entity) entityIds.push(this._config.energy_entity);
+            const energyEntityIds = this._energyEntityIds();
+            const entityIds = [this._config.entity, ...energyEntityIds];
             const response = await this._hass.callWS({
                 type: "history/history_during_period",
                 start_time: new Date(Date.now() - Number(this._config.hours_to_show) * 3600000).toISOString(),
@@ -102,12 +110,11 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
             const states = Array.isArray(response)
                 ? (Array.isArray(response[0]) ? response[0] : response)
                 : (response[this._config.entity] ?? []);
-            const energyStates = this._config.energy_entity
-                ? (Array.isArray(response)
-                    ? (Array.isArray(response[1]) ? response[1] : [])
-                    : (response[this._config.energy_entity] ?? []))
-                : [];
-            const energyResults = energyStates
+            const statesFor = (entityId) => Array.isArray(response)
+                ? (Array.isArray(response[0]) ? response[entityIds.indexOf(entityId)] ?? [] : response)
+                : (response[entityId] ?? []);
+            const energyResults = energyEntityIds
+                .flatMap((entityId) => statesFor(entityId))
                 .map((raw) => this._normalizeState(raw))
                 .filter((item) => item.attributes?.end_time && item.attributes?.energy_kwh !== undefined);
             const seen = new Set();
