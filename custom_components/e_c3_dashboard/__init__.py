@@ -11,7 +11,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_call_later
 
-from .const import DOMAIN, FRONTEND_URL, FRONTEND_VERSION, PLATFORMS
+from .const import (
+    DOMAIN,
+    FRONTEND_RESOURCE_URLS,
+    FRONTEND_URL,
+    FRONTEND_VERSION,
+    PLATFORMS,
+)
 from .coordinator import Ec3DashboardCoordinator
 from .metrics import VehicleMetricsManager
 
@@ -31,8 +37,7 @@ async def _async_register_frontend_resource(hass: HomeAssistant) -> None:
     lovelace = hass.data.get("lovelace")
     if lovelace is None or getattr(lovelace, "resource_mode", "storage") != "storage":
         _LOGGER.warning(
-            "Lovelace resource storage is unavailable; add %s as a JavaScript module manually",
-            FRONTEND_URL,
+            "Lovelace resource storage is unavailable; add the e-C3 Dashboard JavaScript modules manually",
         )
         return
 
@@ -41,23 +46,26 @@ async def _async_register_frontend_resource(hass: HomeAssistant) -> None:
             async_call_later(hass, 5, _register_when_ready)
             return
 
-        expected_url = f"{FRONTEND_URL}?v={FRONTEND_VERSION}"
-        for resource in lovelace.resources.async_items():
-            if resource["url"].split("?", 1)[0] != FRONTEND_URL:
-                continue
-            if resource["url"] != expected_url or resource.get("type") != "module":
+        existing = {
+            resource["url"].split("?", 1)[0]: resource
+            for resource in lovelace.resources.async_items()
+        }
+        # Register the package-owned cards as Lovelace resources as well as
+        # the strategy. This makes the HACS package self-contained and avoids
+        # accidentally using similarly named cards from a household dashboard.
+        for resource_url in FRONTEND_RESOURCE_URLS:
+            expected_url = f"{resource_url}?v={FRONTEND_VERSION}"
+            resource = existing.get(resource_url)
+            if resource is None:
+                await lovelace.resources.async_create_item(
+                    {"res_type": "module", "url": expected_url}
+                )
+                _LOGGER.info("Registered e-C3 Dashboard resource %s", expected_url)
+            elif resource["url"] != expected_url or resource.get("type") != "module":
                 await lovelace.resources.async_update_item(
                     resource["id"], {"res_type": "module", "url": expected_url}
                 )
-                _LOGGER.info("Updated e-C3 Dashboard strategy resource %s", expected_url)
-            else:
-                _LOGGER.info("e-C3 Dashboard strategy resource is ready: %s", expected_url)
-            return
-
-        await lovelace.resources.async_create_item(
-            {"res_type": "module", "url": expected_url}
-        )
-        _LOGGER.info("Registered e-C3 Dashboard strategy resource %s", expected_url)
+                _LOGGER.info("Updated e-C3 Dashboard resource %s", expected_url)
 
     await _register_when_ready(0)
 
