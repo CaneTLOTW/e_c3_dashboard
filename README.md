@@ -6,6 +6,11 @@ A HACS integration that builds a multilingual e-C3 dashboard on top of
 > Development status: pre-release. The integration is intended for HACS custom
 > repositories and requires a public GitHub repository.
 
+[![Open the e-C3 Dashboard repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=CaneTLOTW&repository=e_c3_dashboard&category=integration)
+
+Use this button to open the repository directly in HACS. It must be added as an
+**Integration**, not as a Dashboard element.
+
 ## What it provides
 
 - A Home Assistant setup flow that discovers a connected Stellantis vehicle.
