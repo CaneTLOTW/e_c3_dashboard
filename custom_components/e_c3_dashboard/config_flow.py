@@ -10,6 +10,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import selector
 from homeassistant.util import slugify
 
+from .compatibility import async_check_upstream_compatibility
 from .const import (
     CONF_VEHICLE_DEVICE_ID,
     CONF_VEHICLE_SLUG,
@@ -33,6 +34,10 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Select a Stellantis device and a local, stable slug."""
         if not self.hass.config_entries.async_entries(UPSTREAM_DOMAIN):
             return self.async_abort(reason="missing_upstream")
+
+        compatibility = await async_check_upstream_compatibility(self.hass)
+        if not compatibility["version_supported"]:
+            return self.async_abort(reason="unsupported_upstream_version")
 
         errors: dict[str, str] = {}
         if user_input is not None:
