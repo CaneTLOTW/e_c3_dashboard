@@ -174,7 +174,7 @@ All project-owned user-facing strings are provided in German and English.
 
 - Backend config/options flows: Home Assistant translation files.
 - Dashboard strategy and bundled cards: frontend translation bundle.
-- Documentation: English README plus German installation guide.
+- Documentation: English README, installation guide, implementation plan, and entity catalog.
 
 Home Assistant's selected UI language determines the display language; English
 is the fallback. Upstream raw data stays unmodified.
