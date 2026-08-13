@@ -85,7 +85,7 @@ const TEXT = {
     dependencies: "Erforderliche Dashboard-Karten fehlen",
     install: "Installiere diese HACS-Abhängigkeiten, starte Home Assistant neu und lade diese Seite anschließend neu:",
     status: "Verbindungs- und Einrichtungsstatus",
-    vehicle: "Fahrzeug",
+    vehicle: "KFZ",
     overview: "Übersicht",
     live: "Live",
     consumptionUsage: "Verbrauch & Nutzung",
@@ -119,7 +119,7 @@ const TEXT = {
     startClimate: "Klima starten",
     stopClimate: "Klima stoppen",
     lastTrip: "Letzte Fahrt",
-    trailingConsumption: "Ø Verbrauch (500 km)",
+    trailingConsumption: "Ø Verbrauch 500 km",
     distanceSinceCharge: "Seit letzter Ladung",
     currentTripEnergy: "Aktuelle Fahrtenergie",
     tripHistory: "Fahrtenhistorie",
@@ -370,82 +370,75 @@ ${strings.install}
       icon,
     });
 
+    const ageTextStyles = (onLabel, offLabel, onIcon, offIcon) => `\${(() => {
+      const e = hass.states[entity]; const raw = e?.state;
+      const label = raw === 'on' ? '${onLabel}' : raw === 'off' ? '${offLabel}' : '—';
+      const updated = e?.attributes?.last_updated ?? e?.attributes?.['Last updated'] ?? e?.attributes?.['Zuletzt aktualisiert'];
+      const minutes = updated && Number.isFinite(Date.parse(updated)) ? Math.max(0, Math.floor((Date.now() - Date.parse(updated)) / 60000)) : null;
+      const age = minutes === null ? '' : minutes === 0 ? ' · gerade' : minutes === 1 ? ' · vor 1 Min.' : minutes < 60 ? ' · vor ' + minutes + ' Min.' : minutes < 1440 ? ' · vor ' + Math.floor(minutes / 60) + ' Std.' : ' · vor ' + Math.floor(minutes / 1440) + ' Tagen';
+      card.querySelector('.bubble-state').innerText = label + age;
+      icon.setAttribute('icon', raw === 'on' ? '${onIcon}' : raw === 'off' ? '${offIcon}' : 'mdi:help-circle-outline');
+    })()}`;
+    const chargingCard = entity("battery_charging") ? {
+      type: "custom:bubble-card", card_type: "button", button_type: "state",
+      entity: entity("battery_charging"), name: strings.chargeStatus, icon: "mdi:ev-station",
+      show_state: true, force_icon: true, card_layout: "large",
+      grid_options: { columns: 12, rows: 1.5 }, button_action: { tap_action: { action: "more-info" } },
+      sub_button: [
+        subState("battery_charging_type", "AC/DC", "mdi:current-ac"),
+        subState("battery_charging_end", "End", "mdi:clock-end"),
+        currentChargePower ? { entity: currentChargePower, name: "kW", icon: "mdi:flash", show_state: true, show_name: false, show_background: true, tap_action: { action: "more-info" } } : null,
+        subState("battery_plugged", strings.cable, "mdi:ev-plug-type2"),
+      ].filter(Boolean),
+      styles: `.bubble-button-card-container { position:relative !important; height:88px !important; min-height:88px !important; background:\${state === 'on' ? 'rgba(76,175,80,0.25)' : ''} !important; }
+        .bubble-icon-container { position:absolute !important; left:8px !important; top:7px !important; }
+        .bubble-icon { color:\${state === 'on' ? 'var(--success-color)' : ''} !important; }
+        .bubble-name-container { position:absolute !important; top:7px !important; left:62px !important; right:10px !important; width:auto !important; overflow:visible !important; }
+        .bubble-name,.bubble-state { white-space:nowrap !important; overflow:visible !important; text-overflow:unset !important; }
+        .bubble-sub-button-container { position:absolute !important; left:8px !important; right:8px !important; bottom:6px !important; width:auto !important; margin:0 !important; padding:0 !important; display:flex !important; align-items:center !important; justify-content:flex-end !important; gap:6px !important; }
+        .bubble-sub-button-4 { background-color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; }
+        .bubble-sub-button-4 > ha-icon { color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }`,
+    } : null;
+
+    const vehiclePicture = tracker
+      ? hass.states[tracker]?.attributes?.entity_picture
+      : undefined;
+    const heroChipStyles = {
+      card: [{ height: "26px" }, { "min-height": "26px" }, { padding: "0 9px" }, { margin: 0 }, { border: "none" }, { "border-radius": "14px" }, { "box-shadow": "none" }, { background: "rgba(20,20,20,0.62)" }, { color: "white" }, { cursor: "pointer" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" }],
+      grid: [{ "grid-template-areas": "'i n'" }, { "grid-template-columns": "16px auto" }, { "column-gap": "4px" }, { "align-items": "center" }, { "justify-content": "center" }],
+      icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }, { margin: 0 }, { padding: 0 }],
+      name: [{ margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" }, { "white-space": "nowrap" }, { color: "white" }],
+    };
     const hero = tracker && entity("battery") ? {
       type: "custom:button-card",
-      entity: entity("battery"),
-      show_name: false,
-      show_state: false,
-      show_icon: false,
-      tap_action: { action: "more-info" },
-      custom_fields: {
-        vehicle_image: `[[[
-          const picture = states["${tracker}"]?.attributes?.entity_picture;
-          return picture
-            ? '<img src="' + picture + '" alt="" style="width:100%;height:100%;object-fit:contain">'
-            : '<ha-icon icon="mdi:car-electric" style="width:130px;height:130px;color:var(--primary-color)"></ha-icon>';
-        ]]]`,
-        range: `[[[
-          const e = states["${entity("autonomy")}"];
-          const value = Number(e?.state);
-          return '<span class="ec3-chip"><ha-icon icon="mdi:map-marker-distance"></ha-icon>' +
-            (Number.isFinite(value) ? Math.round(value) + ' km' : '— km') + '</span>';
-        ]]]`,
-        status: `[[[
-          const charging = states["${entity("battery_charging")}"]?.state === 'on';
-          const active = charging ? states["${entity("battery_charging_end")}"] : states["${entity("temperature")}"];
-          const value = active?.state;
-          const unit = active?.attributes?.unit_of_measurement || '';
-          const icon = charging ? 'mdi:clock-end' : 'mdi:thermometer';
-          return '<span class="ec3-chip"><ha-icon icon="' + icon + '"></ha-icon>' +
-            (value && !['unknown', 'unavailable'].includes(value) ? value + (unit ? ' ' + unit : '') : '—') + '</span>';
-        ]]]`,
-        climate: `[[[ return states["${entity("preconditioning")}"]?.state === 'on' ? '<span class="ec3-indicator blue"><ha-icon icon="mdi:air-conditioner"></ha-icon></span>' : ''; ]]]`,
-        cable: `[[[ return states["${entity("battery_plugged")}"]?.state === 'on' ? '<span class="ec3-indicator green"><ha-icon icon="mdi:ev-plug-type2"></ha-icon></span>' : ''; ]]]`,
-        driving: `[[[ return states["${entity("engine")}"]?.state === 'on' ? '<span class="ec3-indicator driving"><ha-icon icon="mdi:lightning-bolt"></ha-icon></span>' : ''; ]]]`,
-        battery_bar: `[[[
-          const soc = Math.max(0, Math.min(100, Number(entity.state) || 0));
-          const charging = states["${entity("battery_charging")}"]?.state === 'on';
-          const driving = states["${entity("engine")}"]?.state === 'on';
-          const power = states["${currentChargePower}"];
-          const label = charging
-            ? '${strings.chargeStatus}' + (Number.isFinite(Number(power?.state)) ? ' · ' + Number(power.state).toFixed(1) + ' kW' : '')
-            : driving ? '${strings.currentTripEnergy}' : '${strings.battery}';
-          const color = charging ? 'rgba(76,175,80,.96)' : 'rgba(33,150,243,.96)';
-          const pulse = charging || driving ? ' ec3-pulse' : '';
-          return '<div class="ec3-battery' + pulse + '" style="background:linear-gradient(90deg,' + color + ' ' + soc + '%,rgba(20,20,20,.64) ' + soc + '%)"><span>' + label + '</span><strong>' + Math.round(soc) + ' %</strong></div>';
-        ]]]`,
-      },
+      entity: entity("battery"), show_name: false, show_state: false, show_icon: false,
+      tap_action: { action: "none" }, grid_options: { columns: "full", rows: 4.5 },
       styles: {
-        card: [{ position: "relative" }, { height: "270px" }, { padding: 0 }, { overflow: "hidden" }, { "border-radius": "12px" }],
+        card: [{ position: "relative" }, { height: "270px" }, { overflow: "hidden" }, { "border-radius": "12px" }, { padding: 0 }, { "background-color": "var(--ha-card-background)" }, { "background-image": vehiclePicture ? `url("${vehiclePicture}")` : "none" }, { "background-repeat": "no-repeat" }, { "background-size": "100% auto" }, { "background-position": "center 54%" }],
         custom_fields: {
-          vehicle_image: [{ position: "absolute" }, { inset: "0" }, { display: "flex" }, { "align-items": "center" }, { "justify-content": "center" }],
-          range: [{ position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 2 }],
-          status: [{ position: "absolute" }, { top: "12px" }, { right: "12px" }, { "z-index": 2 }],
-          climate: [{ position: "absolute" }, { top: "48px" }, { left: "12px" }, { "z-index": 2 }],
-          cable: [{ position: "absolute" }, { top: "48px" }, { right: "12px" }, { "z-index": 2 }],
-          driving: [{ position: "absolute" }, { top: "115px" }, { left: "50%" }, { transform: "translateX(-50%)" }, { "z-index": 2 }],
-          battery_bar: [{ position: "absolute" }, { left: "12px" }, { right: "12px" }, { bottom: "10px" }, { "z-index": 2 }],
+          range: [{ position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 20 }],
+          right_status: [{ position: "absolute" }, { top: "12px" }, { right: "12px" }, { "z-index": 20 }],
+          climate: [{ position: "absolute" }, { top: "48px" }, { left: "12px" }, { "z-index": 10 }, { width: "28px" }, { height: "28px" }, { "border-radius": "50%" }, { color: "white" }, { "align-items": "center" }, { "justify-content": "center" }, { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" }, { background: `[[[ const t = states["${entity("temperature")}"]; return !t || ['unknown','unavailable'].includes(t.state) || !Number.isFinite(Number(t.state)) ? 'rgba(90,90,90,0.88)' : Number(t.state) > 20 ? 'rgba(33,150,243,0.88)' : 'rgba(244,67,54,0.88)'; ]]]` }, { display: `[[[ return states["${entity("preconditioning")}"]?.state === 'on' ? 'flex' : 'none'; ]]]` }],
+          cable: [{ position: "absolute" }, { top: "48px" }, { right: "12px" }, { "z-index": 10 }, { width: "28px" }, { height: "28px" }, { "border-radius": "50%" }, { background: "rgba(76,175,80,0.88)" }, { color: "white" }, { "align-items": "center" }, { "justify-content": "center" }, { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" }, { display: `[[[ return states["${entity("battery_plugged")}"]?.state === 'on' ? 'flex' : 'none'; ]]]` }],
+          driving: [{ position: "absolute" }, { top: "115px" }, { left: "140px" }, { transform: "translateX(-50%)" }, { "z-index": 10 }, { width: "30px" }, { height: "30px" }, { "min-width": "30px" }, { "min-height": "30px" }, { padding: 0 }, { margin: 0 }, { "box-sizing": "border-box" }, { "border-radius": "50%" }, { background: "rgba(76,175,80,0.92)" }, { color: "white" }, { "align-items": "center" }, { "justify-content": "center" }, { "line-height": 0 }, { "box-shadow": "0 1px 4px rgba(0,0,0,0.28)" }, { display: `[[[ return states["${entity("engine")}"]?.state === 'on' ? 'flex' : 'none'; ]]]` }],
+          battery: [{ position: "absolute" }, { left: "12px" }, { right: "12px" }, { bottom: "10px" }, { width: "auto" }, { "z-index": 10 }],
         },
       },
-      extra_styles: `
-        .ec3-chip { display:flex; gap:4px; align-items:center; min-height:26px; padding:0 9px; border-radius:14px; background:rgba(20,20,20,.64); color:white; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.5); }
-        .ec3-chip ha-icon { width:16px; height:16px; }
-        .ec3-indicator { display:flex; width:28px; height:28px; align-items:center; justify-content:center; border-radius:50%; color:white; box-shadow:0 1px 4px rgba(0,0,0,.28); }
-        .ec3-indicator ha-icon { width:18px; height:18px; }
-        .ec3-indicator.blue { background:rgba(33,150,243,.9); }
-        .ec3-indicator.green, .ec3-indicator.driving { background:rgba(76,175,80,.92); }
-        .ec3-battery { display:flex; justify-content:space-between; align-items:center; height:22px; padding:0 12px; border-radius:11px; color:white; font-size:12px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.65); }
-        .ec3-pulse { animation:ec3BatteryPulse 1.6s ease-in-out infinite; }
-        @keyframes ec3BatteryPulse { 50% { filter:brightness(1.15); box-shadow:0 0 16px 3px rgba(76,175,80,.65); } }
-      `,
-      grid_options: { columns: "full", rows: 5 },
+      custom_fields: {
+        range: { card: { type: "custom:button-card", entity: entity("autonomy"), show_icon: true, show_name: true, show_state: false, icon: "mdi:map-marker-distance", tap_action: { action: "more-info" }, hold_action: { action: "more-info" }, name: `[[[ const e = states["${entity("autonomy")}"]; return e && !['unknown','unavailable'].includes(e.state) && Number.isFinite(Number(e.state)) ? Math.round(Number(e.state)) + ' km' : '-- km'; ]]]`, styles: heroChipStyles } },
+        right_status: { card: { type: "custom:button-card", entity: entity("temperature"), show_icon: true, show_name: true, show_state: false, icon: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; return charging && end && !['unknown','unavailable','none',''].includes(end.state) ? 'mdi:clock-end' : charging ? 'mdi:battery-charging' : 'mdi:thermometer'; ]]]`, name: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; if (charging) return end && !['unknown','unavailable','none',''].includes(end.state) ? '${language(hass) === "de" ? "bis" : "until"} ' + end.state : '${language(hass) === "de" ? "Lädt" : "Charging"}'; const temp = states["${entity("temperature")}"]; return temp && !['unknown','unavailable'].includes(temp.state) && Number.isFinite(Number(temp.state)) ? temp.state + ' ' + (temp.attributes?.unit_of_measurement || '°C') : '-- °C'; ]]]`, tap_action: { action: "more-info" }, hold_action: { action: "more-info" }, styles: heroChipStyles } },
+        climate: `[[[ const temp = states["${entity("temperature")}"]; const icon = temp && !['unknown','unavailable'].includes(temp.state) && Number(temp.state) <= 20 ? 'mdi:radiator' : 'mdi:air-conditioner'; return '<ha-icon icon="' + icon + '" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>'; ]]]`,
+        cable: '<ha-icon icon="mdi:ev-plug-type2" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>',
+        driving: '<ha-icon icon="mdi:lightning-bolt" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>',
+        battery: { card: { type: "custom:button-card", entity: entity("battery"), show_name: true, show_state: true, show_icon: false, tap_action: { action: "more-info" }, name: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const driving = states["${entity("engine")}"]?.state === 'on'; const power = states["${currentChargePower}"]; const energy = states["${metric("current_trip_energy")}"]; if (charging) return Number.isFinite(Number(power?.state)) ? '${language(hass) === "de" ? "Wird geladen" : "Charging"} · ' + Number(power.state).toFixed(1).replace('.', ',') + ' kW' : '${language(hass) === "de" ? "Wird geladen" : "Charging"}'; if (driving) return Number.isFinite(Number(energy?.state)) ? '${language(hass) === "de" ? "In Fahrt" : "Driving"} · ' + Number(energy.state).toFixed(1).replace('.', ',') + ' kWh' : '${language(hass) === "de" ? "In Fahrt" : "Driving"}'; return '${strings.battery}'; ]]]`, state_display: "[[[ return ['unknown','unavailable'].includes(entity.state) || !Number.isFinite(Number(entity.state)) ? '-- %' : Math.round(Number(entity.state)) + ' %'; ]]]", styles: { grid: [{ "grid-template-areas": "'n s'" }, { "grid-template-columns": "1fr auto" }, { "align-items": "center" }, { height: "100%" }], card: [{ height: "20px" }, { "min-height": "20px" }, { padding: "0 12px" }, { "border-radius": "10px" }, { border: "none" }, { "box-shadow": "none" }, { color: "white" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.65)" }, { background: `[[[ const value = Math.min(100, Math.max(0, Number(entity.state) || 0)); const charging = states["${entity("battery_charging")}"]?.state === 'on'; return 'linear-gradient(90deg,' + (charging ? 'rgba(76,175,80,0.95)' : 'rgba(33,150,243,0.95)') + ' ' + value + '%,rgba(20,20,20,0.62) ' + value + '%)'; ]]]` }, { animation: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const driving = states["${entity("engine")}"]?.state === 'on'; return charging ? 'kfzBatteryChargePulse 1.5s ease-in-out infinite' : driving ? 'kfzBatteryDrivePulse 1.7s ease-in-out infinite' : 'none'; ]]]` }], name: [{ "justify-self": "start" }, { "align-self": "center" }, { height: "20px" }, { "line-height": "20px" }, { margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 }, { "white-space": "nowrap" }], state: [{ "justify-self": "end" }, { "align-self": "center" }, { height: "20px" }, { "line-height": "20px" }, { margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 }, { "white-space": "nowrap" }] }, extra_styles: "@keyframes kfzBatteryChargePulse { 0%,100% { filter:brightness(1); box-shadow:0 0 0 0 rgba(76,175,80,.15); } 50% { filter:brightness(1.16); box-shadow:0 0 16px 4px rgba(76,175,80,.70); } } @keyframes kfzBatteryDrivePulse { 0%,100% { filter:brightness(1); box-shadow:0 0 0 0 rgba(33,150,243,.12); } 50% { filter:brightness(1.12); box-shadow:0 0 14px 3px rgba(33,150,243,.55); } }" } },
+      },
     } : null;
 
     const overviewSections = [
       { type: "grid", cards: present([
         separator(strings.live, "mdi:car-connected"),
         hero,
-        bubble("remote_commands", strings.remote, "mdi:car-wireless", [press("wakeup", strings.manualWakeup, "mdi:car-key")]),
+        entity("remote_commands") ? { ...bubble("remote_commands", strings.remote, "mdi:car-wireless", [press("wakeup", strings.manualWakeup, "mdi:car-connected")]), styles: `\${(() => { const e=hass.states[entity]; const raw=e?.state; const timestamp=Date.parse(e?.last_changed || ''); const seconds=Number.isFinite(timestamp)?Math.max(0,Math.floor((Date.now()-timestamp)/1000)):null; const age=seconds===null?'Zeit unbekannt':seconds<60?'seit gerade eben':seconds<3600?'seit '+Math.floor(seconds/60)+' Min.':seconds<86400?'seit '+Math.floor(seconds/3600)+' Std.':'seit '+Math.floor(seconds/86400)+' Tagen'; card.querySelector('.bubble-state').innerText=(raw==='on'?'Verbunden':raw==='off'?'Getrennt':'Unbekannt')+' · '+age; icon.setAttribute('icon',raw==='on'?'mdi:car-wireless':'mdi:car-wireless-off'); })()}` } : null,
         bubble("service_battery_voltage", "12 V", "mdi:car-battery", [], 6),
       ]) },
       { type: "grid", cards: present([
@@ -461,20 +454,21 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.chargingRange, "mdi:battery-charging"),
-        bubble("battery_charging", strings.chargeStatus, "mdi:ev-station", [subState("battery_charging_type", "AC/DC", "mdi:current-ac"), subState("battery_charging_end", "End", "mdi:clock-end"), currentChargePower ? { entity: currentChargePower, name: "kW", icon: "mdi:flash", show_state: true, show_name: false, show_background: true, tap_action: { action: "more-info" } } : null, subState("battery_plugged", strings.cable, "mdi:ev-plug-type2")]),
-        bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
+        chargingCard,
+        entity("battery_charging_limit_number") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("battery_charging_limit_number"), name: strings.chargeLimit, icon: "mdi:battery-charging-80", show_state: true, force_icon: true } : null,
+        entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: `${strings.chargeLimit} ${language(hass) === "de" ? "aktiv" : "enabled"}`, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
         bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
-        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, entities: [{ entity: tracker }], grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
+        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: vehiclePicture, size: 90, color: "transparent", css: "--ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: rgba(0,0,0,0) !important; background-image: none; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
       ]) },
       { type: "grid", cards: present([
         separator(strings.vehicleDetails, "mdi:car-info"),
-        bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]),
-        bubble("doors", strings.doors, "mdi:car-door", [], 6),
-        bubble("alarm", strings.alarm, "mdi:shield-lock", [], 6),
-        bubble("privacy_mode", strings.privacy, "mdi:shield-account", [subState("privacy", "", "mdi:shield-check")]),
+        entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]), styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }` } : null,
+        entity("daylight") ? { ...bubble("daylight", language(hass) === "de" ? "Tageslicht erkannt" : "Daylight detected", "mdi:weather-sunny", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Ja" : "Yes", language(hass) === "de" ? "Nein" : "No", "mdi:weather-sunny", "mdi:weather-sunny-off") } : null,
+        entity("alarm") ? { ...bubble("alarm", strings.alarm, "mdi:shield-lock", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Aktiv" : "Active", language(hass) === "de" ? "Inaktiv" : "Inactive", "mdi:shield-lock", "mdi:shield-off-outline") } : null,
+        entity("privacy") ? { ...bubble("privacy", language(hass) === "de" ? "Datenschutz / Datenfreigabe" : "Privacy / data sharing", "mdi:shield-check", [subState("privacy_mode", "", "mdi:shield-account")]), show_state: false, styles: `\${(() => { const raw=hass.states[entity]?.state; card.querySelector('.bubble-state').innerText=raw==='on'?'${language(hass) === "de" ? "Uneingeschränkt" : "Unrestricted"}':raw==='off'?'${language(hass) === "de" ? "Eingeschränkt" : "Restricted"}':'—'; icon.setAttribute('icon',raw==='on'?'mdi:shield-check':raw==='off'?'mdi:shield-alert-outline':'mdi:shield-question'); })()}` } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.batteryHealth, "mdi:battery-heart-variant"),
@@ -486,6 +480,16 @@ ${strings.install}
         separator(strings.latestActivities, "mdi:history"),
         bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6),
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
+        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:codex-stellantis-trip-history-card-v4", entity: entity("last_trip") || metric("last_trip_result"), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: 2160, max_trips: 50 } : null,
+        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:codex-stellantis-charge-history-card-v1", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: 2160, max_sessions: 50, fallback_capacity_kwh: 43.4 } : null,
+      ]) },
+      { type: "grid", cards: present([
+        separator(strings.settings, "mdi:cog-outline"),
+        entity("refresh_interval") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("refresh_interval"), name: language(hass) === "de" ? "Aktualisierungsintervall" : "Refresh interval", icon: "mdi:update", show_state: true, force_icon: true, button_action: { tap_action: { action: "more-info" }, hold_action: { action: "more-info" } } } : null,
+        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: language(hass) === "de" ? "Korrektur Batteriewerte" : "Correct battery values", icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
+        entity("abrp_sync") ? separator("ABRP", "mdi:map-marker-path") : null,
+        entity("abrp_sync") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("abrp_sync"), name: "ABRP Live-Daten", icon: "mdi:transit-connection-variant", show_state: true, force_icon: true } : null,
+        entity("abrp_token") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: entity("abrp_token"), name: "ABRP Token", icon: "mdi:key", show_state: false, force_icon: true, button_action: { tap_action: { action: "more-info" } } } : null,
       ]) },
     ];
 
