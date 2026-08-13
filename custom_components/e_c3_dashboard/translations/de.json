@@ -31,8 +31,7 @@
           "gps": "GPS-Historie",
           "wakeup": "Wake-up-Diagnose",
           "notifications": "Benachrichtigungsadapter",
-          "trip_energy_entity": "Vorhandener Fahrtenergie-Ergebnissensor (optional)",
-          "charge_power_entity": "Vorhandener Ladeleistungssensor (optional)"
+          "history_hours": "Anzeigezeitraum Historie"
         }
       }
     }
