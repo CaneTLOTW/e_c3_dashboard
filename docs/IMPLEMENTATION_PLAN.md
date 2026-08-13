@@ -10,27 +10,27 @@ personal Home Assistant configuration is copied into this repository.
 - [x] Define HACS integration architecture.
 - [x] Define mandatory external HACS dependencies.
 - [x] Define German/English localisation policy.
-- [ ] Implement config-entry setup and vehicle selection.
-- [ ] Register a Community Dashboard strategy.
-- [ ] Provide an explicit missing-prerequisite view.
-- [ ] Add HACS validation workflow.
+- [x] Implement config-entry setup and vehicle selection.
+- [x] Register a Community Dashboard strategy (plus YAML-strategy fallback for picker issues).
+- [x] Provide an explicit missing-prerequisite view.
+- [x] Add HACS validation workflow.
 
 ## Phase 2 — Portable data layer
 
-- [ ] Move the rolling 500-km consumption and distance-since-charge metrics
+- [x] Move the rolling 500-km consumption and distance-since-charge metrics
       from YAML to the config entry.
-- [ ] Add per-vehicle persistent session storage.
-- [ ] Add safe discovery/mapping of upstream Stellantis entities.
-- [ ] Expose an integration status entity with mapping and history diagnostics.
+- [x] Add per-vehicle persistent session storage.
+- [x] Add safe discovery/mapping of upstream Stellantis entities.
+- [x] Expose an integration status entity with mapping and history diagnostics.
 - [ ] Test restart recovery and missing/upstream-unavailable states.
 
 ## Phase 3 — Dashboard strategy
 
-- [ ] Vehicle overview: battery, charging, climate, position and status.
-- [ ] Trip history view using the bundled trip-history card.
-- [ ] Charge history and active/historical curve views.
-- [ ] GPS-history view.
-- [ ] Wake-up diagnostics and configuration view.
+- [x] Vehicle overview: battery, charging, climate, position and status.
+- [x] Trip history view using the bundled trip-history card.
+- [x] Charge history view (active curve remains a separate next increment).
+- [x] GPS-history view.
+- [x] Manual wake-up and remote-connection diagnostics view.
 - [ ] Responsive tablet/mobile verification.
 
 ## Phase 4 — Optional modules
