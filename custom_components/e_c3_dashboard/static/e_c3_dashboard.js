@@ -171,7 +171,7 @@ function getMetricEntity(hass, entryId, metricKey) {
   })?.[0];
 }
 
-class Ec3DashboardStrategy {
+class Ec3DashboardStrategy extends HTMLElement {
   /**
    * The dashboard picker in current HA versions needs an explicit editor for
    * community strategies. Without one, selecting a community dashboard may
@@ -190,6 +190,16 @@ class Ec3DashboardStrategy {
       title: "e-C3 Dashboard",
       icon: "mdi:car-electric",
     };
+  }
+
+  /**
+   * Home Assistant 2026.7+ invokes this strategy contract.  Retain the
+   * older generate() entry point below so the package remains usable on
+   * earlier Home Assistant versions as well.
+   */
+  static async generateDashboard({ hass, config }) {
+    const strategyConfig = config?.strategy?.options ?? config?.strategy ?? config ?? {};
+    return Ec3DashboardStrategy.generate(strategyConfig, hass);
   }
 
   static async generate(config, hass) {
@@ -559,14 +569,18 @@ class Ec3DashboardStrategyEditor extends HTMLElement {
   }
 }
 
-customElements.define(
-  "ll-strategy-dashboard-e-c3-dashboard",
-  Ec3DashboardStrategy
-);
-customElements.define(
-  "e-c3-dashboard-strategy-editor",
-  Ec3DashboardStrategyEditor
-);
+if (!customElements.get("ll-strategy-dashboard-e-c3-dashboard")) {
+  customElements.define(
+    "ll-strategy-dashboard-e-c3-dashboard",
+    Ec3DashboardStrategy
+  );
+}
+if (!customElements.get("e-c3-dashboard-strategy-editor")) {
+  customElements.define(
+    "e-c3-dashboard-strategy-editor",
+    Ec3DashboardStrategyEditor
+  );
+}
 
 window.customStrategies = window.customStrategies || [];
 window.customStrategies.push({
