@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.11";
+import { languageFor, textFor } from "./i18n.js?v=0.4.12";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
@@ -390,7 +390,6 @@ ${strings.install}
       icon: "mdi:car-electric",
       type: "sections",
       max_columns: 2,
-      badges: [{ type: "entity", entity: statusEntity, show_state: true, show_name: false }],
       sections: overviewSections,
     }];
 

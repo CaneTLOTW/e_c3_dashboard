@@ -17,6 +17,11 @@ and uses [Semantic Versioning](https://semver.org/).
   plus Recorder history, and imports conservative historic native trip rows
   for the partial 500-km consumption window.
 
+### Changed
+
+- Removed the technical `ready` status badge from the Vehicle view. The
+  diagnostic status entity remains available only in the System view.
+
 ### Fixed
 
 - Corrected the generated dashboard strategy type and migrate the dashboard
