@@ -13,7 +13,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .compatibility import async_check_upstream_compatibility
 from .const import DEFAULT_OPTIONS, DOMAIN, CONF_VEHICLE_DEVICE_ID, UPSTREAM_DOMAIN
-from .const import OPTION_CHARGE_POWER_ENTITY, OPTION_TRIP_ENERGY_ENTITY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,8 +77,13 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         compatibility = await async_check_upstream_compatibility(self.hass)
-        options = dict(DEFAULT_OPTIONS)
-        options.update(self.entry.options)
+        # Keep the public module contract deliberately closed.  Older beta
+        # entries may contain now-removed migration options, but those must
+        # never reintroduce references to installation-specific helpers.
+        options = {
+            key: self.entry.options.get(key, default)
+            for key, default in DEFAULT_OPTIONS.items()
+        }
         status = (
             "incompatible"
             if not compatibility["version_supported"]
@@ -103,9 +107,5 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
             "upstream_entity_count": len(upstream_entities),
             "modules": options,
-            "history_sources": {
-                "trip_energy_entity": options.get(OPTION_TRIP_ENERGY_ENTITY),
-                "charge_power_entity": options.get(OPTION_CHARGE_POWER_ENTITY),
-            },
             "upstream_compatibility": compatibility,
         }
