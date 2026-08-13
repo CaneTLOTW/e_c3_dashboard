@@ -89,8 +89,10 @@ The current release deliberately creates **none** of the following:
 - package-owned buttons, switches, number controls, calendars, device trackers,
   services, events, webhooks, polling timers, or notification routes.
 
-This boundary keeps installation and removal self-contained. Removing the config
-entry removes the seven package-owned entities and its local config-entry data;
-it does not alter the selected Stellantis device, its Recorder history, or any
-household configuration.
+This boundary keeps installation self-contained. Removing the config entry
+removes the seven package-owned entities; it does not alter the selected
+Stellantis device, its Recorder history, or any household configuration. The
+current foundation release does not yet purge its private local session-store
+file on removal. Reinstalling with the same slug can therefore reuse that local
+cache; explicit cache cleanup is planned before a public release.
 
