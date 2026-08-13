@@ -11,6 +11,12 @@ Thanks for improving e-C3 Dashboard.
   the upstream Stellantis Vehicles integration.
 - Redact VINs, account IDs, exact home locations, GPS tracks, Notify recipient
   names, tokens, and raw exports. Do not attach `.storage` files.
+- Use [Discussions](https://github.com/CaneTLOTW/e_c3_dashboard/discussions)
+  for questions, early ideas, compatibility observations, and screenshots;
+  reserve Issues for reproducible bugs and mature feature proposals.
+
+See the [community guide](docs/COMMUNITY.en.md) for the full reporting and
+discussion rules.
 
 ## Development principles
 

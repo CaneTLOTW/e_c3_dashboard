@@ -70,7 +70,8 @@ confirmed vehicle capability are documented in
 [the ë-C3 capability matrix](docs/STELLANTIS_EC3_CAPABILITY_MATRIX.en.md).
 For support, contribution and automation guidance, see
 [SUPPORT.md](SUPPORT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and
-[AGENTS.md](AGENTS.md).
+[AGENTS.md](AGENTS.md). Community rules and the difference between Issues and
+Discussions are described in the [community guide](docs/COMMUNITY.en.md).
 
 ## Look & Feel
 

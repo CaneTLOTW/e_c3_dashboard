@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Community discussions
+    url: https://github.com/CaneTLOTW/e_c3_dashboard/discussions
+    about: Ask setup and usage questions, share screenshots, discuss early ideas, or report compatibility observations.
   - name: Setup and support guide
     url: https://github.com/CaneTLOTW/e_c3_dashboard/blob/main/SUPPORT.md
     about: Check installation, entity, capability, and privacy guidance before opening an issue.
