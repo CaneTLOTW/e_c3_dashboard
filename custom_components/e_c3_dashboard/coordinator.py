@@ -12,7 +12,13 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .compatibility import async_check_upstream_compatibility
-from .const import DEFAULT_OPTIONS, DOMAIN, CONF_VEHICLE_DEVICE_ID, UPSTREAM_DOMAIN
+from .const import (
+    CONF_VEHICLE_DEVICE_ID,
+    DEFAULT_OPTIONS,
+    DOMAIN,
+    OPTION_HISTORY_HOURS,
+    UPSTREAM_DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,5 +119,6 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
             "upstream_entity_count": len(upstream_entities),
             "modules": options,
+            "history_window_hours": options[OPTION_HISTORY_HOURS],
             "upstream_compatibility": compatibility,
         }
