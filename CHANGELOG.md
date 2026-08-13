@@ -18,6 +18,8 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Replaced the oversized package brand asset with a 256×256 local integration
+  icon, compatible with Home Assistant's custom-integration Brands API.
 - Removed the technical `ready` status badge from the Vehicle view. The
   diagnostic status entity remains available only in the System view.
 - Removed the short-lived historic Last trip import. That native sensor is a
