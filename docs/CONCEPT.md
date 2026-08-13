@@ -115,14 +115,14 @@ sensor.<vehicle>_dashboard_current_charge_power
 sensor.<vehicle>_dashboard_last_local_charge_result
 ```
 
-Upstream Recorder history is also used for a bounded, best-effort first-start
-reconciliation: the native **Last charge** timestamp is paired with the
-odometer at that time, and suitable native **Last trip** rows can establish a
-partial 500-km consumption window. This does not invent missing data: a
-historic trip is accepted only when distance, start mileage, duration and SOC
-boundaries are present. Rich charge rows, charging curves and future live
-sessions still begin when the package observes them itself. This remains
-portable because only the selected upstream device and the user's own
+Upstream Recorder history is used for a bounded, best-effort first-start
+reconciliation of the distance since charge: the native **Last charge**
+timestamp is paired with the odometer at that time. Trip-energy and rolling
+consumption values deliberately start with sessions observed by the package,
+because the native **Last trip** sensor is a last-result value rather than a
+reliable historic event stream. Rich charge rows, charging curves and future
+live sessions likewise begin when the package observes them itself. This
+remains portable because only the selected upstream device and the user's own
 Recorder are read; no household helper is used.
 
 ## Modules

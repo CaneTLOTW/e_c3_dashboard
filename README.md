@@ -17,9 +17,8 @@ Use this button to open the repository directly in HACS. It must be added as an
 - A Community Dashboard strategy: no VIN, entity IDs, or dashboard YAML must be copied.
 - A UI that requires Bubble Card, Button Card, and ha-map-card.
 - Portable local metrics for trips, charging, GPS history, wake-up and optional notifications.
-  On first start, the distance since charge and the partial 500-km consumption
-  window are reconciled from compatible Stellantis Recorder history when it is
-  still available.
+  On first start, the distance since charge is reconciled from compatible
+  Stellantis Recorder history when it is still available.
 - German and English user interfaces: native HA translations for setup/options,
   a shared frontend catalog for dashboard cards, and a backend catalog for
   notifications and Logbook messages.

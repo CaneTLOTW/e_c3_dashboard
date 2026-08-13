@@ -67,6 +67,22 @@ class VehicleMetricsManager:
         stored = await self._store.async_load()
         if isinstance(stored, dict):
             self.data.update(stored)
+        # v0.4.11 briefly imported historical Last trip states. They are not
+        # a stable session stream: Recorder also persists restored values and
+        # therefore cannot distinguish repeated equal-distance journeys. Drop
+        # only those rows and retain all sessions observed by this package.
+        legacy_trip_imports = [
+            item
+            for item in self.data.get("trips", [])
+            if isinstance(item, dict) and item.get("source") == "upstream_history"
+        ]
+        if legacy_trip_imports:
+            self.data["trips"] = [
+                item
+                for item in self.data.get("trips", [])
+                if not isinstance(item, dict) or item.get("source") != "upstream_history"
+            ]
+            await self._save_and_refresh()
         self._normalise_trips()
         self._normalise_charges()
 
@@ -96,7 +112,7 @@ class VehicleMetricsManager:
         # A fresh installation must not wait for the next journey or charge.
         # Reconcile only from Recorder data that the upstream integration has
         # already persisted; this never triggers a Stellantis request.
-        if not self.data.get("trips") or not self.data.get("charge_odometer_km"):
+        if not self.data.get("charge_odometer_km"):
             self.hass.async_create_task(self._async_seed_from_recorder())
 
     async def async_shutdown(self) -> None:
@@ -404,8 +420,6 @@ class VehicleMetricsManager:
         end = dt_util.utcnow()
         start = end - timedelta(hours=self._history_hours())
 
-        if not self.data.get("trips"):
-            await self._async_seed_trips(start, end)
         await self._async_seed_charge_baseline(start, end)
 
     async def _async_seed_charge_baseline(self, start, end) -> None:
@@ -435,6 +449,7 @@ class VehicleMetricsManager:
                 mileage_entity,
                 charge_end - timedelta(minutes=2),
                 charge_end + timedelta(minutes=15),
+                significant_changes_only=False,
             )
         except Exception as err:  # Recorder remains optional for live use.
             _LOGGER.debug("Could not seed e-C3 charge baseline from Recorder: %s", err)
@@ -458,36 +473,9 @@ class VehicleMetricsManager:
         await self._save_and_refresh()
         _LOGGER.info("Seeded e-C3 charge baseline at %.3f km", odometer)
 
-    async def _async_seed_trips(self, start, end) -> None:
-        """Import usable historic upstream trip rows for the 500-km window."""
-        trip_entity = self.mapping.get("last_trip")
-        soc_entity = self.mapping.get("battery")
-        if not trip_entity or not soc_entity:
-            return
-        try:
-            trip_history = await self._async_get_history(trip_entity, start, end)
-            soc_history = await self._async_get_history(soc_entity, start, end)
-        except Exception as err:  # Recorder is not required after live data exists.
-            _LOGGER.debug("Could not seed e-C3 trip metrics from Recorder: %s", err)
-            return
-
-        imported: list[dict[str, Any]] = []
-        for state in trip_history:
-            trip = self._trip_from_upstream_history(state, soc_history)
-            if trip is not None:
-                imported.append(trip)
-        if not imported:
-            return
-
-        existing_ids = {str(item.get("id")) for item in self.data.get("trips", [])}
-        self.data["trips"].extend(
-            trip for trip in imported if str(trip.get("id")) not in existing_ids
-        )
-        self._normalise_trips()
-        await self._save_and_refresh()
-        _LOGGER.info("Seeded e-C3 500-km window with %s historic trips", len(imported))
-
-    async def _async_get_history(self, entity_id: str, start, end) -> list[Any]:
+    async def _async_get_history(
+        self, entity_id: str, start, end, *, significant_changes_only: bool = True
+    ) -> list[Any]:
         """Read a bounded Recorder history without blocking the event loop."""
         history = await get_instance(self.hass).async_add_executor_job(
             recorder_history.get_significant_states,
@@ -495,57 +483,11 @@ class VehicleMetricsManager:
             start,
             end,
             [entity_id],
+            None,
+            True,
+            significant_changes_only,
         )
         return history.get(entity_id, [])
-
-    def _trip_from_upstream_history(
-        self, state: Any, soc_history: list[Any]
-    ) -> dict[str, Any] | None:
-        """Turn one upstream completed-trip row into a conservative estimate."""
-        distance = self._as_float(self._history_value(state))
-        attributes = self._history_attributes(state)
-        end_time = self._history_timestamp(state)
-        duration_seconds = self._duration_seconds(attributes.get("duration"))
-        start_mileage = self._as_float(attributes.get("start_mileage"))
-        if (
-            distance is None
-            or distance <= 0
-            or distance > 1000
-            or end_time is None
-            or duration_seconds is None
-            or duration_seconds <= 0
-            or duration_seconds > 24 * 3600
-            or start_mileage is None
-        ):
-            return None
-
-        start_time = end_time - timedelta(seconds=duration_seconds)
-        start_soc = self._history_number_at(soc_history, start_time)
-        end_soc = self._history_number_at(soc_history, end_time)
-        if start_soc is None or end_soc is None or start_soc < end_soc:
-            return None
-        capacity = self._capacity()
-        energy = round((start_soc - end_soc) * capacity / 100, 3)
-        if energy < 0 or energy > capacity:
-            return None
-        return {
-            "id": f"upstream-history:{end_time.isoformat()}",
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat(),
-            "duration_seconds": duration_seconds,
-            "duration": self._duration_text(duration_seconds),
-            "distance_km": round(distance, 3),
-            "start_mileage": round(start_mileage, 3),
-            "end_mileage": round(start_mileage + distance, 3),
-            "average_speed": self._as_float(attributes.get("avg_speed")),
-            "soc_start": start_soc,
-            "soc_end": end_soc,
-            "capacity_kwh": round(capacity, 2),
-            "energy_kwh": energy,
-            "energy_per_100_km": round(energy / distance * 100, 2),
-            "estimated": True,
-            "source": "upstream_history",
-        }
 
     def _history_hours(self) -> int:
         try:
@@ -563,11 +505,6 @@ class VehicleMetricsManager:
         return state.state if hasattr(state, "state") else state.get("state")
 
     @staticmethod
-    def _history_attributes(state: Any) -> dict[str, Any]:
-        attributes = state.attributes if hasattr(state, "attributes") else state.get("attributes")
-        return attributes if isinstance(attributes, dict) else {}
-
-    @staticmethod
     def _history_timestamp(state: Any) -> datetime | None:
         value = state.last_updated if hasattr(state, "last_updated") else state.get("last_updated")
         if isinstance(value, datetime):
@@ -575,27 +512,6 @@ class VehicleMetricsManager:
         if isinstance(value, str):
             return dt_util.parse_datetime(value)
         return None
-
-    def _history_number_at(self, states: list[Any], timestamp) -> float | None:
-        value = None
-        for state in states:
-            updated = self._history_timestamp(state)
-            if updated is None or updated > timestamp:
-                break
-            candidate = self._as_float(self._history_value(state))
-            if candidate is not None:
-                value = candidate
-        return value
-
-    @staticmethod
-    def _duration_seconds(value: Any) -> int | None:
-        try:
-            hours, minutes, seconds = (int(part) for part in str(value).split(":"))
-        except (TypeError, ValueError):
-            return None
-        if min(hours, minutes, seconds) < 0 or minutes >= 60 or seconds >= 60:
-            return None
-        return hours * 3600 + minutes * 60 + seconds
 
     async def _save_and_refresh(self) -> None:
         self.data["updated_at"] = dt_util.utcnow().isoformat()

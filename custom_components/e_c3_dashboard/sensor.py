@@ -184,7 +184,7 @@ class Ec3TrailingConsumptionSensor(Ec3MetricSensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         data = super().extra_state_attributes
         data.update(self.metrics.trailing_consumption())
-        data["source"] = "local completed trips and Recorder-reconstructed upstream trips"
+        data["source"] = "local completed trips"
         return data
 
 

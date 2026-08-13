@@ -12,15 +12,18 @@ and uses [Semantic Versioning](https://semver.org/).
 - A dedicated e-C3 dashboard is created automatically after a successful
   config-entry setup. It is isolated, per-vehicle, created only once and never
   overwritten or deleted by the package.
-- First-start reconciliation for the two rolling metrics: the package derives
-  the last-charge odometer baseline from the upstream **Last charge** timestamp
-  plus Recorder history, and imports conservative historic native trip rows
-  for the partial 500-km consumption window.
+- First-start reconciliation for the distance since charge: the package
+  derives the last-charge odometer baseline from the upstream **Last charge**
+  timestamp plus Recorder history.
 
 ### Changed
 
 - Removed the technical `ready` status badge from the Vehicle view. The
   diagnostic status entity remains available only in the System view.
+- Removed the short-lived historic Last trip import. That native sensor is a
+  last-result value and Recorder duplicates it after restarts, which can make
+  a rolling consumption value look falsely low. Existing imported rows are
+  removed automatically.
 
 ### Fixed
 
