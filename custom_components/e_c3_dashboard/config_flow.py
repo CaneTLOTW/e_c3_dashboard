@@ -19,7 +19,9 @@ from .const import (
     OPTION_CHARGING,
     OPTION_GPS,
     OPTION_NOTIFICATIONS,
+    OPTION_CHARGE_POWER_ENTITY,
     OPTION_TRIPS,
+    OPTION_TRIP_ENERGY_ENTITY,
     OPTION_WAKEUP,
     UPSTREAM_DOMAIN,
 )
@@ -119,6 +121,18 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
                     OPTION_NOTIFICATIONS,
                     default=options[OPTION_NOTIFICATIONS],
                 ): bool,
+                vol.Optional(
+                    OPTION_TRIP_ENERGY_ENTITY,
+                    default=options.get(OPTION_TRIP_ENERGY_ENTITY),
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
+                vol.Optional(
+                    OPTION_CHARGE_POWER_ENTITY,
+                    default=options.get(OPTION_CHARGE_POWER_ENTITY),
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="sensor")
+                ),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
