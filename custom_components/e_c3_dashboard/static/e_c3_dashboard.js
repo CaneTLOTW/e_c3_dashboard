@@ -575,7 +575,7 @@ ${strings.install}
       views.push({
         title: strings.chargeCurves,
         path: "charging",
-        icon: "mdi:ev-station",
+        icon: "mdi:chart-bell-curve-cumulative",
         type: "sections",
         max_columns: 2,
         sections: [
