@@ -33,6 +33,16 @@ reload the browser page.
 
 ## History modules
 
-Trip, charging and GPS history require Home Assistant Recorder history. This
-project never changes Recorder retention. InfluxDB is optional and remains the
-user's separate configuration.
+Trip, charging and GPS history require Home Assistant Recorder history. The
+package's default history display window is 90 days, but it cannot create or
+retain history itself.
+
+Before using that window, verify that Recorder `purge_keep_days` is at least
+90 (or at least the configured **History display window**) and that all
+required vehicle/package entities are included when using a Recorder allowlist.
+The integration never changes Recorder retention, filters, database, or purge
+schedule. If less data is retained, the dashboard shows only the available
+subset. InfluxDB is optional and remains the user's separate configuration.
+
+See the [entity catalog](ENTITY_CATALOG.md#recorder-retention-required-user-check)
+for the exact user check.
