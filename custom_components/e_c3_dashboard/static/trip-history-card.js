@@ -204,10 +204,10 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
     }
 }
 
-customElements.define("codex-stellantis-trip-history-card-v4", CodexStellantisTripHistoryCardV4);
+customElements.define("e-c3-dashboard-trip-history-card", CodexStellantisTripHistoryCardV4);
 window.customCards = window.customCards ?? [];
 window.customCards.push({
-    type: "codex-stellantis-trip-history-card-v4",
-    name: "Stellantis Trip History",
+    type: "e-c3-dashboard-trip-history-card",
+    name: "e-C3 Dashboard Trip History",
     preview: true,
 });
