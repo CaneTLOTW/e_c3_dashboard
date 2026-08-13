@@ -72,6 +72,12 @@ For support, contribution and automation guidance, see
 [SUPPORT.md](SUPPORT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and
 [AGENTS.md](AGENTS.md).
 
+## Look & Feel
+
+<img width="1452" height="2645" alt="grafik" src="https://github.com/user-attachments/assets/c0752ee1-389d-41fc-89b0-26446d8cb563" />
+<img width="517" height="642" alt="grafik" src="https://github.com/user-attachments/assets/2bc309f9-c313-488e-b67c-55a35955bac2" />
+
+
 ## Development
 
 The runtime integration is located in `custom_components/e_c3_dashboard/`.
