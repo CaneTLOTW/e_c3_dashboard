@@ -9,8 +9,9 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, FRONTEND_URL, FRONTEND_VERSION, PLATFORMS
+from .const import DOMAIN, FRONTEND_URL, FRONTEND_VERSION, PLATFORMS, STATIC_VERSION
 from .coordinator import Ec3DashboardCoordinator
+from .metrics import VehicleMetricsManager
 
 type Ec3DashboardConfigEntry = ConfigEntry
 
@@ -21,11 +22,37 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     if DOMAIN in hass.data:
         return True
 
-    frontend_file = Path(__file__).parent / "static" / "e_c3_dashboard.js"
+    static_dir = Path(__file__).parent / "static"
+    frontend_file = static_dir / "e_c3_dashboard.js"
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(FRONTEND_URL, str(frontend_file), cache_headers=False)]
+        [
+            StaticPathConfig(FRONTEND_URL, str(frontend_file), cache_headers=False),
+            StaticPathConfig(
+                "/e_c3_dashboard/trip-history-card.js",
+                str(static_dir / "trip-history-card.js"),
+                cache_headers=False,
+            ),
+            StaticPathConfig(
+                "/e_c3_dashboard/charge-history-card.js",
+                str(static_dir / "charge-history-card.js"),
+                cache_headers=False,
+            ),
+            StaticPathConfig(
+                "/e_c3_dashboard/charge-history-core.js",
+                str(static_dir / "charge-history-core.js"),
+                cache_headers=False,
+            ),
+        ]
     )
     add_extra_js_url(hass, f"{FRONTEND_URL}?v={FRONTEND_VERSION}")
+    add_extra_js_url(
+        hass,
+        f"/e_c3_dashboard/trip-history-card.js?v={STATIC_VERSION}",
+    )
+    add_extra_js_url(
+        hass,
+        f"/e_c3_dashboard/charge-history-card.js?v={STATIC_VERSION}",
+    )
     hass.data[DOMAIN] = {}
     return True
 
@@ -36,6 +63,12 @@ async def async_setup_entry(
     """Set up one selected upstream Stellantis vehicle."""
     coordinator = Ec3DashboardCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
+
+    metrics = VehicleMetricsManager(
+        hass, entry, coordinator.data["entity_mapping"]
+    )
+    await metrics.async_initialize()
+    coordinator.metrics = metrics
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -49,6 +82,7 @@ async def async_unload_entry(
     """Unload a selected vehicle without touching its upstream integration."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
+        await hass.data[DOMAIN][entry.entry_id].metrics.async_shutdown()
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unloaded
 
