@@ -12,7 +12,7 @@ A HACS integration that builds a multilingual e-C3 dashboard on top of
 - A Community Dashboard strategy: no VIN, entity IDs, or dashboard YAML must be copied.
 - Required UI based on Bubble Card, Button Card, and ha-map-card.
 - Portable local metrics for trips, charging, GPS history, wake-up and optional notifications.
-- German and English user interfaces.
+- German and English user interfaces, selected automatically from the Home Assistant/browser language.
 
 ## Required HACS dependencies
 
@@ -35,8 +35,9 @@ instead of creating a dashboard with missing custom elements.
 5. Open **Settings → Dashboards → Add dashboard** and choose **e-C3 Dashboard**
    from Community dashboards.
 
-See [the architecture concept](docs/CONCEPT.md) and the
-[implementation plan](docs/IMPLEMENTATION_PLAN.md).
+Documentation is maintained in English. See [the architecture concept](docs/CONCEPT.md),
+[the implementation plan](docs/IMPLEMENTATION_PLAN.md), and the
+[entity catalog with data-quality notes](docs/ENTITY_CATALOG.md).
 
 ## Development
 
