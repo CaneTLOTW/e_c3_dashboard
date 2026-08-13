@@ -294,9 +294,9 @@ ${strings.install}
     const tracker = attributes.vehicle_tracker;
     const modules = attributes.modules || {};
     const mapped = attributes.entity_mapping || {};
-    const historySources = attributes.history_sources || {};
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
     const entity = (key) => mapped[key];
+    const currentChargePower = metric("current_charge_power") || entity("battery_charging_rate");
     const tile = (key, name, icon, columns = 6) => {
       const entityId = entity(key);
       return entityId
@@ -406,7 +406,7 @@ ${strings.install}
           const soc = Math.max(0, Math.min(100, Number(entity.state) || 0));
           const charging = states["${entity("battery_charging")}"]?.state === 'on';
           const driving = states["${entity("engine")}"]?.state === 'on';
-          const power = states["${entity("battery_charging_rate")}"];
+          const power = states["${currentChargePower}"];
           const label = charging
             ? '${strings.chargeStatus}' + (Number.isFinite(Number(power?.state)) ? ' · ' + Number(power.state).toFixed(1) + ' kW' : '')
             : driving ? '${strings.currentTripEnergy}' : '${strings.battery}';
@@ -461,7 +461,7 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.chargingRange, "mdi:battery-charging"),
-        bubble("battery_charging", strings.chargeStatus, "mdi:ev-station", [subState("battery_charging_type", "AC/DC", "mdi:current-ac"), subState("battery_charging_end", "End", "mdi:clock-end"), subState("battery_charging_rate", "kW", "mdi:flash"), subState("battery_plugged", strings.cable, "mdi:ev-plug-type2")]),
+        bubble("battery_charging", strings.chargeStatus, "mdi:ev-station", [subState("battery_charging_type", "AC/DC", "mdi:current-ac"), subState("battery_charging_end", "End", "mdi:clock-end"), currentChargePower ? { entity: currentChargePower, name: "kW", icon: "mdi:flash", show_state: true, show_name: false, show_background: true, tap_action: { action: "more-info" } } : null, subState("battery_plugged", strings.cable, "mdi:ev-plug-type2")]),
         bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
         bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
       ]) },
@@ -500,14 +500,12 @@ ${strings.install}
     }];
 
     if (modules.trips && (entity("last_trip") || metric("last_trip_result"))) {
-      // The upstream Last trip sensor carries the durable trip rows.  The
-      // package's local result sensor enriches future rows with energy; an
-      // optional user-selected legacy result sensor can preserve existing
-      // history during a migration without hard-coding a foreign entity ID.
+      // The upstream Last trip sensor carries the durable trip rows. The
+      // package's own result sensor enriches future rows with locally derived
+      // energy. No installation-specific helper is ever used as a fallback.
       const tripHistoryEntity = entity("last_trip") || metric("last_trip_result");
       const tripEnergyEntities = [
         metric("last_trip_result"),
-        historySources.trip_energy_entity,
       ].filter(Boolean);
       views.push({
         title: strings.trips,
@@ -553,9 +551,10 @@ ${strings.install}
               language: language(hass),
               charging_entity: entity("battery_charging"),
               soc_entity: entity("battery"),
-              power_entity: historySources.charge_power_entity || entity("battery_charging_rate"),
+              power_entity: currentChargePower,
               mode_entity: entity("battery_charging_type"),
               capacity_entity: entity("battery_capacity"),
+              result_entity: metric("last_charge_result"),
               hours_to_show: 2160,
               max_sessions: 50,
               fallback_capacity_kwh: 43.4,
@@ -566,7 +565,7 @@ ${strings.install}
               title: strings.chargeCurves,
               charging_entity: entity("battery_charging"),
               soc_entity: entity("battery"),
-              power_entity: historySources.charge_power_entity || entity("battery_charging_rate"),
+              power_entity: currentChargePower,
               mode_entity: entity("battery_charging_type"),
               capacity_entity: entity("battery_capacity"),
               hours_to_show: 2160,
