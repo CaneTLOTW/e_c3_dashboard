@@ -403,6 +403,9 @@ ${strings.install}
     const vehiclePicture = tracker
       ? hass.states[tracker]?.attributes?.entity_picture
       : undefined;
+    const markerPicture = vehiclePicture
+      ? `${vehiclePicture}${vehiclePicture.includes("?") ? "&" : "?"}v=3`
+      : undefined;
     const heroChipStyles = {
       card: [{ height: "26px" }, { "min-height": "26px" }, { padding: "0 9px" }, { margin: 0 }, { border: "none" }, { "border-radius": "14px" }, { "box-shadow": "none" }, { background: "rgba(20,20,20,0.62)" }, { color: "white" }, { cursor: "pointer" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" }],
       grid: [{ "grid-template-areas": "'i n'" }, { "grid-template-columns": "16px auto" }, { "column-gap": "4px" }, { "align-items": "center" }, { "justify-content": "center" }],
@@ -461,7 +464,7 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
-        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: vehiclePicture, size: 90, color: "transparent", css: "--ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: rgba(0,0,0,0) !important; background-image: none; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
+        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: markerPicture, size: 90, color: "transparent", css: "--ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: rgba(0,0,0,0) !important; background-image: none; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
       ]) },
       { type: "grid", cards: present([
         separator(strings.vehicleDetails, "mdi:car-info"),
