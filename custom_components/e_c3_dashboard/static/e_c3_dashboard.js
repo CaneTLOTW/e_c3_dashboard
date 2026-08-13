@@ -294,6 +294,7 @@ ${strings.install}
     const tracker = attributes.vehicle_tracker;
     const modules = attributes.modules || {};
     const mapped = attributes.entity_mapping || {};
+    const historySources = attributes.history_sources || {};
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
     const entity = (key) => mapped[key];
     const tile = (key, name, icon, columns = 6) => {
@@ -499,7 +500,15 @@ ${strings.install}
     }];
 
     if (modules.trips && (entity("last_trip") || metric("last_trip_result"))) {
-      const tripHistoryEntity = metric("last_trip_result") || entity("last_trip");
+      // The upstream Last trip sensor carries the durable trip rows.  The
+      // package's local result sensor enriches future rows with energy; an
+      // optional user-selected legacy result sensor can preserve existing
+      // history during a migration without hard-coding a foreign entity ID.
+      const tripHistoryEntity = entity("last_trip") || metric("last_trip_result");
+      const tripEnergyEntities = [
+        metric("last_trip_result"),
+        historySources.trip_energy_entity,
+      ].filter(Boolean);
       views.push({
         title: strings.trips,
         path: "trips",
@@ -514,6 +523,7 @@ ${strings.install}
             {
               type: "custom:codex-stellantis-trip-history-card-v4",
               entity: tripHistoryEntity,
+              energy_entities: tripEnergyEntities,
               title: strings.tripHistory,
               language: language(hass),
               hours_to_show: 2160,
@@ -543,7 +553,7 @@ ${strings.install}
               language: language(hass),
               charging_entity: entity("battery_charging"),
               soc_entity: entity("battery"),
-              power_entity: entity("battery_charging_rate"),
+              power_entity: historySources.charge_power_entity || entity("battery_charging_rate"),
               mode_entity: entity("battery_charging_type"),
               capacity_entity: entity("battery_capacity"),
               hours_to_show: 2160,
@@ -556,7 +566,7 @@ ${strings.install}
               title: strings.chargeCurves,
               charging_entity: entity("battery_charging"),
               soc_entity: entity("battery"),
-              power_entity: entity("battery_charging_rate"),
+              power_entity: historySources.charge_power_entity || entity("battery_charging_rate"),
               mode_entity: entity("battery_charging_type"),
               capacity_entity: entity("battery_capacity"),
               hours_to_show: 2160,
