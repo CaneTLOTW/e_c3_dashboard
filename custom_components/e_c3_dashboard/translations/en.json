@@ -17,7 +17,8 @@
     },
     "abort": {
       "missing_upstream": "Set up Stellantis Vehicles and a vehicle before adding this dashboard.",
-      "already_configured": "This vehicle already has an e-C3 Dashboard entry."
+      "already_configured": "This vehicle already has an e-C3 Dashboard entry.",
+      "unsupported_upstream_version": "Update Stellantis Vehicles to a supported version before adding this dashboard."
     }
   },
   "options": {
