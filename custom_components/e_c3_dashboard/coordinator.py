@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -12,6 +13,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DEFAULT_OPTIONS, DOMAIN, CONF_VEHICLE_DEVICE_ID, UPSTREAM_DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
+
 
 class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]:
     """Discover only entities that belong to the selected Stellantis device."""
@@ -19,7 +22,7 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         super().__init__(
             hass,
-            logger=None,
+            logger=_LOGGER,
             name=f"{DOMAIN}_{entry.entry_id}",
             update_interval=None,
         )
