@@ -84,6 +84,7 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
             this._config.power_entity,
             this._config.mode_entity,
             this._config.capacity_entity,
+            this._config.result_entity,
         ].filter(Boolean);
     }
 
@@ -94,6 +95,52 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
             return response[entityIds.indexOf(entityId)] ?? [];
         }
         return response?.[entityId] ?? [];
+    }
+
+    _normalizeState(raw) {
+        return {
+            state: raw.state ?? raw.s,
+            attributes: raw.attributes ?? raw.a ?? {},
+            last_updated: raw.last_updated ?? raw.last_changed ??
+                (Number.isFinite(raw.lu) ? new Date(raw.lu * 1000).toISOString() : undefined),
+        };
+    }
+
+    _localResultSessions(response, entityIds) {
+        const numericOrNull = (value) => {
+            if (value === null || value === undefined || value === "") return null;
+            const number = Number(value);
+            return Number.isFinite(number) ? number : null;
+        };
+        return this._statesFor(response, entityIds, this._config.result_entity)
+            .map((raw) => this._normalizeState(raw).attributes)
+            .filter((attrs) => attrs.start_time && attrs.end_time && attrs.duration_seconds)
+            .map((attrs) => ({
+                start: attrs.start_time,
+                end: attrs.end_time,
+                duration_seconds: numericOrNull(attrs.duration_seconds),
+                soc_start: numericOrNull(attrs.soc_start),
+                soc_end: numericOrNull(attrs.soc_end),
+                capacity_kwh: numericOrNull(attrs.capacity_kwh),
+                energy_kwh: numericOrNull(attrs.energy_kwh),
+                average_power_kw: numericOrNull(attrs.average_power_kw),
+                maximum_power_kw: numericOrNull(attrs.maximum_power_kw),
+                charge_type: attrs.charge_type || "—",
+                estimated: attrs.estimated !== false,
+            }))
+            .filter((session) => Number.isFinite(Date.parse(session.start)) && Number.isFinite(Date.parse(session.end)));
+    }
+
+    _mergeSessions(rawSessions, localSessions) {
+        const remaining = [...rawSessions];
+        for (const local of localSessions) {
+            const index = remaining.findIndex((raw) =>
+                Math.abs(Date.parse(raw.start) - Date.parse(local.start)) <= 5 * 60 * 1000
+            );
+            if (index >= 0) remaining.splice(index, 1);
+            remaining.push(local);
+        }
+        return remaining.sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
     }
 
     async _loadHistory() {
@@ -108,7 +155,7 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
                 end_time: new Date().toISOString(),
                 entity_ids: entityIds,
                 minimal_response: false,
-                no_attributes: true,
+                no_attributes: false,
                 significant_changes_only: false,
             });
             const sessions = buildChargeSessions({
@@ -119,7 +166,9 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
                 capacityStates: this._statesFor(response, entityIds, this._config.capacity_entity),
                 fallbackCapacity: Number(this._config.fallback_capacity_kwh),
             });
-            this._sessions = sessions.reverse().slice(0, Number(this._config.max_sessions));
+            const localSessions = this._localResultSessions(response, entityIds);
+            this._sessions = this._mergeSessions(sessions, localSessions)
+                .slice(0, Number(this._config.max_sessions));
         } catch (error) {
             this._sessions = [];
             this._error = error?.message ?? String(error);
