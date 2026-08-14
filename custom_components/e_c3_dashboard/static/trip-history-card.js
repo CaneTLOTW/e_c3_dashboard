@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.4.20";
+import { localeFor, textFor } from "./i18n.js?v=0.4.23";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -132,23 +132,48 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                     });
             };
             const enrichedStates = tripEntityIds
-                .flatMap((entityId) => enrichAttributes(statesFor(entityId)))
+                .flatMap((entityId) => enrichAttributes(statesFor(entityId))
+                    .map((state) => ({ ...state, _sourceEntityId: entityId })))
                 .sort((a, b) => new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime());
-            const seen = new Set();
-            const uniqueTrips = enrichedStates
-                .filter((state) => {
-                    const a = state.attributes ?? {};
-                    return !["unknown", "unavailable"].includes(state.state) && a.duration && a.start_mileage;
-                })
-                .filter((state) => {
-                    const a = state.attributes ?? {};
-                    const distance = Number.parseFloat(String(state.state).replace(",", "."));
-                    const startMileage = Number.parseFloat(String(a.start_mileage).replace(",", "."));
-                    const key = [distance, startMileage, a.duration].join("|");
-                    if (seen.has(key)) return false;
-                    seen.add(key);
-                    return true;
-                });
+            const parseNumber = (value) => Number.parseFloat(String(value ?? "").replace(",", "."));
+            const durationSeconds = (value) => {
+                const text = String(value ?? "");
+                const clock = text.match(/^(\d+):(\d{2})(?::(\d{2}))?/);
+                if (clock) return Number(clock[1]) * 3600 + Number(clock[2]) * 60 + Number(clock[3] || 0);
+                const minutes = text.match(/(\d+)\s*min/);
+                return minutes ? Number(minutes[1]) * 60 : NaN;
+            };
+            const isEquivalentTrip = (left, right) => {
+                const leftAttributes = left.attributes ?? {};
+                const rightAttributes = right.attributes ?? {};
+                const leftDistance = parseNumber(left.state);
+                const rightDistance = parseNumber(right.state);
+                const leftStart = parseNumber(leftAttributes.start_mileage);
+                const rightStart = parseNumber(rightAttributes.start_mileage);
+                if (![leftDistance, rightDistance, leftStart, rightStart].every(Number.isFinite)) return false;
+                if (Math.abs(leftDistance - rightDistance) > 0.5 || Math.abs(leftStart - rightStart) > 0.5) return false;
+                const leftDuration = durationSeconds(leftAttributes.duration);
+                const rightDuration = durationSeconds(rightAttributes.duration);
+                if (Number.isFinite(leftDuration) && Number.isFinite(rightDuration) && Math.abs(leftDuration - rightDuration) <= 120) return true;
+                const leftTime = Date.parse(leftAttributes.end_time || left.last_updated || "");
+                const rightTime = Date.parse(rightAttributes.end_time || right.last_updated || "");
+                return Number.isFinite(leftTime) && Number.isFinite(rightTime) && Math.abs(leftTime - rightTime) <= 30 * 60 * 1000;
+            };
+            const uniqueTrips = [];
+            for (const state of enrichedStates) {
+                const attributes = state.attributes ?? {};
+                if (["unknown", "unavailable"].includes(state.state) || !attributes.duration || !attributes.start_mileage) continue;
+                const duplicateIndex = uniqueTrips.findIndex((existing) => isEquivalentTrip(existing, state));
+                if (duplicateIndex < 0) {
+                    uniqueTrips.push(state);
+                    continue;
+                }
+                // The local result is authoritative because it contains the
+                // actual start/end timestamps and delayed odometer endpoint.
+                if (state._sourceEntityId === this._config.entity) {
+                    uniqueTrips[duplicateIndex] = state;
+                }
+            }
             this._trips = uniqueTrips
                 .map((trip) => {
                     const tripTime = new Date(trip.last_updated).getTime();
