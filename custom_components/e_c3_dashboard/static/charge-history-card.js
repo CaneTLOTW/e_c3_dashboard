@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.25";
-import { localeFor, textFor } from "./i18n.js?v=0.4.25";
+import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.26";
+import { localeFor, textFor } from "./i18n.js?v=0.4.26";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
@@ -86,52 +86,6 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         return response?.[entityId] ?? [];
     }
 
-    _normalizeState(raw) {
-        return {
-            state: raw.state ?? raw.s,
-            attributes: raw.attributes ?? raw.a ?? {},
-            last_updated: raw.last_updated ?? raw.last_changed ??
-                (Number.isFinite(raw.lu) ? new Date(raw.lu * 1000).toISOString() : undefined),
-        };
-    }
-
-    _localResultSessions(response, entityIds) {
-        const numericOrNull = (value) => {
-            if (value === null || value === undefined || value === "") return null;
-            const number = Number(value);
-            return Number.isFinite(number) ? number : null;
-        };
-        return this._statesFor(response, entityIds, this._config.result_entity)
-            .map((raw) => this._normalizeState(raw).attributes)
-            .filter((attrs) => attrs.start_time && attrs.end_time && attrs.duration_seconds)
-            .map((attrs) => ({
-                start: attrs.start_time,
-                end: attrs.end_time,
-                duration_seconds: numericOrNull(attrs.duration_seconds),
-                soc_start: numericOrNull(attrs.soc_start),
-                soc_end: numericOrNull(attrs.soc_end),
-                capacity_kwh: numericOrNull(attrs.capacity_kwh),
-                energy_kwh: numericOrNull(attrs.energy_kwh),
-                average_power_kw: numericOrNull(attrs.average_power_kw),
-                maximum_power_kw: numericOrNull(attrs.maximum_power_kw),
-                charge_type: attrs.charge_type || "—",
-                estimated: attrs.estimated !== false,
-            }))
-            .filter((session) => Number.isFinite(Date.parse(session.start)) && Number.isFinite(Date.parse(session.end)));
-    }
-
-    _mergeSessions(rawSessions, localSessions) {
-        const remaining = [...rawSessions];
-        for (const local of localSessions) {
-            const index = remaining.findIndex((raw) =>
-                Math.abs(Date.parse(raw.start) - Date.parse(local.start)) <= 5 * 60 * 1000
-            );
-            if (index >= 0) remaining.splice(index, 1);
-            remaining.push(local);
-        }
-        return remaining.sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
-    }
-
     async _loadHistory() {
         if (!this._hass || !this._config || this._loading) return;
         this._loading = true;
@@ -155,8 +109,10 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
                 capacityStates: this._statesFor(response, entityIds, this._config.capacity_entity),
                 fallbackCapacity: Number(this._config.fallback_capacity_kwh),
             });
-            const localSessions = this._localResultSessions(response, entityIds);
-            this._sessions = this._mergeSessions(sessions, localSessions)
+            const localSessions = buildLocalChargeSessions(
+                this._statesFor(response, entityIds, this._config.result_entity)
+            );
+            this._sessions = mergeChargeSessions(sessions, localSessions)
                 .slice(0, Number(this._config.max_sessions));
         } catch (error) {
             this._sessions = [];
@@ -208,7 +164,7 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
 
     _openSession(session) {
         try {
-            sessionStorage.setItem(this._selectionKey(), session.start);
+            sessionStorage.setItem(this._selectionKey(), session.id);
         } catch (_error) {
             // Navigation remains useful even when browser storage is blocked.
         }
@@ -513,6 +469,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
         _sessions: { state: true },
         _history: { state: true },
         _selectedId: { state: true },
+        _selectionMissing: { state: true },
         _loading: { state: true },
         _error: { state: true },
     };
@@ -542,6 +499,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
         }
         this._config = {
             hours_to_show: 2160,
+            max_sessions: 50,
             fallback_capacity_kwh: 43.4,
             ...config,
         };
@@ -560,7 +518,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
 
     _entityIds() {
         return [this._config?.charging_entity, this._config?.soc_entity, this._config?.power_entity,
-            this._config?.mode_entity, this._config?.capacity_entity].filter(Boolean);
+            this._config?.mode_entity, this._config?.capacity_entity, this._config?.result_entity].filter(Boolean);
     }
 
     _selectionKey() {
@@ -596,7 +554,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 end_time: new Date().toISOString(),
                 entity_ids: entityIds,
                 minimal_response: false,
-                no_attributes: true,
+                no_attributes: false,
                 significant_changes_only: false,
             });
             const history = {
@@ -611,17 +569,20 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 capacityStates: this._statesFor(response, entityIds, this._config.capacity_entity),
                 fallbackCapacity: Number(this._config.fallback_capacity_kwh),
                 includeActive: Boolean(this._config.include_active),
-            }).reverse();
+            });
+            const localSessions = buildLocalChargeSessions(
+                this._statesFor(response, entityIds, this._config.result_entity)
+            );
+            const mergedSessions = mergeChargeSessions(sessions, localSessions);
             this._history = history;
-            this._sessions = sessions;
+            this._sessions = mergedSessions.slice(0, Number(this._config.max_sessions));
             const requested = this._requestedSelection();
-            const requestedTime = requested ? Date.parse(requested) : NaN;
-            const requestedSession = sessions.find((session) => session.start === requested) ||
-                (Number.isFinite(requestedTime)
-                    ? sessions.find((session) => Math.abs(Date.parse(session.start) - requestedTime) <= 5 * 60 * 1000)
-                    : null);
-            this._selectedId = requestedSession?.start ||
-                (sessions.some((session) => session.start === this._selectedId) ? this._selectedId : sessions[0]?.start);
+            const requestedSession = findChargeSession(this._sessions, requested);
+            this._selectionMissing = Boolean(requested && !requestedSession);
+            this._selectedId = requestedSession?.id ||
+                (!requested && this._sessions.some((session) => session.id === this._selectedId)
+                    ? this._selectedId
+                    : !requested ? this._sessions[0]?.id : null);
         } catch (error) {
             this._sessions = [];
             this._history = null;
@@ -633,6 +594,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
 
     _selectSession(event) {
         this._selectedId = event.target.value;
+        this._selectionMissing = false;
     }
 
     _number(value, digits = 1) {
@@ -687,7 +649,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     render() {
         if (!this._config) return nothing;
         const sessions = this._sessions ?? [];
-        const selected = sessions.find((session) => session.start === this._selectedId);
+        const selected = sessions.find((session) => session.id === this._selectedId);
         const curve = selected && this._history ? buildChargeCurve({
             socStates: this._history.soc,
             modeStates: this._history.modes,
@@ -704,8 +666,9 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 ${this._error ? html`<p class="error">${text.error} ${this._error}</p>` : nothing}
                 ${sessions.length ? html`
                     <select aria-label="${text.selectSession}" .value=${this._selectedId ?? ""} @change=${this._selectSession}>
-                        ${sessions.map((session) => html`<option value="${session.start}">${this._formatSession(session)}</option>`)}
+                        ${sessions.map((session) => html`<option value="${session.id}">${this._formatSession(session)}</option>`)}
                     </select>
+                    ${this._selectionMissing ? html`<p class="error">${text.selectionNotFound}</p>` : nothing}
                     ${selected ? html`
                         <div class="metrics">
                             <div class="metric"><div class="metric-label">SOC</div><div class="metric-value">${this._number(selected.soc_start, 0)} → ${this._number(selected.soc_end, 0)} %</div></div>

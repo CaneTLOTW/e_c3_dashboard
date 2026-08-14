@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.25";
+import { languageFor, textFor } from "./i18n.js?v=0.4.26";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
@@ -500,6 +500,7 @@ ${strings.install}
                 power_entity: currentChargePower,
                 mode_entity: entity("battery_charging_type"),
                 capacity_entity: entity("battery_capacity"),
+                result_entity: metric("last_charge_result"),
                 navigation_path: chargeViewPath,
                 selection_storage_key: chargeSelectionKey,
                 hours_to_show: historyHours,

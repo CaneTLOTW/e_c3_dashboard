@@ -37,6 +37,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Vehicle and charging views now share one charging-session reconstruction,
+  including historical local-result sensor attributes, stable session IDs and
+  explicit handling when a requested session cannot be resolved.
 - Charge-history rows now navigate to the charging view through Home
   Assistant's SPA history mechanism (`pushState` plus `location-changed`) after
   persisting the selected session, instead of relying on a manually bubbled
