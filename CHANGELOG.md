@@ -37,6 +37,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Charge-history selection is now reapplied when the charging view was
+  already instantiated before navigation. The list sends a scoped selection
+  event and the curve browser updates its selected session immediately.
 - Vehicle and charging views now share one charging-session reconstruction,
   including historical local-result sensor attributes, stable session IDs and
   explicit handling when a requested session cannot be resolved.

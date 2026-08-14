@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.26";
-import { localeFor, textFor } from "./i18n.js?v=0.4.26";
+import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.27";
+import { localeFor, textFor } from "./i18n.js?v=0.4.27";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
@@ -163,11 +163,15 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
     }
 
     _openSession(session) {
+        const selectionKey = this._selectionKey();
         try {
-            sessionStorage.setItem(this._selectionKey(), session.id);
+            sessionStorage.setItem(selectionKey, session.id);
         } catch (_error) {
             // Navigation remains useful even when browser storage is blocked.
         }
+        window.dispatchEvent(new CustomEvent("e-c3-dashboard-charge-selection-changed", {
+            detail: { selection_key: selectionKey, session_id: session.id },
+        }));
         const path = this._navigationPath();
         if (path) {
             window.history.pushState(null, "", path);
@@ -493,6 +497,21 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
         @media (max-width: 500px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     `;
 
+    connectedCallback() {
+        super.connectedCallback();
+        this._selectionChanged = (event) => {
+            const selectionKey = event.detail?.selection_key;
+            if (selectionKey && selectionKey !== this._selectionKey()) return;
+            this._applyStoredSelection();
+        };
+        window.addEventListener("e-c3-dashboard-charge-selection-changed", this._selectionChanged);
+    }
+
+    disconnectedCallback() {
+        window.removeEventListener("e-c3-dashboard-charge-selection-changed", this._selectionChanged);
+        super.disconnectedCallback();
+    }
+
     setConfig(config) {
         if (!config.charging_entity || !config.soc_entity) {
             throw new Error("charging_entity and soc_entity must be specified");
@@ -530,6 +549,20 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
             return sessionStorage.getItem(this._selectionKey());
         } catch (_error) {
             return null;
+        }
+    }
+
+    _applyStoredSelection() {
+        if (!this._sessions?.length) return;
+        const requested = this._requestedSelection();
+        const requestedSession = findChargeSession(this._sessions, requested);
+        this._selectionMissing = Boolean(requested && !requestedSession);
+        if (requested) {
+            this._selectedId = requestedSession?.id ?? null;
+            return;
+        }
+        if (!this._sessions.some((session) => session.id === this._selectedId)) {
+            this._selectedId = this._sessions[0]?.id;
         }
     }
 
@@ -576,13 +609,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
             const mergedSessions = mergeChargeSessions(sessions, localSessions);
             this._history = history;
             this._sessions = mergedSessions.slice(0, Number(this._config.max_sessions));
-            const requested = this._requestedSelection();
-            const requestedSession = findChargeSession(this._sessions, requested);
-            this._selectionMissing = Boolean(requested && !requestedSession);
-            this._selectedId = requestedSession?.id ||
-                (!requested && this._sessions.some((session) => session.id === this._selectedId)
-                    ? this._selectedId
-                    : !requested ? this._sessions[0]?.id : null);
+            this._applyStoredSelection();
         } catch (error) {
             this._sessions = [];
             this._history = null;
