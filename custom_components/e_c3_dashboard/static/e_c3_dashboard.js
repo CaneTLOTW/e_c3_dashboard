@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.32";
+import { languageFor, textFor } from "./i18n.js?v=0.4.33";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const CHARGE_SELECTION_QUERY_PARAM = "e_c3_charge";
@@ -486,39 +486,6 @@ ${strings.install}
       },
       cards: overviewSections.map((section) => layoutCard(section.cards)),
     }];
-
-    if (modules.trips && lastTripDisplayEntity) {
-      // The restart-safe local result is primary. The upstream Last trip
-      // sensor remains a fallback/source for older API-reported rows.
-      const tripHistoryEntity = lastTripDisplayEntity;
-      const tripEntities = [nativeLastTrip].filter(Boolean);
-      const tripEnergyEntities = [lastTripResult].filter(Boolean);
-      views.push({
-        title: strings.trips,
-        path: "trips",
-        icon: "mdi:road-variant",
-        type: "sections",
-        max_columns: 2,
-        sections: [{
-          type: "grid",
-          cards: present([
-            { type: "heading", heading: strings.trips, icon: "mdi:road-variant", heading_style: "title" },
-            tile("last_trip", strings.lastTrip, "mdi:map-marker-path", 12),
-            {
-              type: "custom:e-c3-dashboard-trip-history-card",
-              entity: tripHistoryEntity,
-              trip_entities: tripEntities,
-              energy_entities: tripEnergyEntities,
-              title: strings.tripHistory,
-              language: language(hass),
-              hours_to_show: historyHours,
-              max_trips: 50,
-              grid_options: { columns: "full" },
-            },
-          ]),
-        }],
-      });
-    }
 
     if (modules.charging && entity("battery_charging") && entity("battery")) {
       views.push({
