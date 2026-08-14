@@ -37,6 +37,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The Vehicle view's charging-status card now matches the maintained YAML
+  dashboard for unavailable charging type, charge-end and charging-power
+  values (`-` and `0 kW` fallbacks, with consistent one-decimal formatting).
 - Selected charging sessions are now carried in the charging-view URL as well
   as session storage. This survives Lovelace strategy view reconstruction and
   keeps the selected session deterministic after navigation.

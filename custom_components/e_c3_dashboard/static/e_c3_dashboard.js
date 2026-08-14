@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.29";
+import { languageFor, textFor } from "./i18n.js?v=0.4.30";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
@@ -312,6 +312,33 @@ ${strings.install}
       card.querySelector('.bubble-state').innerText = label + age;
       icon.setAttribute('icon', raw === 'on' ? '${onIcon}' : raw === 'off' ? '${offIcon}' : 'mdi:help-circle-outline');
     })()}`;
+    const chargeSubStateFormatter = (index, entityId, kind = "text") => {
+      if (!entityId) return "";
+
+      const entityLiteral = JSON.stringify(entityId);
+      const valueCode = kind === "power"
+        ? `const value = stateEntity?.state;
+        const numericValue = Number(value);
+        const text = invalid(value) || !Number.isFinite(numericValue)
+          ? '0 kW'
+          : numericValue.toFixed(1).replace('.', ',') + ' ' + (stateEntity.attributes?.unit_of_measurement || 'kW');`
+        : `const text = invalid(stateEntity?.state) ? '-' : stateEntity.state;`;
+
+      return "${(() => {\n" +
+        `        const stateEntity = hass.states[${entityLiteral}];\n` +
+        "        const invalid = (value) => !value || ['unknown', 'unavailable', 'none', 'NO'].includes(value);\n" +
+        `        ${valueCode}\n` +
+        `        const target = card.querySelector('.bubble-sub-button-${index} .bubble-sub-button-name-container');\n` +
+        "        if (target) target.innerText = text;\n" +
+        "      })()}";
+    };
+
+    const chargingCardSubStateStyles = [
+      chargeSubStateFormatter(1, entity("battery_charging_type")),
+      chargeSubStateFormatter(2, entity("battery_charging_end")),
+      chargeSubStateFormatter(3, currentChargePower, "power"),
+    ].filter(Boolean).join("\n");
+
     const chargingCard = entity("battery_charging") ? {
       type: "custom:bubble-card", card_type: "button", button_type: "state",
       entity: entity("battery_charging"), name: strings.chargeStatus, icon: "mdi:ev-station",
@@ -330,7 +357,8 @@ ${strings.install}
         .bubble-name,.bubble-state { white-space:nowrap !important; overflow:visible !important; text-overflow:unset !important; }
         .bubble-sub-button-container { position:absolute !important; left:8px !important; right:8px !important; bottom:6px !important; width:auto !important; margin:0 !important; padding:0 !important; display:flex !important; align-items:center !important; justify-content:flex-end !important; gap:6px !important; }
         .bubble-sub-button-4 { background-color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; }
-        .bubble-sub-button-4 > ha-icon { color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }`,
+        .bubble-sub-button-4 > ha-icon { color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }
+        ${chargingCardSubStateStyles}`,
     } : null;
 
     const vehiclePicture = tracker
