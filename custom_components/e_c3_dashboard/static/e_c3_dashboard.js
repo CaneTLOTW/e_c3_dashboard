@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.20";
+import { languageFor, textFor } from "./i18n.js?v=0.4.21";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
@@ -170,6 +170,13 @@ ${strings.install}
     // Recorder retention is deliberately a global HA setting and may be
     // shorter than the configured display window.
     const historyHours = Math.min(8760, Math.max(24, Number(attributes.history_window_hours ?? modules.history_hours) || 2160));
+    const dashboardBasePath = (() => {
+      const pathname = window.location.pathname || "";
+      const parts = pathname.split("/").filter(Boolean);
+      return parts.length > 1 ? `/${parts.slice(0, -1).join("/")}` : "";
+    })();
+    const chargeViewPath = `${dashboardBasePath}/charging`;
+    const chargeSelectionKey = `e_c3_dashboard_charge_selection_${attributes.entry_id}`;
     const mapped = attributes.entity_mapping || {};
     const controls = attributes.control_entities || {};
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
@@ -411,7 +418,7 @@ ${strings.install}
         lastTripDisplayEntity ? bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6, lastTripDisplayEntity) : null,
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
         modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
-        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
+        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.settings, "mdi:cog-outline"),
@@ -493,6 +500,8 @@ ${strings.install}
                 power_entity: currentChargePower,
                 mode_entity: entity("battery_charging_type"),
                 capacity_entity: entity("battery_capacity"),
+                navigation_path: chargeViewPath,
+                selection_storage_key: chargeSelectionKey,
                 hours_to_show: historyHours,
                 fallback_capacity_kwh: 43.4,
                 grid_options: { columns: "full", rows: 6 },

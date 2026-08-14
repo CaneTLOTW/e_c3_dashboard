@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.20";
-import { localeFor, textFor } from "./i18n.js?v=0.4.20";
+import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.21";
+import { localeFor, textFor } from "./i18n.js?v=0.4.21";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
@@ -28,6 +28,9 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         .charge-table { width: 100%; border-collapse: collapse; font-size: var(--ha-font-size-s); }
         .charge-table th { position: sticky; top: 0; z-index: 1; color: var(--secondary-text-color); background: var(--card-background-color); font-weight: 500; text-align: left; padding: 0 10px 8px 0; white-space: nowrap; }
         .charge-table td { border-top: 1px solid var(--divider-color); padding: 9px 10px 9px 0; white-space: nowrap; }
+        .charge-row { cursor: pointer; }
+        .charge-row:hover td, .charge-row:focus td { background: color-mix(in srgb, var(--primary-color) 8%, transparent); }
+        .charge-row:focus { outline: 2px solid var(--primary-color); outline-offset: -2px; }
         .charge-table th:last-child, .charge-table td:last-child { padding-right: 0; }
         .muted { color: var(--secondary-text-color); }
         .error { color: var(--error-color); }
@@ -190,6 +193,26 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         return textFor(this._config, "chargeHistory");
     }
 
+    _selectionKey() {
+        return this._config.selection_storage_key || "e_c3_dashboard_charge_selection";
+    }
+
+    _openSession(session) {
+        try {
+            sessionStorage.setItem(this._selectionKey(), session.start);
+        } catch (_error) {
+            // Navigation remains useful even when browser storage is blocked.
+        }
+        const path = this._config.navigation_path;
+        if (path) {
+            this.dispatchEvent(new CustomEvent("hass-navigate", {
+                detail: { navigation_path: path },
+                bubbles: true,
+                composed: true,
+            }));
+        }
+    }
+
     render() {
         if (!this._config) return nothing;
         const text = this._text();
@@ -206,7 +229,9 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
                         <div class="table-wrap">
                             <table class="charge-table">
                                 <thead><tr><th>${text.start}</th><th>${text.duration}</th><th>${text.energy}</th><th>${text.average}</th><th>${text.maximum}</th><th>${text.type}</th></tr></thead>
-                                <tbody>${sessions.map((session) => html`<tr>
+                                <tbody>${sessions.map((session) => html`<tr class="charge-row" tabindex="0" role="button"
+                                    @click=${() => this._openSession(session)}
+                                    @keydown=${(event) => (event.key === "Enter" || event.key === " ") && this._openSession(session)}>
                                     <td>${this._formatDate(session.start)}</td>
                                     <td>${this._formatDuration(session.duration_seconds)}</td>
                                     <td>${this._number(session.energy_kwh)}</td>
@@ -530,6 +555,18 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
             this._config?.mode_entity, this._config?.capacity_entity].filter(Boolean);
     }
 
+    _selectionKey() {
+        return this._config.selection_storage_key || "e_c3_dashboard_charge_selection";
+    }
+
+    _requestedSelection() {
+        try {
+            return sessionStorage.getItem(this._selectionKey());
+        } catch (_error) {
+            return null;
+        }
+    }
+
     _statesFor(response, entityIds, entityId) {
         if (!entityId) return [];
         if (Array.isArray(response)) {
@@ -569,9 +606,14 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
             }).reverse();
             this._history = history;
             this._sessions = sessions;
-            if (!sessions.some((session) => session.start === this._selectedId)) {
-                this._selectedId = sessions[0]?.start;
-            }
+            const requested = this._requestedSelection();
+            const requestedTime = requested ? Date.parse(requested) : NaN;
+            const requestedSession = sessions.find((session) => session.start === requested) ||
+                (Number.isFinite(requestedTime)
+                    ? sessions.find((session) => Math.abs(Date.parse(session.start) - requestedTime) <= 5 * 60 * 1000)
+                    : null);
+            this._selectedId = requestedSession?.start ||
+                (sessions.some((session) => session.start === this._selectedId) ? this._selectedId : sessions[0]?.start);
         } catch (error) {
             this._sessions = [];
             this._history = null;
