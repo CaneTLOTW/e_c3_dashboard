@@ -33,6 +33,7 @@ The following HACS repositories are intentionally mandatory:
 - `Clooos/Bubble-Card`
 - `custom-cards/button-card`
 - `nathan-gs/ha-map-card`
+- `thomasloven/lovelace-layout-card`
 
 HACS cannot automatically install another repository as a transitive
 dependency. The setup and dashboard onboarding therefore report missing
@@ -42,9 +43,16 @@ configurations.
 Dependencies must be functional, not only downloaded. In particular, the user
 must complete the upstream Stellantis login and vehicle setup and wait until
 Home Assistant exposes the vehicle's battery, mileage and tracker entities.
-The config flow enforces that minimum readiness check. The three frontend
+The config flow enforces that minimum readiness check. The four frontend
 dependencies must be loaded as Lovelace resources; a HACS download without a
 loaded JavaScript module is still a missing dashboard dependency.
+
+The config flow provides a best-effort early preflight by inspecting the
+registered resource URLs. This helps catch a forgotten HACS card before a
+vehicle is selected, but cannot prove a browser actually loaded its JavaScript.
+The Community Dashboard strategy therefore retains the authoritative
+browser-side `customElements` check and shows an explicit setup page rather
+than attempting to render a broken dashboard.
 
 ## Upstream compatibility
 

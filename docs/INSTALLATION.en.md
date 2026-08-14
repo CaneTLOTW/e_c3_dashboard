@@ -11,6 +11,7 @@ Install and configure these HACS projects first:
 2. Bubble Card
 3. Button Card
 4. ha-map-card
+5. layout-card
 
 A vehicle must already be visible in **Settings → Devices & services →
 Stellantis Vehicles** with its battery, mileage and vehicle-tracker entities.
@@ -19,10 +20,12 @@ e-C3 Dashboard config flow deliberately rejects a selected upstream device
 until these real entities exist: downloading the HACS repository is not a
 functional setup.
 
-After installing Bubble Card, Button Card and ha-map-card, make sure they are
-loaded as Lovelace **JavaScript modules**. HACS may show a card as downloaded
-before the browser has loaded its resource; restart Home Assistant if HACS asks
-for it and then hard-refresh the browser.
+After installing Bubble Card, Button Card, ha-map-card and layout-card, make
+sure they are loaded as Lovelace **JavaScript modules**. HACS may show a card
+as downloaded before the browser has loaded its resource; restart Home Assistant
+if HACS asks for it and then hard-refresh the browser. The config flow reports
+the registered-resource state before vehicle selection; the dashboard performs
+the definitive browser-side check when opened.
 
 ## Install
 

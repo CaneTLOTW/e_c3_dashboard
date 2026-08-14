@@ -141,6 +141,85 @@ function timestampValue(value) {
     return Date.parse(value);
 }
 
+export function chargeSessionId(start) {
+    const timestamp = timestampValue(start);
+    return Number.isFinite(timestamp)
+        ? `charge-${new Date(timestamp).toISOString()}`
+        : `charge-${String(start ?? "unknown")}`;
+}
+
+function withSessionId(session) {
+    return { ...session, id: session.id || chargeSessionId(session.start) };
+}
+
+function numericOrNull(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+/**
+ * Converts historical states of the restart-safe local result sensor into
+ * charging sessions. The current sensor state may be `unknown`; the
+ * historical attributes are the source of truth for completed sessions.
+ */
+export function buildLocalChargeSessions(resultStates = []) {
+    return resultStates
+        .map((raw) => raw?.attributes ?? raw?.a ?? {})
+        .filter((attrs) => attrs.start_time && attrs.end_time && attrs.duration_seconds)
+        .map((attrs) => withSessionId({
+            start: attrs.start_time,
+            end: attrs.end_time,
+            duration_seconds: numericOrNull(attrs.duration_seconds),
+            soc_start: numericOrNull(attrs.soc_start),
+            soc_end: numericOrNull(attrs.soc_end),
+            capacity_kwh: numericOrNull(attrs.capacity_kwh),
+            energy_kwh: numericOrNull(attrs.energy_kwh),
+            average_power_kw: numericOrNull(attrs.average_power_kw),
+            maximum_power_kw: numericOrNull(attrs.maximum_power_kw),
+            charge_type: attrs.charge_type || "—",
+            estimated: attrs.estimated !== false,
+        }))
+        .filter((session) => Number.isFinite(timestampValue(session.start)) && Number.isFinite(timestampValue(session.end)));
+}
+
+/**
+ * Merges recorder-reconstructed and local-result sessions. Local results are
+ * preferred for a matching start time because they survive API publication
+ * delays and contain the restart-safe completed-session metadata.
+ */
+export function mergeChargeSessions(rawSessions = [], localSessions = [], mergeGapMinutes = 5) {
+    const merged = rawSessions.map(withSessionId);
+    const gapMs = mergeGapMinutes * 60000;
+
+    for (const local of localSessions) {
+        const localId = chargeSessionId(local.start);
+        const index = merged.findIndex((raw) =>
+            raw.id === localId || Math.abs(timestampValue(raw.start) - timestampValue(local.start)) <= gapMs
+        );
+        if (index >= 0) merged.splice(index, 1);
+        const duplicateIndex = merged.findIndex((session) => session.id === localId);
+        if (duplicateIndex >= 0) merged.splice(duplicateIndex, 1);
+        merged.push(withSessionId({ ...local, id: localId }));
+    }
+
+    return merged.sort((a, b) => timestampValue(b.start) - timestampValue(a.start));
+}
+
+/**
+ * Resolves the stored selection ID. ISO start timestamps are accepted as a
+ * backward-compatible bridge for selections written by versions before the
+ * stable session ID was introduced.
+ */
+export function findChargeSession(sessions = [], requested) {
+    if (!requested) return null;
+    const exact = sessions.find((session) => session.id === requested || session.start === requested);
+    if (exact) return exact;
+    const requestedTime = timestampValue(requested);
+    if (!Number.isFinite(requestedTime)) return null;
+    return sessions.find((session) => Math.abs(timestampValue(session.start) - requestedTime) <= 5 * 60000) ?? null;
+}
+
 /**
  * Builds the points for one charging-session curve.
  *
@@ -256,6 +335,7 @@ export function buildChargeSessions({
             : derivedMaximum;
 
         return {
+            id: chargeSessionId(new Date(interval.start).toISOString()),
             start: new Date(interval.start).toISOString(),
             end: new Date(interval.end).toISOString(),
             duration_seconds: Math.round(durationSeconds),

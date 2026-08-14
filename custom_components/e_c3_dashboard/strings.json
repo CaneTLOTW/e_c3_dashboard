@@ -2,6 +2,13 @@
   "title": "e-C3 Dashboard",
   "config": {
     "step": {
+      "dashboard_cards": {
+        "title": "Dashboard card preflight",
+        "description": "e-C3 Dashboard requires Bubble Card, Button Card, ha-map-card and layout-card. Registered Lovelace resources:\n\n{card_status}",
+        "data": {
+          "dashboard_cards_confirmed": "I have reviewed the required dashboard cards"
+        }
+      },
       "user": {
         "title": "Select vehicle",
         "description": "Choose a vehicle that is already configured by Stellantis Vehicles.",

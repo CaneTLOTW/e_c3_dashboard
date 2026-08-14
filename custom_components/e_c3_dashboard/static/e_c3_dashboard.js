@@ -4,13 +4,14 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.13";
+import { languageFor, textFor } from "./i18n.js?v=0.4.31";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
   ["bubble-card", "Bubble Card"],
   ["button-card", "Button Card"],
   ["map-card", "ha-map-card"],
+  ["layout-card", "layout-card"],
 ];
 
 function language(hass) {
@@ -169,6 +170,13 @@ ${strings.install}
     // Recorder retention is deliberately a global HA setting and may be
     // shorter than the configured display window.
     const historyHours = Math.min(8760, Math.max(24, Number(attributes.history_window_hours ?? modules.history_hours) || 2160));
+    const dashboardBasePath = (() => {
+      const pathname = window.location.pathname || "";
+      const parts = pathname.split("/").filter(Boolean);
+      return parts.length > 1 ? `/${parts.slice(0, -1).join("/")}` : "";
+    })();
+    const chargeViewPath = `${dashboardBasePath}/charging`;
+    const chargeSelectionKey = `e_c3_dashboard_charge_selection_${attributes.entry_id}`;
     const mapped = attributes.entity_mapping || {};
     const controls = attributes.control_entities || {};
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
@@ -197,8 +205,8 @@ ${strings.install}
           }
         : null;
     };
-    const bubble = (key, name, icon, subButton = [], columns = "full") => {
-      const entityId = entity(key);
+    const bubble = (key, name, icon, subButton = [], columns = "full", entityOverride = null) => {
+      const entityId = entityOverride || entity(key);
       return entityId
         ? {
             type: "custom:bubble-card",
@@ -216,6 +224,12 @@ ${strings.install}
           }
         : null;
     };
+    // Prefer the restart-safe local result for the latest trip.  The native
+    // Stellantis value remains in the history source list as a fallback and
+    // for older trips that were reported before this package was installed.
+    const lastTripResult = metric("last_trip_result");
+    const nativeLastTrip = entity("last_trip");
+    const lastTripDisplayEntity = lastTripResult || nativeLastTrip;
     const press = (key, name, icon) => {
       const entityId = entity(key);
       return entityId
@@ -255,6 +269,38 @@ ${strings.install}
       card_type: "separator",
       name,
       icon,
+      view_layout: { "grid-column": "1 / -1" },
+    });
+
+    // Mirror the compact two-column layout of the maintained reference
+    // dashboard without exposing any installation-specific entity IDs. The
+    // strategy owns the layout; every card still gets its entity from the
+    // selected config-entry mapping above.
+    const layoutCard = (cards) => ({
+      type: "custom:layout-card",
+      layout_type: "custom:grid-layout",
+      layout: {
+        "grid-template-columns": "repeat(2, minmax(0, 1fr))",
+        "grid-auto-flow": "row",
+        "grid-auto-rows": "auto",
+        "grid-gap": "8px",
+        margin: "0",
+        padding: "0",
+      },
+      cards: present(cards).map((card) => {
+        const { grid_options, ...layoutCompatibleCard } = card;
+        const columns = grid_options?.columns;
+        if (columns === "full" || Number(columns) >= 12) {
+          return {
+            ...layoutCompatibleCard,
+            view_layout: {
+              ...layoutCompatibleCard.view_layout,
+              "grid-column": "1 / -1",
+            },
+          };
+        }
+        return layoutCompatibleCard;
+      }),
     });
 
     const ageTextStyles = (onLabel, offLabel, onIcon, offIcon) => `\${(() => {
@@ -266,6 +312,33 @@ ${strings.install}
       card.querySelector('.bubble-state').innerText = label + age;
       icon.setAttribute('icon', raw === 'on' ? '${onIcon}' : raw === 'off' ? '${offIcon}' : 'mdi:help-circle-outline');
     })()}`;
+    const chargeSubStateFormatter = (index, entityId, kind = "text") => {
+      if (!entityId) return "";
+
+      const entityLiteral = JSON.stringify(entityId);
+      const valueCode = kind === "power"
+        ? `const value = stateEntity?.state;
+        const numericValue = Number(value);
+        const text = invalid(value) || !Number.isFinite(numericValue)
+          ? '0 kW'
+          : numericValue.toFixed(1).replace('.', ',') + ' ' + (stateEntity.attributes?.unit_of_measurement || 'kW');`
+        : `const text = invalid(stateEntity?.state) ? '-' : stateEntity.state;`;
+
+      return "${(() => {\n" +
+        `        const stateEntity = hass.states[${entityLiteral}];\n` +
+        "        const invalid = (value) => !value || ['unknown', 'unavailable', 'none', 'NO'].includes(value);\n" +
+        `        ${valueCode}\n` +
+        `        const target = card.querySelector('.bubble-sub-button-${index} .bubble-sub-button-name-container');\n` +
+        "        if (target) target.innerText = text;\n" +
+        "      })()}";
+    };
+
+    const chargingCardSubStateStyles = [
+      chargeSubStateFormatter(1, entity("battery_charging_type")),
+      chargeSubStateFormatter(2, entity("battery_charging_end")),
+      chargeSubStateFormatter(3, currentChargePower, "power"),
+    ].filter(Boolean).join("\n");
+
     const chargingCard = entity("battery_charging") ? {
       type: "custom:bubble-card", card_type: "button", button_type: "state",
       entity: entity("battery_charging"), name: strings.chargeStatus, icon: "mdi:ev-station",
@@ -284,7 +357,8 @@ ${strings.install}
         .bubble-name,.bubble-state { white-space:nowrap !important; overflow:visible !important; text-overflow:unset !important; }
         .bubble-sub-button-container { position:absolute !important; left:8px !important; right:8px !important; bottom:6px !important; width:auto !important; margin:0 !important; padding:0 !important; display:flex !important; align-items:center !important; justify-content:flex-end !important; gap:6px !important; }
         .bubble-sub-button-4 { background-color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; }
-        .bubble-sub-button-4 > ha-icon { color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }`,
+        .bubble-sub-button-4 > ha-icon { color:\${hass.states['${entity("battery_plugged")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }
+        ${chargingCardSubStateStyles}`,
     } : null;
 
     const vehiclePicture = tracker
@@ -369,10 +443,10 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.latestActivities, "mdi:history"),
-        bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6),
+        lastTripDisplayEntity ? bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6, lastTripDisplayEntity) : null,
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
-        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50 } : null,
-        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4 } : null,
+        modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
+        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.settings, "mdi:cog-outline"),
@@ -388,19 +462,24 @@ ${strings.install}
       title: strings.vehicle,
       path: "vehicle",
       icon: "mdi:car-electric",
-      type: "sections",
-      max_columns: 2,
-      sections: overviewSections,
+      type: "custom:horizontal-layout",
+      layout: {
+        width: 300,
+        max_width: 480,
+        max_cols: 2,
+        margin: "0px 8px 0px 8px",
+        padding: "4px 0px 4px 0px",
+        card_margin: "4px 8px 8px",
+      },
+      cards: overviewSections.map((section) => layoutCard(section.cards)),
     }];
 
-    if (modules.trips && (entity("last_trip") || metric("last_trip_result"))) {
-      // The upstream Last trip sensor carries the durable trip rows. The
-      // package's own result sensor enriches future rows with locally derived
-      // energy. No installation-specific helper is ever used as a fallback.
-      const tripHistoryEntity = entity("last_trip") || metric("last_trip_result");
-      const tripEnergyEntities = [
-        metric("last_trip_result"),
-      ].filter(Boolean);
+    if (modules.trips && lastTripDisplayEntity) {
+      // The restart-safe local result is primary. The upstream Last trip
+      // sensor remains a fallback/source for older API-reported rows.
+      const tripHistoryEntity = lastTripDisplayEntity;
+      const tripEntities = [nativeLastTrip].filter(Boolean);
+      const tripEnergyEntities = [lastTripResult].filter(Boolean);
       views.push({
         title: strings.trips,
         path: "trips",
@@ -415,6 +494,7 @@ ${strings.install}
             {
               type: "custom:e-c3-dashboard-trip-history-card",
               entity: tripHistoryEntity,
+              trip_entities: tripEntities,
               energy_entities: tripEnergyEntities,
               title: strings.tripHistory,
               language: language(hass),
@@ -448,6 +528,9 @@ ${strings.install}
                 power_entity: currentChargePower,
                 mode_entity: entity("battery_charging_type"),
                 capacity_entity: entity("battery_capacity"),
+                result_entity: metric("last_charge_result"),
+                navigation_path: chargeViewPath,
+                selection_storage_key: chargeSelectionKey,
                 hours_to_show: historyHours,
                 fallback_capacity_kwh: 43.4,
                 grid_options: { columns: "full", rows: 6 },
@@ -611,6 +694,21 @@ No GPS coordinates available.
         }],
       });
     }
+
+    views.push({
+      title: strings.help,
+      path: "help",
+      icon: "mdi:help-circle-outline",
+      type: "sections",
+      max_columns: 1,
+      sections: [{
+        type: "grid",
+        cards: [
+          { type: "heading", heading: strings.help, icon: "mdi:help-circle-outline", heading_style: "title" },
+          markdown(strings.helpContent),
+        ],
+      }],
+    });
 
     views.push({
       title: strings.system,

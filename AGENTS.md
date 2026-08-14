@@ -3,6 +3,17 @@
 This file is a compact operating guide for AI-assisted and automated changes.
 It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Branch workflow
+
+- Develop all features, fixes, documentation, and dependency updates on the
+  `develop` branch. Do not commit directly to `main`.
+- Test `develop` in a designated Home Assistant development installation using
+  the HACS branch version. It replaces the same integration domain and is not
+  a parallel stable installation.
+- Merge a reviewed and validated pull request from `develop` into `main` only
+  when it is ready for users. Create the corresponding GitHub release from
+  `main`; HACS users track releases, not `develop`.
+
 ## Scope and architecture
 
 - This repository is a portable companion integration for

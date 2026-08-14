@@ -36,12 +36,23 @@ DEFAULT_OPTIONS = {
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.4.13"
+FRONTEND_VERSION = "0.4.31"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (
     "/e_c3_dashboard/trip-history-card.js",
     "/e_c3_dashboard/charge-history-card.js",
     FRONTEND_URL,
+)
+
+# A URL check is only a setup preflight: a browser is the authority on whether
+# a module actually loaded and registered its custom element. Keep the names
+# and URL fragments together so the config flow and browser strategy report
+# the same required cards.
+REQUIRED_DASHBOARD_CARDS = (
+    ("Bubble Card", "bubble-card", "bubble-card"),
+    ("Button Card", "button-card", "button-card"),
+    ("ha-map-card", "map-card", "ha-map-card"),
+    ("layout-card", "layout-card", "lovelace-layout-card"),
 )
 
 METRIC_TRAILING_CONSUMPTION = "trailing_consumption_500km"
