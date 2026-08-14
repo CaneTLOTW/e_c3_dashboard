@@ -9,6 +9,8 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Trip-history rows can be opened directly in place to show start and end
+  odometer values, with keyboard support for the expandable detail row.
 - A dashboard-card preflight is shown before vehicle selection. It reports the
   registered Lovelace resources for Bubble Card, Button Card, ha-map-card and
   layout-card; the dashboard retains its definitive browser-side module check.

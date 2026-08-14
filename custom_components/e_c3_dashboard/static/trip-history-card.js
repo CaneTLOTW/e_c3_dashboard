@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.4.18";
+import { localeFor, textFor } from "./i18n.js?v=0.4.19";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -12,6 +12,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         _trips: { state: true },
         _loading: { state: true },
         _error: { state: true },
+        _expandedTripKey: { state: true },
     };
 
     static styles = css`
@@ -32,6 +33,11 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         .trip-table th { position: sticky; top: 0; z-index: 1; color: var(--secondary-text-color); background: var(--card-background-color); font-weight: 500; text-align: left; padding: 0 8px 8px 0; white-space: nowrap; }
         .trip-table td { border-top: 1px solid var(--divider-color); padding: 9px 8px 9px 0; vertical-align: top; white-space: nowrap; }
         .trip-table td:first-child { white-space: normal; }
+        .trip-row { cursor: pointer; }
+        .trip-row:hover td, .trip-row:focus td { background: color-mix(in srgb, var(--primary-color) 8%, transparent); }
+        .trip-row:focus { outline: 2px solid var(--primary-color); outline-offset: -2px; }
+        .trip-details td { padding: 0 0 10px 0; border-top: 0; white-space: normal; }
+        .trip-details-content { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 8px 10px; border-left: 3px solid var(--primary-color); background: color-mix(in srgb, var(--primary-color) 7%, transparent); }
         .muted { color: var(--secondary-text-color); }
         .error { color: var(--error-color); }
     `;
@@ -185,12 +191,38 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         return value === undefined || value === null || value === "" ? fallback : value;
     }
 
+    _tripKey(trip, index) {
+        return trip.attributes?.id || `${trip.last_updated ?? trip.last_changed}|${trip.state}|${index}`;
+    }
+
+    _toggleTrip(key) {
+        this._expandedTripKey = this._expandedTripKey === key ? undefined : key;
+    }
+
+    _formatMileage(value) {
+        const numeric = Number.parseFloat(String(value ?? "").replace(",", "."));
+        return Number.isFinite(numeric)
+            ? `${numeric.toLocaleString(this._locale(), { maximumFractionDigits: 1 })} km`
+            : this._value(value);
+    }
+
+    _endMileage(trip) {
+        const explicit = trip.attributes?.end_mileage;
+        if (explicit !== undefined && explicit !== null && explicit !== "") {
+            return explicit;
+        }
+        const start = Number.parseFloat(String(trip.attributes?.start_mileage ?? "").replace(",", "."));
+        const distance = Number.parseFloat(String(trip.state ?? "").replace(",", "."));
+        return Number.isFinite(start) && Number.isFinite(distance) ? start + distance : undefined;
+    }
+
     render() {
         if (!this._config) return nothing;
         const text = this._text();
         const trips = this._trips ?? [];
         const hasMaxSpeed = trips.some((trip) => trip.attributes?.max_speed);
         const hasEnergy = trips.some((trip) => trip.attributes?.energy_kwh !== undefined);
+        const columnCount = 4 + (hasEnergy ? 2 : 0) + (hasMaxSpeed ? 1 : 0);
         return html`
             <ha-card .header=${this._config.title || text.title}>
                 <div class="card-content">
@@ -200,14 +232,25 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                     ${trips.length ? html`
                         <div class="table-scroll" tabindex="0" aria-label=${text.scroll}>
                             <table class="trip-table"><thead><tr><th>${text.date}</th><th>${text.duration}</th><th>${text.distance}</th><th>${text.average}</th>${hasEnergy ? html`<th>${text.energy}</th><th>${text.consumption}</th>` : nothing}${hasMaxSpeed ? html`<th>${text.maximum}</th>` : nothing}</tr></thead>
-                            <tbody>${trips.map((trip) => html`<tr>
+                            <tbody>${trips.map((trip, index) => {
+                                const key = this._tripKey(trip, index);
+                                const expanded = this._expandedTripKey === key;
+                                return html`<tr class="trip-row" tabindex="0" role="button" aria-expanded=${expanded} @click=${() => this._toggleTrip(key)} @keydown=${(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); this._toggleTrip(key); } }}>
                                 <td>${this._formatDate(trip.last_updated ?? trip.last_changed)}</td>
                                 <td>${this._value(trip.attributes?.duration)}</td>
                                 <td>${this._value(trip.state)} km</td>
                                 <td>${this._value(trip.attributes?.avg_speed)}</td>
                                 ${hasEnergy ? html`<td>${this._value(trip.attributes?.energy_kwh)}</td><td>${this._value(trip.attributes?.energy_per_100_km)}</td>` : nothing}
                                 ${hasMaxSpeed ? html`<td>${this._value(trip.attributes?.max_speed)}</td>` : nothing}
-                            </tr>`)}</tbody></table>
+                            </tr>${expanded ? html`<tr class="trip-details">
+                                <td colspan=${columnCount}>
+                                    <div class="trip-details-content">
+                                        <span><strong>${text.startMileage}:</strong> ${this._formatMileage(trip.attributes?.start_mileage)}</span>
+                                        <span><strong>${text.endMileage}:</strong> ${this._formatMileage(this._endMileage(trip))}</span>
+                                    </div>
+                                </td>
+                            </tr>` : nothing}`;
+                            })}</tbody></table>
                         </div>` : nothing}
                 </div>
             </ha-card>

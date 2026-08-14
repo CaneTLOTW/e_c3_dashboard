@@ -11,13 +11,13 @@ export const FRONTEND_TEXT = {
       title: "Fahrtenhistorie", loading: "Fahrtenhistorie wird geladen …",
       error: "Historie konnte nicht geladen werden:", empty: "Keine Fahrten im gewählten Zeitraum.",
       scroll: "Fahrtenhistorie vertikal scrollen", date: "Datum", duration: "Dauer",
-      distance: "Strecke", average: "Ø km/h", energy: "kWh", consumption: "kWh/100 km", maximum: "Max. km/h",
+      distance: "Strecke", average: "Ø km/h", energy: "kWh", consumption: "kWh/100 km", maximum: "Max. km/h", startMileage: "Startkilometer", endMileage: "Endkilometer",
     },
     en: {
       title: "Trip history", loading: "Loading trip history …",
       error: "Could not load history:", empty: "No trips in the selected period.",
       scroll: "Scroll trip history vertically", date: "Date", duration: "Duration",
-      distance: "Distance", average: "Avg. km/h", energy: "kWh", consumption: "kWh/100 km", maximum: "Max. km/h",
+      distance: "Distance", average: "Avg. km/h", energy: "kWh", consumption: "kWh/100 km", maximum: "Max. km/h", startMileage: "Start mileage", endMileage: "End mileage",
     },
   },
   chargeHistory: {
