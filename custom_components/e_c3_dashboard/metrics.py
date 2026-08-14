@@ -48,6 +48,7 @@ class VehicleMetricsManager:
             "trips": [],
             "charges": [],
             "active_trip": None,
+            "pending_trips": [],
             "active_charge": None,
             "charge_odometer_km": None,
             "charge_end_time": None,
@@ -67,6 +68,8 @@ class VehicleMetricsManager:
         stored = await self._store.async_load()
         if isinstance(stored, dict):
             self.data.update(stored)
+        if not isinstance(self.data.get("pending_trips"), list):
+            self.data["pending_trips"] = []
         # v0.4.11 briefly imported historical Last trip states. They are not
         # a stable session stream: Recorder also persists restored values and
         # therefore cannot distinguish repeated equal-distance journeys. Drop
@@ -90,6 +93,8 @@ class VehicleMetricsManager:
             self.mapping.get("engine"),
             self.mapping.get("battery_charging"),
             self.mapping.get("battery"),
+            self.mapping.get("mileage"),
+            self.mapping.get("last_trip"),
         ]
         watched = [entity_id for entity_id in watched if entity_id]
         if watched:
@@ -97,13 +102,14 @@ class VehicleMetricsManager:
                 async_track_state_change_event(self.hass, watched, self._handle_state)
             )
 
-        # Restore a delayed completion after a Core restart. It is deliberately
-        # not finalised immediately: Stellantis often publishes mileage only
-        # several minutes after ignition-off.
+        # Restore delayed drive completion after a Core restart. An ended drive
+        # is kept separate from a later newly active drive.
         if self.data.get("active_trip") and self._is_off("engine"):
-            self._schedule_finalize(_RETRY_DELAY)
+            await self._async_queue_active_trip_for_finalization()
         elif self._is_on("engine") and not self.data.get("active_trip"):
             await self.async_start_trip()
+        if self.data.get("pending_trips"):
+            self._schedule_finalize(_RETRY_DELAY)
         if self.data.get("active_charge") and self._is_off("battery_charging"):
             self._schedule_charge_finalize(_RETRY_DELAY)
         elif self._is_on("battery_charging") and not self.data.get("active_charge"):
@@ -141,7 +147,7 @@ class VehicleMetricsManager:
             if new_state.state == "on":
                 self.hass.async_create_task(self.async_start_trip())
             elif new_state.state == "off" and old_state is not None and old_state.state == "on":
-                self._schedule_finalize(_FINALIZE_DELAY)
+                self.hass.async_create_task(self._async_queue_active_trip_for_finalization())
         elif entity_id == self.mapping.get("battery_charging"):
             if new_state.state == "on" and (old_state is None or old_state.state != "on"):
                 self.hass.async_create_task(self.async_start_charge())
@@ -149,6 +155,10 @@ class VehicleMetricsManager:
                 self._schedule_charge_finalize(_CHARGE_FINALIZE_DELAY)
         elif entity_id == self.mapping.get("battery") and self._is_on("battery_charging"):
             self.hass.async_create_task(self.async_track_charge_sample())
+        elif entity_id == self.mapping.get("mileage"):
+            self.hass.async_create_task(self.async_capture_pending_trip_mileage(new_state.state))
+        elif entity_id == self.mapping.get("last_trip"):
+            self.hass.async_create_task(self.async_reconcile_pending_trip(new_state))
 
     async def async_start_trip(self) -> None:
         """Persist an ignition-on reference once per journey."""
@@ -166,8 +176,33 @@ class VehicleMetricsManager:
         }
         await self._save_and_refresh()
 
+    async def _async_queue_active_trip_for_finalization(self) -> None:
+        """Keep an ended drive separate while waiting for its odometer value."""
+        active = self.data.get("active_trip")
+        if not isinstance(active, dict):
+            return
+
+        now = dt_util.utcnow()
+        start_mileage = self._as_float(active.get("start_mileage"))
+        mileage = self._number("mileage")
+        active["end_time"] = now.isoformat()
+        active["end_soc"] = self._number("battery")
+        active["end_mileage"] = (
+            mileage
+            if mileage is not None and start_mileage is not None and mileage > start_mileage
+            else None
+        )
+        self.data["pending_trips"] = [
+            item for item in self.data.get("pending_trips", []) if isinstance(item, dict)
+        ] + [active]
+        self.data["active_trip"] = None
+        await self._save_and_refresh()
+        await self.async_finish_trip()
+        if self.data.get("pending_trips"):
+            self._schedule_finalize(_FINALIZE_DELAY)
+
     def _schedule_finalize(self, delay: timedelta) -> None:
-        if not self.data.get("active_trip"):
+        if not self.data.get("pending_trips"):
             return
         if self._cancel_trip_finalize:
             self._cancel_trip_finalize()
@@ -181,69 +216,112 @@ class VehicleMetricsManager:
         self.hass.async_create_task(self.async_finish_trip())
 
     async def async_finish_trip(self) -> None:
-        """Finish after the upstream post-drive update has had time to arrive."""
-        if self._is_on("engine"):
-            return
-        active = self.data.get("active_trip")
-        if not isinstance(active, dict):
-            return
-        end_mileage = self._number("mileage")
-        end_soc = self._number("battery")
-        start_mileage = self._as_float(active.get("start_mileage"))
-        if end_mileage is None or start_mileage is None or end_mileage <= start_mileage:
-            # Keep the candidate alive; delayed mileage is normal for this API.
-            self._schedule_finalize(_RETRY_DELAY)
+        """Finalise each ended drive only with its captured endpoint."""
+        pending = [
+            item for item in self.data.get("pending_trips", []) if isinstance(item, dict)
+        ]
+        if not pending:
             return
 
-        start_time = dt_util.parse_datetime(str(active.get("start_time") or ""))
-        if start_time is None:
-            start_time = dt_util.utcnow()
-        end_time = dt_util.utcnow()
-        duration_seconds = max(1, int((end_time - start_time).total_seconds()))
-        distance_km = round(end_mileage - start_mileage, 3)
-        if distance_km > 1000 or duration_seconds > 24 * 3600:
-            _LOGGER.warning("Discarding implausible local e-C3 trip candidate")
-            self.data["active_trip"] = None
-            await self._save_and_refresh()
-            return
+        remaining: list[dict[str, Any]] = []
+        completed: list[dict[str, Any]] = []
+        now = dt_util.utcnow()
+        for candidate in pending:
+            start_mileage = self._as_float(candidate.get("start_mileage"))
+            end_mileage = self._as_float(candidate.get("end_mileage"))
+            start_time = dt_util.parse_datetime(str(candidate.get("start_time") or "")) or now
+            end_time = dt_util.parse_datetime(str(candidate.get("end_time") or "")) or now
+            if end_mileage is None or start_mileage is None or end_mileage <= start_mileage:
+                if now - end_time > timedelta(hours=24):
+                    _LOGGER.warning("Discarding unresolved local e-C3 trip candidate after 24 hours")
+                else:
+                    remaining.append(candidate)
+                continue
 
-        capacity = self._as_float(active.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
-        start_soc = self._as_float(active.get("start_soc"))
-        energy_kwh = (
-            round(max(0, start_soc - end_soc) * capacity / 100, 3)
-            if start_soc is not None and end_soc is not None
-            else None
-        )
-        consumption = (
-            round(energy_kwh / distance_km * 100, 2)
-            if energy_kwh is not None and distance_km > 0
-            else None
-        )
-        trip = {
-            "id": end_time.isoformat(),
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat(),
-            "duration_seconds": duration_seconds,
-            "duration": self._duration_text(duration_seconds),
-            "distance_km": distance_km,
-            "start_mileage": round(start_mileage, 3),
-            "end_mileage": round(end_mileage, 3),
-            "average_speed": round(distance_km / (duration_seconds / 3600), 1),
-            "soc_start": start_soc,
-            "soc_end": end_soc,
-            "capacity_kwh": round(capacity, 2),
-            "energy_kwh": energy_kwh,
-            "energy_per_100_km": consumption,
-            "estimated": True,
-        }
-        self.data["trips"] = [
-            item for item in self.data.get("trips", []) if item.get("id") != trip["id"]
-        ] + [trip]
-        self.data["last_trip"] = trip
-        self.data["active_trip"] = None
+            duration_seconds = max(1, int((end_time - start_time).total_seconds()))
+            distance_km = round(end_mileage - start_mileage, 3)
+            if distance_km > 1000 or duration_seconds > 24 * 3600:
+                _LOGGER.warning("Discarding implausible local e-C3 trip candidate")
+                continue
+
+            capacity = self._as_float(candidate.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
+            start_soc = self._as_float(candidate.get("start_soc"))
+            end_soc = self._as_float(candidate.get("end_soc"))
+            energy_kwh = (
+                round(max(0, start_soc - end_soc) * capacity / 100, 3)
+                if start_soc is not None and end_soc is not None
+                else None
+            )
+            consumption = (
+                round(energy_kwh / distance_km * 100, 2)
+                if energy_kwh is not None and distance_km > 0
+                else None
+            )
+            completed.append({
+                "id": end_time.isoformat(),
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "duration_seconds": duration_seconds,
+                "duration": self._duration_text(duration_seconds),
+                "distance_km": distance_km,
+                "start_mileage": round(start_mileage, 3),
+                "end_mileage": round(end_mileage, 3),
+                "average_speed": round(distance_km / (duration_seconds / 3600), 1),
+                "soc_start": start_soc,
+                "soc_end": end_soc,
+                "capacity_kwh": round(capacity, 2),
+                "energy_kwh": energy_kwh,
+                "energy_per_100_km": consumption,
+                "estimated": True,
+            })
+
+        self.data["pending_trips"] = remaining
+        for trip in completed:
+            self.data["trips"] = [
+                item for item in self.data.get("trips", []) if item.get("id") != trip["id"]
+            ] + [trip]
+            self.data["last_trip"] = trip
         self._normalise_trips()
         await self._save_and_refresh()
-        self.hass.bus.async_fire(f"{DOMAIN}_trip_completed", trip)
+        for trip in completed:
+            self.hass.bus.async_fire(f"{DOMAIN}_trip_completed", trip)
+        if remaining:
+            self._schedule_finalize(_RETRY_DELAY)
+
+    async def async_capture_pending_trip_mileage(self, state: str) -> None:
+        """Assign an odometer update only to the most recent ended drive."""
+        if self._is_on("engine"):
+            return
+        mileage = self._as_float(state)
+        pending = [
+            item for item in self.data.get("pending_trips", []) if isinstance(item, dict)
+        ]
+        if mileage is None or not pending:
+            return
+        candidate = pending[-1]
+        start_mileage = self._as_float(candidate.get("start_mileage"))
+        if start_mileage is None or mileage <= start_mileage:
+            return
+        candidate["end_mileage"] = mileage
+        self.data["pending_trips"] = pending
+        await self.async_finish_trip()
+
+    async def async_reconcile_pending_trip(self, state: Any) -> None:
+        """Use an upstream Last trip row to safely resolve delayed mileage."""
+        attributes = getattr(state, "attributes", {}) or {}
+        start_mileage = self._as_float(attributes.get("start_mileage"))
+        distance = self._as_float(getattr(state, "state", None))
+        if start_mileage is None or distance is None or distance <= 0:
+            return
+        for candidate in self.data.get("pending_trips", []):
+            if not isinstance(candidate, dict):
+                continue
+            candidate_start = self._as_float(candidate.get("start_mileage"))
+            if candidate_start is None or abs(candidate_start - start_mileage) > 0.1:
+                continue
+            candidate["end_mileage"] = round(start_mileage + distance, 3)
+            await self.async_finish_trip()
+            return
 
     async def async_start_charge(self) -> None:
         """Persist a charging baseline without making an API request."""
