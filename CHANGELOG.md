@@ -40,6 +40,8 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Removed the duplicate Trips view. Trip history remains available in the
+  Vehicle view, where it is already part of the latest-activity section.
 - The charge-selection query parameter is now removed automatically when the
   dashboard leaves the Charging view, so it does not remain visible on the
   Vehicle, Trips or GPS views.
