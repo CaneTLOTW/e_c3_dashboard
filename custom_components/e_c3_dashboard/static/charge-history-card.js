@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.28";
-import { localeFor, textFor } from "./i18n.js?v=0.4.28";
+import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.29";
+import { localeFor, textFor } from "./i18n.js?v=0.4.29";
+
+const SELECTION_QUERY_PARAM = "e_c3_charge";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
@@ -174,7 +176,9 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         }));
         const path = this._navigationPath();
         if (path) {
-            window.history.pushState(null, "", path);
+            const target = new URL(path, window.location.origin);
+            target.searchParams.set(SELECTION_QUERY_PARAM, session.id);
+            window.history.pushState(null, "", `${target.pathname}${target.search}${target.hash}`);
             window.dispatchEvent(new CustomEvent("location-changed", {
                 detail: { replace: false },
             }));
@@ -545,6 +549,8 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     }
 
     _requestedSelection() {
+        const urlSelection = new URLSearchParams(window.location.search).get(SELECTION_QUERY_PARAM);
+        if (urlSelection) return urlSelection;
         try {
             return sessionStorage.getItem(this._selectionKey());
         } catch (_error) {
@@ -622,6 +628,11 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     _selectSession(event) {
         this._selectedId = event.target.value;
         this._selectionMissing = false;
+        const target = new URL(window.location.href);
+        if (target.searchParams.has(SELECTION_QUERY_PARAM)) {
+            target.searchParams.delete(SELECTION_QUERY_PARAM);
+            window.history.replaceState(null, "", `${target.pathname}${target.search}${target.hash}`);
+        }
     }
 
     _number(value, digits = 1) {
@@ -676,7 +687,9 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     render() {
         if (!this._config) return nothing;
         const sessions = this._sessions ?? [];
-        const selected = sessions.find((session) => session.id === this._selectedId);
+        const requestedSession = findChargeSession(sessions, this._requestedSelection());
+        const selectedId = requestedSession?.id ?? this._selectedId;
+        const selected = sessions.find((session) => session.id === selectedId);
         const curve = selected && this._history ? buildChargeCurve({
             socStates: this._history.soc,
             modeStates: this._history.modes,
@@ -693,7 +706,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 ${this._error ? html`<p class="error">${text.error} ${this._error}</p>` : nothing}
                 ${sessions.length ? html`
                     <select aria-label="${text.selectSession}" @change=${this._selectSession}>
-                        ${sessions.map((session) => html`<option value="${session.id}" ?selected=${session.id === this._selectedId}>${this._formatSession(session)}</option>`)}
+                        ${sessions.map((session) => html`<option value="${session.id}" ?selected=${session.id === selectedId}>${this._formatSession(session)}</option>`)}
                     </select>
                     ${this._selectionMissing ? html`<p class="error">${text.selectionNotFound}</p>` : nothing}
                     ${selected ? html`

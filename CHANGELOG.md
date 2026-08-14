@@ -37,6 +37,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Selected charging sessions are now carried in the charging-view URL as well
+  as session storage. This survives Lovelace strategy view reconstruction and
+  keeps the selected session deterministic after navigation.
 - The charging-session selector now marks the selected option explicitly,
   avoiding the native select element falling back to its first option while
   the detail values already show the requested session.
