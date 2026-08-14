@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.4.13";
+import { localeFor, textFor } from "./i18n.js?v=0.4.17";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -103,9 +103,21 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                 .flatMap((entityId) => statesFor(entityId))
                 .map((raw) => this._normalizeState(raw))
                 .filter((item) => item.attributes?.end_time && item.attributes?.energy_kwh !== undefined);
+            // Recorder/history responses may omit attributes that did not
+            // change between two state rows. Carry the last known attribute
+            // set forward so a trip row is not discarded merely because HA
+            // returned its unchanged duration/mileage metadata compactly.
+            let carriedAttributes = {};
+            const enrichedStates = states.map((raw) => {
+                const normalized = this._normalizeState(raw);
+                carriedAttributes = {
+                    ...carriedAttributes,
+                    ...(normalized.attributes ?? {}),
+                };
+                return { ...normalized, attributes: { ...carriedAttributes } };
+            });
             const seen = new Set();
-            const uniqueTrips = states
-                .map((raw) => this._normalizeState(raw))
+            const uniqueTrips = enrichedStates
                 .filter((state) => {
                     const a = state.attributes ?? {};
                     return !["unknown", "unavailable"].includes(state.state) && a.duration && a.start_mileage;

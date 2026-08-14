@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.13";
-import { localeFor, textFor } from "./i18n.js?v=0.4.13";
+import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.17";
+import { localeFor, textFor } from "./i18n.js?v=0.4.17";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
