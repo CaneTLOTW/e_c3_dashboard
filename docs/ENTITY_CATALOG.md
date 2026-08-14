@@ -63,6 +63,19 @@ helpers, legacy dashboards, or manually created sensors.
   value looks surprising. The package does not wake the vehicle or increase
   upstream polling.
 
+### Observed ë-C3 upstream delivery
+
+The following is a vehicle-specific observation from retained Recorder data,
+not a Stellantis API guarantee. It complements the remote-control results in
+the [ë-C3 capability matrix](STELLANTIS_EC3_CAPABILITY_MATRIX.en.md).
+
+| Upstream data | Observed quality and timing | Consequence for package values |
+| --- | --- | --- |
+| **Position** | GPS updates were observed at sampled drive ends. No matching update was seen at drive starts; intermittent `unknown` tracker states while parked are not new location fixes. | The GPS view is a sparse route history, not live tracking. |
+| **Temperature** | One completed wake-up was followed by a new temperature value after about one minute. Temperature was also regularly delivered during sampled charging and driving sessions, normally in irregular multi-minute intervals. | Show freshness. A wake-up may refresh it, but must not be represented as a guaranteed temperature read. |
+| **Battery SOC** | Only full percentages were delivered in the sampled charge and drives. | SOC-derived trip energy, charging energy and power remain intentionally coarse estimates. |
+| **Odometer** | Sampled updates arrived with drive-end/engine-off events rather than at drive start. | Local trip finalisation waits for the delayed odometer. Distance-based results are trustworthy only after that value arrived. |
+
 
 ## Recorder retention: required user check
 
