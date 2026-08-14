@@ -4,9 +4,10 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.31";
+import { languageFor, textFor } from "./i18n.js?v=0.4.32";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
+const CHARGE_SELECTION_QUERY_PARAM = "e_c3_charge";
 const REQUIRED_ELEMENTS = [
   ["bubble-card", "Bubble Card"],
   ["button-card", "Button Card"],
@@ -112,6 +113,18 @@ class Ec3DashboardStrategy extends HTMLElement {
   }
 
   static async generate(config, hass) {
+    // The selected charge is encoded in the URL only while the charging view
+    // is active.  Lovelace can retain the query string when switching back to
+    // another strategy view; remove that stale UI state without reloading the
+    // page.  sessionStorage remains the durable hand-off between the views.
+    if (typeof window !== "undefined" && !/\/charging\/?$/.test(window.location.pathname || "")) {
+      const currentUrl = new URL(window.location.href);
+      if (currentUrl.searchParams.has(CHARGE_SELECTION_QUERY_PARAM)) {
+        currentUrl.searchParams.delete(CHARGE_SELECTION_QUERY_PARAM);
+        window.history.replaceState(null, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+      }
+    }
+
     const strings = t(hass);
     const candidates = getStatusEntities(hass, config.entry_id);
 
