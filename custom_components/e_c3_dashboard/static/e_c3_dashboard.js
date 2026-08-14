@@ -404,8 +404,8 @@ ${strings.install}
         separator(strings.latestActivities, "mdi:history"),
         bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6),
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
-        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50 } : null,
-        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4 } : null,
+        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
+        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.settings, "mdi:cog-outline"),
