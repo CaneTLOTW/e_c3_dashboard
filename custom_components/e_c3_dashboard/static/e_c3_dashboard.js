@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.17";
+import { languageFor, textFor } from "./i18n.js?v=0.4.18";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
@@ -404,7 +404,7 @@ ${strings.install}
         separator(strings.latestActivities, "mdi:history"),
         bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6),
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
-        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
+        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), trip_entities: [metric("last_trip_result")].filter(Boolean), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
         modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
@@ -455,6 +455,7 @@ ${strings.install}
             {
               type: "custom:e-c3-dashboard-trip-history-card",
               entity: tripHistoryEntity,
+              trip_entities: tripEnergyEntities,
               energy_entities: tripEnergyEntities,
               title: strings.tripHistory,
               language: language(hass),

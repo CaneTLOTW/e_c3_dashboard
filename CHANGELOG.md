@@ -35,6 +35,11 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Trip history now merges the upstream last-trip sensor with the package's
+  locally observed trip-result sensor. This preserves a just-finished drive
+  when the Stellantis API has not yet published its next last-trip payload.
+- Trip-history rows retain metadata when Recorder returns compact state rows
+  without repeating unchanged attributes.
 - Consecutive short drives no longer merge when the next motor-on event occurs
   before the previous drive's delayed odometer update. Each drive retains its
   motor-off timestamp, SOC endpoint and odometer candidate independently.

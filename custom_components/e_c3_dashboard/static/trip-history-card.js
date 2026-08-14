@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.4.17";
+import { localeFor, textFor } from "./i18n.js?v=0.4.18";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -76,13 +76,22 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         ].filter(Boolean))];
     }
 
+    _tripEntityIds() {
+        if (!this._config) return [];
+        return [...new Set([
+            this._config.entity,
+            ...(this._config.trip_entities ?? []),
+        ].filter(Boolean))];
+    }
+
     async _loadHistory() {
         if (!this._hass || !this._config || this._loading) return;
         this._loading = true;
         this._error = null;
         try {
+            const tripEntityIds = this._tripEntityIds();
             const energyEntityIds = this._energyEntityIds();
-            const entityIds = [this._config.entity, ...energyEntityIds];
+            const entityIds = [...new Set([...tripEntityIds, ...energyEntityIds])];
             const response = await this._hass.callWS({
                 type: "history/history_during_period",
                 start_time: new Date(Date.now() - Number(this._config.hours_to_show) * 3600000).toISOString(),
@@ -92,10 +101,6 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                 no_attributes: false,
                 significant_changes_only: false,
             });
-            // HA returns one array of states for each requested entity.
-            const states = Array.isArray(response)
-                ? (Array.isArray(response[0]) ? response[0] : response)
-                : (response[this._config.entity] ?? []);
             const statesFor = (entityId) => Array.isArray(response)
                 ? (Array.isArray(response[0]) ? response[entityIds.indexOf(entityId)] ?? [] : response)
                 : (response[entityId] ?? []);
@@ -107,15 +112,22 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
             // change between two state rows. Carry the last known attribute
             // set forward so a trip row is not discarded merely because HA
             // returned its unchanged duration/mileage metadata compactly.
-            let carriedAttributes = {};
-            const enrichedStates = states.map((raw) => {
-                const normalized = this._normalizeState(raw);
-                carriedAttributes = {
-                    ...carriedAttributes,
-                    ...(normalized.attributes ?? {}),
-                };
-                return { ...normalized, attributes: { ...carriedAttributes } };
-            });
+            const enrichAttributes = (rawStates) => {
+                let carriedAttributes = {};
+                return rawStates
+                    .map((raw) => this._normalizeState(raw))
+                    .sort((a, b) => new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime())
+                    .map((state) => {
+                        carriedAttributes = {
+                            ...carriedAttributes,
+                            ...(state.attributes ?? {}),
+                        };
+                        return { ...state, attributes: { ...carriedAttributes } };
+                    });
+            };
+            const enrichedStates = tripEntityIds
+                .flatMap((entityId) => enrichAttributes(statesFor(entityId)))
+                .sort((a, b) => new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime());
             const seen = new Set();
             const uniqueTrips = enrichedStates
                 .filter((state) => {
@@ -124,7 +136,9 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                 })
                 .filter((state) => {
                     const a = state.attributes ?? {};
-                    const key = [state.state, a.duration, a.start_mileage, a.avg_speed].join("|");
+                    const distance = Number.parseFloat(String(state.state).replace(",", "."));
+                    const startMileage = Number.parseFloat(String(a.start_mileage).replace(",", "."));
+                    const key = [distance, startMileage, a.duration].join("|");
                     if (seen.has(key)) return false;
                     seen.add(key);
                     return true;
