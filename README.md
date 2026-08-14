@@ -76,6 +76,7 @@ Discussions are described in the [community guide](docs/COMMUNITY.en.md).
 ## Look & Feel
 
 <img width="1452" height="2645" alt="grafik" src="https://github.com/user-attachments/assets/c0752ee1-389d-41fc-89b0-26446d8cb563" />
+<img width="518" height="333" alt="grafik" src="https://github.com/user-attachments/assets/98e7c1bd-5afc-4f03-af88-b41071f7576c" />
 <img width="517" height="642" alt="grafik" src="https://github.com/user-attachments/assets/2bc309f9-c313-488e-b67c-55a35955bac2" />
 
 
