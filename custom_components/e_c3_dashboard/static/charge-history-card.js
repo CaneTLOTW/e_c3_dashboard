@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.21";
-import { localeFor, textFor } from "./i18n.js?v=0.4.21";
+import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.22";
+import { localeFor, textFor } from "./i18n.js?v=0.4.22";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
@@ -197,13 +197,22 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         return this._config.selection_storage_key || "e_c3_dashboard_charge_selection";
     }
 
+    _navigationPath() {
+        const pathname = window.location.pathname || "";
+        const parts = pathname.split("/").filter(Boolean);
+        if (parts.length > 1) {
+            return `/${parts.slice(0, -1).join("/")}/charging`;
+        }
+        return this._config.navigation_path;
+    }
+
     _openSession(session) {
         try {
             sessionStorage.setItem(this._selectionKey(), session.start);
         } catch (_error) {
             // Navigation remains useful even when browser storage is blocked.
         }
-        const path = this._config.navigation_path;
+        const path = this._navigationPath();
         if (path) {
             this.dispatchEvent(new CustomEvent("hass-navigate", {
                 detail: { navigation_path: path },
