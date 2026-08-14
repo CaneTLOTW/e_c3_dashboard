@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.30";
+import { languageFor, textFor } from "./i18n.js?v=0.4.31";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
@@ -694,6 +694,21 @@ No GPS coordinates available.
         }],
       });
     }
+
+    views.push({
+      title: strings.help,
+      path: "help",
+      icon: "mdi:help-circle-outline",
+      type: "sections",
+      max_columns: 1,
+      sections: [{
+        type: "grid",
+        cards: [
+          { type: "heading", heading: strings.help, icon: "mdi:help-circle-outline", heading_style: "title" },
+          markdown(strings.helpContent),
+        ],
+      }],
+    });
 
     views.push({
       title: strings.system,

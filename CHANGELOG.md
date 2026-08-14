@@ -9,6 +9,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added a dedicated, localised Functions & usage view explaining dashboard
+  interactions, expandable trip rows, charging-session navigation, controls,
+  GPS history and the interpretation of estimated values.
 - Trip-history rows can be opened directly in place to show start and end
   odometer values, with keyboard support for the expandable detail row.
 - A dashboard-card preflight is shown before vehicle selection. It reports the
