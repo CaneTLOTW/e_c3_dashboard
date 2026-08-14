@@ -2,6 +2,13 @@
   "title": "e-C3 Dashboard",
   "config": {
     "step": {
+      "dashboard_cards": {
+        "title": "Dashboard card preflight",
+        "description": "e-C3 Dashboard requires Bubble Card, Button Card, ha-map-card and layout-card. This is a best-effort check of Home Assistant's registered Lovelace resources:\n\n{card_status}\n\nA registered resource is not proof that the browser loaded it. Install missing cards with HACS, make sure each is registered as a JavaScript module, then restart Home Assistant and refresh the browser. The dashboard performs the final browser-side check before rendering.",
+        "data": {
+          "dashboard_cards_confirmed": "I have reviewed the required dashboard cards"
+        }
+      },
       "user": {
         "title": "Select vehicle",
         "description": "Choose a vehicle that is already configured by Stellantis Vehicles.",

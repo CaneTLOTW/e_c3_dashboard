@@ -15,7 +15,7 @@ Use this button to open the repository directly in HACS. It must be added as an
 
 - A Home Assistant setup flow that discovers a connected Stellantis vehicle.
 - A Community Dashboard strategy: no VIN, entity IDs, or dashboard YAML must be copied.
-- A UI that requires Bubble Card, Button Card, and ha-map-card.
+- A UI that requires Bubble Card, Button Card, ha-map-card and layout-card.
 - Portable local metrics for trips, charging, GPS history, wake-up and optional notifications.
   On first start, the distance since charge is reconciled from compatible
   Stellantis Recorder history when it is still available.
@@ -31,6 +31,7 @@ Install **and fully configure** these before creating the dashboard:
 2. [Bubble Card](https://github.com/Clooos/Bubble-Card)
 3. [Button Card](https://github.com/custom-cards/button-card)
 4. [ha-map-card](https://github.com/nathan-gs/ha-map-card)
+5. [layout-card](https://github.com/thomasloven/lovelace-layout-card)
 
 The integration verifies prerequisites and displays an explicit setup status
 instead of creating a dashboard with missing custom elements.
@@ -38,9 +39,11 @@ instead of creating a dashboard with missing custom elements.
 In particular, finish the Stellantis Vehicles login and vehicle setup first.
 Only add e-C3 Dashboard after the selected vehicle is visible in Home Assistant
 with usable battery, mileage and vehicle-tracker entities. Installing the
-upstream repository alone is not sufficient. Bubble Card, Button Card and
-ha-map-card must likewise be loaded as Lovelace resources (not merely shown as
-downloaded in HACS).
+upstream repository alone is not sufficient. Bubble Card, Button Card,
+ha-map-card and layout-card must likewise be loaded as Lovelace resources (not
+merely shown as downloaded in HACS). The config flow shows a resource preflight
+before vehicle selection; the dashboard then verifies the cards in the browser
+before rendering any custom-card view.
 
 ## Installation flow
 

@@ -21,7 +21,9 @@ Before changing repository visibility or publishing a release:
 - [ ] Test installation from a clean HA instance.
 - [ ] Verify that setup is rejected until Stellantis Vehicles exposes battery,
       mileage and vehicle-tracker entities for the selected device.
-- [ ] Test all mandatory HACS dependencies missing one at a time.
+- [ ] Test the config-flow resource preflight and the browser-side fallback
+      with each of Bubble Card, Button Card, ha-map-card and layout-card
+      missing one at a time.
 - [ ] Test German and English UI.
 - [ ] Test an upstream update and clean integration unload/reload.
 - [ ] Create GitHub Release `v0.1.0` with migration notes.

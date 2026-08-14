@@ -4,13 +4,14 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.13";
+import { languageFor, textFor } from "./i18n.js?v=0.4.16";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
   ["bubble-card", "Bubble Card"],
   ["button-card", "Button Card"],
   ["map-card", "ha-map-card"],
+  ["layout-card", "layout-card"],
 ];
 
 function language(hass) {
@@ -255,6 +256,38 @@ ${strings.install}
       card_type: "separator",
       name,
       icon,
+      view_layout: { "grid-column": "1 / -1" },
+    });
+
+    // Mirror the compact two-column layout of the maintained reference
+    // dashboard without exposing any installation-specific entity IDs. The
+    // strategy owns the layout; every card still gets its entity from the
+    // selected config-entry mapping above.
+    const layoutCard = (cards) => ({
+      type: "custom:layout-card",
+      layout_type: "custom:grid-layout",
+      layout: {
+        "grid-template-columns": "repeat(2, minmax(0, 1fr))",
+        "grid-auto-flow": "row",
+        "grid-auto-rows": "auto",
+        "grid-gap": "8px",
+        margin: "0",
+        padding: "0",
+      },
+      cards: present(cards).map((card) => {
+        const { grid_options, ...layoutCompatibleCard } = card;
+        const columns = grid_options?.columns;
+        if (columns === "full" || Number(columns) >= 12) {
+          return {
+            ...layoutCompatibleCard,
+            view_layout: {
+              ...layoutCompatibleCard.view_layout,
+              "grid-column": "1 / -1",
+            },
+          };
+        }
+        return layoutCompatibleCard;
+      }),
     });
 
     const ageTextStyles = (onLabel, offLabel, onIcon, offIcon) => `\${(() => {
@@ -388,9 +421,16 @@ ${strings.install}
       title: strings.vehicle,
       path: "vehicle",
       icon: "mdi:car-electric",
-      type: "sections",
-      max_columns: 2,
-      sections: overviewSections,
+      type: "custom:horizontal-layout",
+      layout: {
+        width: 300,
+        max_width: 480,
+        max_cols: 2,
+        margin: "0px 8px 0px 8px",
+        padding: "4px 0px 4px 0px",
+        card_margin: "4px 8px 8px",
+      },
+      cards: overviewSections.map((section) => layoutCard(section.cards)),
     }];
 
     if (modules.trips && (entity("last_trip") || metric("last_trip_result"))) {

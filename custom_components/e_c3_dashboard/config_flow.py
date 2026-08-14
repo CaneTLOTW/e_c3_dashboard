@@ -5,6 +5,7 @@ from __future__ import annotations
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -24,6 +25,7 @@ from .const import (
     OPTION_NOTIFICATION_RECIPIENTS,
     OPTION_TRIPS,
     OPTION_WAKEUP,
+    REQUIRED_DASHBOARD_CARDS,
     UPSTREAM_DOMAIN,
 )
 
@@ -35,6 +37,9 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         """Select a Stellantis device and a local, stable slug."""
+        if not self.context.get("dashboard_card_preflight_seen"):
+            return await self.async_step_dashboard_cards()
+
         if not self.hass.config_entries.async_entries(UPSTREAM_DOMAIN):
             return self.async_abort(reason="missing_upstream")
 
@@ -77,6 +82,54 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
         )
+
+    async def async_step_dashboard_cards(self, user_input=None):
+        """Show a best-effort Lovelace-resource preflight before setup.
+
+        Lovelace resources are a backend registry while custom elements are
+        registered by each browser. This remains advisory; the generated
+        dashboard performs the definitive browser-side check before rendering
+        any custom card.
+        """
+        if user_input is not None:
+            self.context["dashboard_card_preflight_seen"] = True
+            return await self.async_step_user()
+
+        status = self._dashboard_card_resource_status()
+        if status is None:
+            card_status = "—"
+        else:
+            card_status = "\n".join(
+                f"{'✓' if installed else '✗'} {name}"
+                for name, installed in status
+            )
+
+        return self.async_show_form(
+            step_id="dashboard_cards",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("dashboard_cards_confirmed", default=False): bool,
+                }
+            ),
+            description_placeholders={"card_status": card_status},
+        )
+
+    def _dashboard_card_resource_status(self) -> list[tuple[str, bool]] | None:
+        """Return resource-registry matches for required dashboard cards."""
+        lovelace = self.hass.data.get(LOVELACE_DATA)
+        resources = getattr(lovelace, "resources", None)
+        if resources is None or not getattr(resources, "loaded", False):
+            return None
+
+        resource_urls = {
+            item.get("url", "").split("?", 1)[0].lower()
+            for item in resources.async_items()
+            if (item.get("type") or item.get("res_type")) == "module"
+        }
+        return [
+            (name, any(resource_hint in url for url in resource_urls))
+            for name, _element, resource_hint in REQUIRED_DASHBOARD_CARDS
+        ]
 
     def _is_upstream_vehicle(self, device_id: str) -> bool:
         """Require a selected device from an installed upstream config entry."""

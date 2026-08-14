@@ -9,6 +9,12 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- A dashboard-card preflight is shown before vehicle selection. It reports the
+  registered Lovelace resources for Bubble Card, Button Card, ha-map-card and
+  layout-card; the dashboard retains its definitive browser-side module check.
+- The Vehicle view now uses the compact, responsive `layout-card` horizontal
+  layout from the maintained reference dashboard while retaining portable,
+  per-config-entry entity mapping.
 - A dedicated e-C3 dashboard is created automatically after a successful
   config-entry setup. It is isolated, per-vehicle, created only once and never
   overwritten or deleted by the package.
