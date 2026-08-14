@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.24";
-import { localeFor, textFor } from "./i18n.js?v=0.4.24";
+import { buildChargeCurve, buildChargeSessions } from "./charge-history-core.js?v=0.4.25";
+import { localeFor, textFor } from "./i18n.js?v=0.4.25";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
@@ -214,10 +214,9 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         }
         const path = this._navigationPath();
         if (path) {
-            this.dispatchEvent(new CustomEvent("hass-navigate", {
-                detail: { navigation_path: path },
-                bubbles: true,
-                composed: true,
+            window.history.pushState(null, "", path);
+            window.dispatchEvent(new CustomEvent("location-changed", {
+                detail: { replace: false },
             }));
         }
     }

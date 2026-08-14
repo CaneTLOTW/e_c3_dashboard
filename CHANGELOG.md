@@ -37,6 +37,10 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Charge-history rows now navigate to the charging view through Home
+  Assistant's SPA history mechanism (`pushState` plus `location-changed`) after
+  persisting the selected session, instead of relying on a manually bubbled
+  `hass-navigate` event.
 - Trip history now merges the upstream last-trip sensor with the package's
   locally observed trip-result sensor. This preserves a just-finished drive
   when the Stellantis API has not yet published its next last-trip payload.
