@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.19";
+import { languageFor, textFor } from "./i18n.js?v=0.4.20";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const REQUIRED_ELEMENTS = [
@@ -198,8 +198,8 @@ ${strings.install}
           }
         : null;
     };
-    const bubble = (key, name, icon, subButton = [], columns = "full") => {
-      const entityId = entity(key);
+    const bubble = (key, name, icon, subButton = [], columns = "full", entityOverride = null) => {
+      const entityId = entityOverride || entity(key);
       return entityId
         ? {
             type: "custom:bubble-card",
@@ -217,6 +217,12 @@ ${strings.install}
           }
         : null;
     };
+    // Prefer the restart-safe local result for the latest trip.  The native
+    // Stellantis value remains in the history source list as a fallback and
+    // for older trips that were reported before this package was installed.
+    const lastTripResult = metric("last_trip_result");
+    const nativeLastTrip = entity("last_trip");
+    const lastTripDisplayEntity = lastTripResult || nativeLastTrip;
     const press = (key, name, icon) => {
       const entityId = entity(key);
       return entityId
@@ -402,9 +408,9 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.latestActivities, "mdi:history"),
-        bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6),
+        lastTripDisplayEntity ? bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6, lastTripDisplayEntity) : null,
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
-        modules.trips && (entity("last_trip") || metric("last_trip_result")) ? { type: "custom:e-c3-dashboard-trip-history-card", entity: entity("last_trip") || metric("last_trip_result"), trip_entities: [metric("last_trip_result")].filter(Boolean), energy_entities: [metric("last_trip_result")].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
+        modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
         modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
@@ -433,14 +439,12 @@ ${strings.install}
       cards: overviewSections.map((section) => layoutCard(section.cards)),
     }];
 
-    if (modules.trips && (entity("last_trip") || metric("last_trip_result"))) {
-      // The upstream Last trip sensor carries the durable trip rows. The
-      // package's own result sensor enriches future rows with locally derived
-      // energy. No installation-specific helper is ever used as a fallback.
-      const tripHistoryEntity = entity("last_trip") || metric("last_trip_result");
-      const tripEnergyEntities = [
-        metric("last_trip_result"),
-      ].filter(Boolean);
+    if (modules.trips && lastTripDisplayEntity) {
+      // The restart-safe local result is primary. The upstream Last trip
+      // sensor remains a fallback/source for older API-reported rows.
+      const tripHistoryEntity = lastTripDisplayEntity;
+      const tripEntities = [nativeLastTrip].filter(Boolean);
+      const tripEnergyEntities = [lastTripResult].filter(Boolean);
       views.push({
         title: strings.trips,
         path: "trips",
@@ -455,7 +459,7 @@ ${strings.install}
             {
               type: "custom:e-c3-dashboard-trip-history-card",
               entity: tripHistoryEntity,
-              trip_entities: tripEnergyEntities,
+              trip_entities: tripEntities,
               energy_entities: tripEnergyEntities,
               title: strings.tripHistory,
               language: language(hass),
