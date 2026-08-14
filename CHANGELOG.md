@@ -40,6 +40,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The charge-selection query parameter is now removed automatically when the
+  dashboard leaves the Charging view, so it does not remain visible on the
+  Vehicle, Trips or GPS views.
 - The Vehicle view's charging-status card now matches the maintained YAML
   dashboard for unavailable charging type, charge-end and charging-power
   values (`-` and `0 kW` fallbacks, with consistent one-decimal formatting).
