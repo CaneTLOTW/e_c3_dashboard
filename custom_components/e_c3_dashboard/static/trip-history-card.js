@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.4.23";
+import { localeFor, textFor } from "./i18n.js?v=0.4.24";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -143,37 +143,69 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                 const minutes = text.match(/(\d+)\s*min/);
                 return minutes ? Number(minutes[1]) * 60 : NaN;
             };
-            const isEquivalentTrip = (left, right) => {
+            const candidateTrips = enrichedStates
+                .filter((state) => {
+                    const attributes = state.attributes ?? {};
+                    return !["unknown", "unavailable"].includes(state.state) &&
+                        attributes.duration && attributes.start_mileage;
+                })
+                .map((state) => ({
+                    ...state,
+                    _rowId: [
+                        state._sourceEntityId,
+                        state.last_updated ?? state.last_changed ?? "",
+                        state.state,
+                        state.attributes?.start_time ?? "",
+                        state.attributes?.end_time ?? "",
+                    ].join("|"),
+                }));
+            const isSameSourceRepeat = (left, right) => {
                 const leftAttributes = left.attributes ?? {};
                 const rightAttributes = right.attributes ?? {};
+                const isLocal = left._sourceEntityId === this._config.entity &&
+                    right._sourceEntityId === this._config.entity;
+                if (isLocal && leftAttributes.id && leftAttributes.id === rightAttributes.id) return true;
                 const leftDistance = parseNumber(left.state);
                 const rightDistance = parseNumber(right.state);
                 const leftStart = parseNumber(leftAttributes.start_mileage);
                 const rightStart = parseNumber(rightAttributes.start_mileage);
                 if (![leftDistance, rightDistance, leftStart, rightStart].every(Number.isFinite)) return false;
-                if (Math.abs(leftDistance - rightDistance) > 0.5 || Math.abs(leftStart - rightStart) > 0.5) return false;
+                if (Math.abs(leftDistance - rightDistance) > 0.01 || Math.abs(leftStart - rightStart) > 0.01) return false;
                 const leftDuration = durationSeconds(leftAttributes.duration);
                 const rightDuration = durationSeconds(rightAttributes.duration);
-                if (Number.isFinite(leftDuration) && Number.isFinite(rightDuration) && Math.abs(leftDuration - rightDuration) <= 120) return true;
-                const leftTime = Date.parse(leftAttributes.end_time || left.last_updated || "");
-                const rightTime = Date.parse(rightAttributes.end_time || right.last_updated || "");
-                return Number.isFinite(leftTime) && Number.isFinite(rightTime) && Math.abs(leftTime - rightTime) <= 30 * 60 * 1000;
+                if (!Number.isFinite(leftDuration) || !Number.isFinite(rightDuration) || leftDuration !== rightDuration) return false;
+                if (!isLocal) return true;
+                const leftTime = Date.parse(left.last_updated || "");
+                const rightTime = Date.parse(right.last_updated || "");
+                return Number.isFinite(leftTime) && Number.isFinite(rightTime) && Math.abs(leftTime - rightTime) <= 90 * 1000;
             };
-            const uniqueTrips = [];
-            for (const state of enrichedStates) {
-                const attributes = state.attributes ?? {};
-                if (["unknown", "unavailable"].includes(state.state) || !attributes.duration || !attributes.start_mileage) continue;
-                const duplicateIndex = uniqueTrips.findIndex((existing) => isEquivalentTrip(existing, state));
-                if (duplicateIndex < 0) {
-                    uniqueTrips.push(state);
-                    continue;
-                }
-                // The local result is authoritative because it contains the
-                // actual start/end timestamps and delayed odometer endpoint.
-                if (state._sourceEntityId === this._config.entity) {
-                    uniqueTrips[duplicateIndex] = state;
-                }
-            }
+            const uniquePerSource = (trips) => trips.reduce((result, trip) => {
+                if (!result.some((existing) => isSameSourceRepeat(existing, trip))) result.push(trip);
+                return result;
+            }, []);
+            const localTrips = uniquePerSource(candidateTrips.filter((trip) =>
+                trip._sourceEntityId === this._config.entity
+            ));
+            const nativeTrips = uniquePerSource(candidateTrips.filter((trip) =>
+                trip._sourceEntityId !== this._config.entity
+            ));
+            const isNativeDuplicateOfLocal = (nativeTrip) => localTrips.some((localTrip) => {
+                const nativeAttributes = nativeTrip.attributes ?? {};
+                const localAttributes = localTrip.attributes ?? {};
+                const nativeDistance = parseNumber(nativeTrip.state);
+                const localDistance = parseNumber(localTrip.state);
+                const nativeStart = parseNumber(nativeAttributes.start_mileage);
+                const localStart = parseNumber(localAttributes.start_mileage);
+                const nativeDuration = durationSeconds(nativeAttributes.duration);
+                const localDuration = durationSeconds(localAttributes.duration);
+                return [nativeDistance, localDistance, nativeStart, localStart, nativeDuration, localDuration]
+                    .every(Number.isFinite) &&
+                    Math.abs(nativeDistance - localDistance) <= 0.1 &&
+                    Math.abs(nativeStart - localStart) <= 0.1 &&
+                    Math.abs(nativeDuration - localDuration) <= 120;
+            });
+            const uniqueTrips = [...localTrips, ...nativeTrips.filter((trip) => !isNativeDuplicateOfLocal(trip))]
+                .sort((a, b) => new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime());
             this._trips = uniqueTrips
                 .map((trip) => {
                     const tripTime = new Date(trip.last_updated).getTime();
@@ -217,7 +249,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
     }
 
     _tripKey(trip, index) {
-        return trip.attributes?.id || `${trip.last_updated ?? trip.last_changed}|${trip.state}|${index}`;
+        return trip._rowId || `${trip._sourceEntityId ?? "trip"}|${trip.last_updated ?? trip.last_changed}|${trip.state}|${index}`;
     }
 
     _toggleTrip(key) {
@@ -229,6 +261,34 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         return Number.isFinite(numeric)
             ? `${numeric.toLocaleString(this._locale(), { maximumFractionDigits: 1 })} km`
             : this._value(value);
+    }
+
+    _formatDuration(trip) {
+        const seconds = Number(trip.attributes?.duration_seconds);
+        const raw = String(trip.attributes?.duration ?? "");
+        const clock = raw.match(/^(\d+):(\d{2})(?::(\d{2}))?/);
+        const fromRaw = clock
+            ? Number(clock[1]) * 3600 + Number(clock[2]) * 60 + Number(clock[3] || 0)
+            : Number.NaN;
+        const total = Number.isFinite(seconds) ? seconds : fromRaw;
+        if (!Number.isFinite(total)) return "—";
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        return `${hours}:${String(minutes).padStart(2, "0")} h`;
+    }
+
+    _formatDistance(value) {
+        const numeric = Number.parseFloat(String(value ?? "").replace(",", "."));
+        return Number.isFinite(numeric)
+            ? `${numeric.toLocaleString(this._locale(), { maximumFractionDigits: 1 })} km`
+            : "—";
+    }
+
+    _formatSpeed(trip) {
+        const numeric = Number.parseFloat(String(trip.attributes?.average_speed ?? trip.attributes?.avg_speed ?? "").replace(",", "."));
+        return Number.isFinite(numeric)
+            ? `${numeric.toLocaleString(this._locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/h`
+            : "—";
     }
 
     _endMileage(trip) {
@@ -262,9 +322,9 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                                 const expanded = this._expandedTripKey === key;
                                 return html`<tr class="trip-row" tabindex="0" role="button" aria-expanded=${expanded} @click=${() => this._toggleTrip(key)} @keydown=${(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); this._toggleTrip(key); } }}>
                                 <td>${this._formatDate(trip.last_updated ?? trip.last_changed)}</td>
-                                <td>${this._value(trip.attributes?.duration)}</td>
-                                <td>${this._value(trip.state)} km</td>
-                                <td>${this._value(trip.attributes?.avg_speed)}</td>
+                                <td>${this._formatDuration(trip)}</td>
+                                <td>${this._formatDistance(trip.state)}</td>
+                                <td>${this._formatSpeed(trip)}</td>
                                 ${hasEnergy ? html`<td>${this._value(trip.attributes?.energy_kwh)}</td><td>${this._value(trip.attributes?.energy_per_100_km)}</td>` : nothing}
                                 ${hasMaxSpeed ? html`<td>${this._value(trip.attributes?.max_speed)}</td>` : nothing}
                             </tr>${expanded ? html`<tr class="trip-details">
