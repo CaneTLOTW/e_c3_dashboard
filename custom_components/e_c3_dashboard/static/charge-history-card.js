@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.27";
-import { localeFor, textFor } from "./i18n.js?v=0.4.27";
+import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.28";
+import { localeFor, textFor } from "./i18n.js?v=0.4.28";
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
@@ -692,8 +692,8 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 ${this._loading && !sessions.length ? html`<p class="muted">${text.loading}</p>` : nothing}
                 ${this._error ? html`<p class="error">${text.error} ${this._error}</p>` : nothing}
                 ${sessions.length ? html`
-                    <select aria-label="${text.selectSession}" .value=${this._selectedId ?? ""} @change=${this._selectSession}>
-                        ${sessions.map((session) => html`<option value="${session.id}">${this._formatSession(session)}</option>`)}
+                    <select aria-label="${text.selectSession}" @change=${this._selectSession}>
+                        ${sessions.map((session) => html`<option value="${session.id}" ?selected=${session.id === this._selectedId}>${this._formatSession(session)}</option>`)}
                     </select>
                     ${this._selectionMissing ? html`<p class="error">${text.selectionNotFound}</p>` : nothing}
                     ${selected ? html`

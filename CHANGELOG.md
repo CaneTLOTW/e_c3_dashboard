@@ -37,6 +37,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The charging-session selector now marks the selected option explicitly,
+  avoiding the native select element falling back to its first option while
+  the detail values already show the requested session.
 - Charge-history selection is now reapplied when the charging view was
   already instantiated before navigation. The list sends a scoped selection
   event and the curve browser updates its selected session immediately.
