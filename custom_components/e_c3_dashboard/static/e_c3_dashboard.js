@@ -4,9 +4,10 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.33";
+import { languageFor, textFor } from "./i18n.js?v=0.4.34";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
+const LONG_TERM_STATISTICS_DAYS = 3650;
 const CHARGE_SELECTION_QUERY_PARAM = "e_c3_charge";
 const REQUIRED_ELEMENTS = [
   ["bubble-card", "Bubble Card"],
@@ -189,6 +190,7 @@ ${strings.install}
       return parts.length > 1 ? `/${parts.slice(0, -1).join("/")}` : "";
     })();
     const chargeViewPath = `${dashboardBasePath}/charging`;
+    const statisticsViewPath = `${dashboardBasePath}/statistics`;
     const chargeSelectionKey = `e_c3_dashboard_charge_selection_${attributes.entry_id}`;
     const mapped = attributes.entity_mapping || {};
     const controls = attributes.control_entities || {};
@@ -420,7 +422,7 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.consumptionUsage, "mdi:chart-line"),
-        metric("trailing_consumption_500km") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("trailing_consumption_500km"), name: strings.trailingConsumption, icon: "mdi:lightning-bolt-circle", force_icon: true, card_layout: "large", grid_options: { columns: 6 } } : null,
+        metric("trailing_consumption_500km") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("trailing_consumption_500km"), name: strings.trailingConsumption, icon: "mdi:lightning-bolt-circle", force_icon: true, card_layout: "large", button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, grid_options: { columns: 6 } } : null,
         metric("distance_since_charge") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("distance_since_charge"), name: strings.distanceSinceCharge, icon: "mdi:map-marker-distance", force_icon: true, card_layout: "large", grid_options: { columns: 6 } } : null,
         metric("current_trip_energy") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("current_trip_energy"), name: strings.currentTripEnergy, icon: "mdi:battery-minus", force_icon: true, card_layout: "large" } : null,
       ]) },
@@ -443,15 +445,15 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.vehicleDetails, "mdi:car-info"),
-        entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]), styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }` } : null,
+        entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }` } : null,
         entity("daylight") ? { ...bubble("daylight", language(hass) === "de" ? "Tageslicht erkannt" : "Daylight detected", "mdi:weather-sunny", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Ja" : "Yes", language(hass) === "de" ? "Nein" : "No", "mdi:weather-sunny", "mdi:weather-sunny-off") } : null,
         entity("alarm") ? { ...bubble("alarm", strings.alarm, "mdi:shield-lock", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Aktiv" : "Active", language(hass) === "de" ? "Inaktiv" : "Inactive", "mdi:shield-lock", "mdi:shield-off-outline") } : null,
         entity("privacy") ? { ...bubble("privacy", language(hass) === "de" ? "Datenschutz / Datenfreigabe" : "Privacy / data sharing", "mdi:shield-check", [subState("privacy_mode", "", "mdi:shield-account")]), show_state: false, styles: `\${(() => { const raw=hass.states[entity]?.state; card.querySelector('.bubble-state').innerText=raw==='on'?'${language(hass) === "de" ? "Uneingeschränkt" : "Unrestricted"}':raw==='off'?'${language(hass) === "de" ? "Eingeschränkt" : "Restricted"}':'—'; icon.setAttribute('icon',raw==='on'?'mdi:shield-check':raw==='off'?'mdi:shield-alert-outline':'mdi:shield-question'); })()}` } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.batteryHealth, "mdi:battery-heart-variant"),
-        bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6),
-        bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6),
+        entity("battery_health_capacity") ? { ...bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
+        entity("battery_health_resistance") ? { ...bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
         bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery"),
       ]) },
       { type: "grid", cards: present([
@@ -486,6 +488,77 @@ ${strings.install}
       },
       cards: overviewSections.map((section) => layoutCard(section.cards)),
     }];
+
+    if (entity("battery_health_capacity") || entity("battery_health_resistance") || entity("mileage") || metric("trailing_consumption_500km")) {
+      const statisticsCards = [
+        entity("battery_health_capacity") ? {
+          type: "statistics-graph",
+          title: strings.sohCapacityHistory,
+          entities: [entity("battery_health_capacity")],
+          days_to_show: LONG_TERM_STATISTICS_DAYS,
+          period: "month",
+          stat_types: ["mean", "min", "max"],
+          chart_type: "line",
+          grid_options: { columns: "full", rows: 5 },
+        } : null,
+        entity("battery_health_resistance") ? {
+          type: "statistics-graph",
+          title: strings.sohResistanceHistory,
+          entities: [entity("battery_health_resistance")],
+          days_to_show: LONG_TERM_STATISTICS_DAYS,
+          period: "month",
+          stat_types: ["mean", "min", "max"],
+          chart_type: "line",
+          grid_options: { columns: "full", rows: 5 },
+        } : null,
+        entity("mileage") ? {
+          type: "statistics-graph",
+          title: strings.mileageHistory,
+          entities: [entity("mileage")],
+          days_to_show: LONG_TERM_STATISTICS_DAYS,
+          period: "month",
+          stat_types: ["state"],
+          chart_type: "line",
+          grid_options: { columns: "full", rows: 5 },
+        } : null,
+        entity("mileage") ? {
+          type: "statistics-graph",
+          title: strings.drivenDistanceHistory,
+          entities: [entity("mileage")],
+          days_to_show: LONG_TERM_STATISTICS_DAYS,
+          period: "month",
+          stat_types: ["change"],
+          chart_type: "bar",
+          grid_options: { columns: "full", rows: 5 },
+        } : null,
+        metric("trailing_consumption_500km") ? {
+          type: "statistics-graph",
+          title: strings.consumptionHistory,
+          entities: [metric("trailing_consumption_500km")],
+          days_to_show: LONG_TERM_STATISTICS_DAYS,
+          period: "month",
+          stat_types: ["mean"],
+          chart_type: "line",
+          grid_options: { columns: "full", rows: 5 },
+        } : null,
+      ].filter(Boolean);
+
+      views.push({
+        title: strings.longTermStatistics,
+        path: "statistics",
+        icon: "mdi:chart-timeline-variant",
+        type: "sections",
+        max_columns: 2,
+        sections: [{
+          type: "grid",
+          cards: [
+            { type: "heading", heading: strings.longTermStatistics, icon: "mdi:chart-timeline-variant", heading_style: "title" },
+            markdown(strings.longTermStatisticsIntro),
+            ...statisticsCards,
+          ],
+        }],
+      });
+    }
 
     if (modules.charging && entity("battery_charging") && entity("battery")) {
       views.push({

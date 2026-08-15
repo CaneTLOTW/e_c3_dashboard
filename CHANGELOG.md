@@ -9,6 +9,9 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added a Long-term statistics view for SOH capacity/resistance, odometer
+  state and monthly driven distance, plus the rolling 500 km consumption.
+  The relevant Vehicle cards now navigate to this view.
 - Added a dedicated, localised Functions & usage view explaining dashboard
   interactions, expandable trip rows, charging-session navigation, controls,
   GPS history and the interpretation of estimated values.
