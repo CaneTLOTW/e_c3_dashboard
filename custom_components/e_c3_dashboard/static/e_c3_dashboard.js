@@ -4,10 +4,11 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.33";
+import { languageFor, textFor } from "./i18n.js?v=0.4.34";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const CHARGE_SELECTION_QUERY_PARAM = "e_c3_charge";
+const LONG_TERM_HISTORY_HOURS = 87600;
 const REQUIRED_ELEMENTS = [
   ["bubble-card", "Bubble Card"],
   ["button-card", "Button Card"],
@@ -189,6 +190,7 @@ ${strings.install}
       return parts.length > 1 ? `/${parts.slice(0, -1).join("/")}` : "";
     })();
     const chargeViewPath = `${dashboardBasePath}/charging`;
+    const batteryHealthViewPath = `${dashboardBasePath}/battery-health`;
     const chargeSelectionKey = `e_c3_dashboard_charge_selection_${attributes.entry_id}`;
     const mapped = attributes.entity_mapping || {};
     const controls = attributes.control_entities || {};
@@ -450,8 +452,8 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.batteryHealth, "mdi:battery-heart-variant"),
-        bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6),
-        bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6),
+        entity("battery_health_capacity") ? { ...bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: batteryHealthViewPath } } } : null,
+        entity("battery_health_resistance") ? { ...bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: batteryHealthViewPath } } } : null,
         bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery"),
       ]) },
       { type: "grid", cards: present([
@@ -486,6 +488,39 @@ ${strings.install}
       },
       cards: overviewSections.map((section) => layoutCard(section.cards)),
     }];
+
+    if (entity("battery_health_capacity") || entity("battery_health_resistance")) {
+      views.push({
+        title: strings.batteryHealth,
+        path: "battery-health",
+        icon: "mdi:battery-heart-variant",
+        type: "sections",
+        max_columns: 2,
+        sections: [{
+          type: "grid",
+          cards: [
+            { type: "heading", heading: strings.batteryHealth, icon: "mdi:battery-heart-variant", heading_style: "title" },
+            markdown(strings.batteryHealthIntro),
+            entity("battery_health_capacity") ? {
+              type: "history-graph",
+              title: strings.batteryHealthCapacityChart,
+              entities: [entity("battery_health_capacity")],
+              hours_to_show: LONG_TERM_HISTORY_HOURS,
+              show_names: true,
+              grid_options: { columns: "full", rows: 5 },
+            } : null,
+            entity("battery_health_resistance") ? {
+              type: "history-graph",
+              title: strings.batteryHealthResistanceChart,
+              entities: [entity("battery_health_resistance")],
+              hours_to_show: LONG_TERM_HISTORY_HOURS,
+              show_names: true,
+              grid_options: { columns: "full", rows: 5 },
+            } : null,
+          ].filter(Boolean),
+        }],
+      });
+    }
 
     if (modules.charging && entity("battery_charging") && entity("battery")) {
       views.push({
