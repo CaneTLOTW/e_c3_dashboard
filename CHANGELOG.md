@@ -9,9 +9,6 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Added a dedicated Battery health view with long-range native history graphs
-  for SOH capacity and resistance. The Vehicle view now navigates to these
-  graphs when either SOH card is opened.
 - Added a dedicated, localised Functions & usage view explaining dashboard
   interactions, expandable trip rows, charging-session navigation, controls,
   GPS history and the interpretation of estimated values.
