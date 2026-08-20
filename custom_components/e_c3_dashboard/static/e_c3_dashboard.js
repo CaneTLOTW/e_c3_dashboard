@@ -400,12 +400,63 @@ ${strings.install}
       name: [{ margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" }, { "white-space": "nowrap" }, { color: "white" }],
     };
     const vehicleInfoEntity = metric("vehicle_info");
+    const vehicleInfoPicture = vehicleInfoEntity
+      ? hass.states[vehicleInfoEntity]?.attributes?.Fahrzeugbild
+      : undefined;
+    const vehicleInfoPopupCard = vehicleInfoEntity ? {
+      type: "custom:bubble-card",
+      card_type: "pop-up",
+      hash: "#e-c3-vehicle-info",
+      name: language(hass) === "de" ? "Fahrzeug- und Wartungsdaten" : "Vehicle and maintenance data",
+      icon: "mdi:car-info",
+      popup_mode: "adaptive-dialog",
+      popup_style: "classic",
+      cards: [
+        vehicleInfoPicture ? { type: "picture", image: vehicleInfoPicture } : null,
+        {
+          type: "markdown",
+          entity_id: [vehicleInfoEntity],
+          content: language(hass) === "de" ? `### Fahrzeug
+
+| | |
+|---|---|
+| Marke | {{ state_attr('${vehicleInfoEntity}', 'Marke') or '—' }} |
+| Antrieb | {{ state_attr('${vehicleInfoEntity}', 'Antrieb') or '—' }} |
+| VIN | {{ state_attr('${vehicleInfoEntity}', 'VIN') or '—' }} |
+| Fahrzeug-ID | {{ state_attr('${vehicleInfoEntity}', 'Fahrzeug-ID') or '—' }} |
+
+### Wartung
+
+| | |
+|---|---|
+| Verbleibende Tage | {{ state_attr('${vehicleInfoEntity}', 'Wartung verbleibende Tage') or '—' }} |
+| Verbleibende Kilometer | {{ state_attr('${vehicleInfoEntity}', 'Wartung verbleibende Kilometer') or '—' }} km |
+| Aktualisiert | {{ state_attr('${vehicleInfoEntity}', 'Wartung aktualisiert') or '—' }} |` : `### Vehicle
+
+| | |
+|---|---|
+| Brand | {{ state_attr('${vehicleInfoEntity}', 'Marke') or '—' }} |
+| Powertrain | {{ state_attr('${vehicleInfoEntity}', 'Antrieb') or '—' }} |
+| VIN | {{ state_attr('${vehicleInfoEntity}', 'VIN') or '—' }} |
+| Vehicle ID | {{ state_attr('${vehicleInfoEntity}', 'Fahrzeug-ID') or '—' }} |
+
+### Maintenance
+
+| | |
+|---|---|
+| Days remaining | {{ state_attr('${vehicleInfoEntity}', 'Wartung verbleibende Tage') or '—' }} |
+| Mileage remaining | {{ state_attr('${vehicleInfoEntity}', 'Wartung verbleibende Kilometer') or '—' }} km |
+| Updated | {{ state_attr('${vehicleInfoEntity}', 'Wartung aktualisiert') or '—' }} |`,
+        },
+      ].filter(Boolean),
+    } : null;
     const vehicleInfoButton = vehicleInfoEntity ? {
       card: {
         type: "custom:button-card", entity: vehicleInfoEntity,
         show_name: false, show_state: false, show_icon: true,
         icon: "mdi:information-outline",
-        tap_action: { action: "more-info", entity: vehicleInfoEntity }, hold_action: { action: "more-info", entity: vehicleInfoEntity },
+        tap_action: { action: "navigate", navigation_path: "#e-c3-vehicle-info" },
+        hold_action: { action: "navigate", navigation_path: "#e-c3-vehicle-info" },
         styles: {
           card: [{ width: "30px" }, { height: "30px" }, { "min-height": "30px" }, { padding: 0 }, { margin: 0 }, { "border-radius": "50%" }, { border: "none" }, { background: "rgba(20,20,20,0.72)" }, { color: "white" }, { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" }],
           icon: [{ width: "18px" }, { height: "18px" }, { color: "white" }],
@@ -443,6 +494,7 @@ ${strings.install}
       { type: "grid", cards: present([
         separator(strings.live, "mdi:car-connected"),
         hero,
+        vehicleInfoPopupCard,
         entity("remote_commands") ? { ...bubble("remote_commands", strings.remote, "mdi:car-wireless", [press("wakeup", strings.manualWakeup, "mdi:car-connected")]), styles: `\${(() => { const e=hass.states[entity]; const raw=e?.state; const timestamp=Date.parse(e?.last_changed || ''); const seconds=Number.isFinite(timestamp)?Math.max(0,Math.floor((Date.now()-timestamp)/1000)):null; const age=seconds===null?'Zeit unbekannt':seconds<60?'seit gerade eben':seconds<3600?'seit '+Math.floor(seconds/60)+' Min.':seconds<86400?'seit '+Math.floor(seconds/3600)+' Std.':'seit '+Math.floor(seconds/86400)+' Tagen'; card.querySelector('.bubble-state').innerText=(raw==='on'?'Verbunden':raw==='off'?'Getrennt':'Unbekannt')+' · '+age; icon.setAttribute('icon',raw==='on'?'mdi:car-wireless':'mdi:car-wireless-off'); })()}` } : null,
         bubble("service_battery_voltage", "12 V", "mdi:car-battery", [], 6),
       ]) },
