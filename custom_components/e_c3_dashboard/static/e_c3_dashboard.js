@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.5.9";
+import { languageFor, textFor } from "./i18n.js?v=0.5.10";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const LONG_TERM_STATISTICS_DAYS = 3650;
@@ -404,7 +404,7 @@ ${strings.install}
       entity: entity("battery"), show_name: false, show_state: false, show_icon: false,
       tap_action: { action: "none" }, grid_options: { columns: "full", rows: 4.5 },
       styles: {
-        card: [{ position: "relative" }, { height: "270px" }, { overflow: "hidden" }, { "border-radius": "12px" }, { padding: 0 }, { "background-color": "var(--ha-card-background)" }, { "background-image": vehiclePicture ? `url("${vehiclePicture}")` : "none" }, { "background-repeat": "no-repeat" }, { "background-size": "100% auto" }, { "background-position": "center 54%" }],
+        card: [{ position: "relative" }, { height: "270px" }, { overflow: "hidden" }, { "border-radius": "12px" }, { padding: 0 }, { background: "transparent" }, { "background-image": vehiclePicture ? `url("${vehiclePicture}")` : "none" }, { "background-repeat": "no-repeat" }, { "background-size": "100% auto" }, { "background-position": "center 54%" }],
         custom_fields: {
           range: [{ position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 20 }],
           right_status: [{ position: "absolute" }, { top: "12px" }, { right: "12px" }, { "z-index": 20 }],
@@ -452,7 +452,7 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
-        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: markerPicture, size: 90, color: "transparent", css: "--ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: rgba(0,0,0,0) !important; background-image: none; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
+        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: markerPicture, size: 90, color: "transparent", css: "--ha-marker-color: transparent; --ha-marker-background: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: rgba(0,0,0,0) !important; background-image: none; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
       ]) },
       { type: "grid", cards: present([
         separator(strings.vehicleDetails, "mdi:car-info"),
@@ -653,7 +653,7 @@ No GPS coordinates available.
                   picture: markerPicture,
                   size: 72,
                   color: "transparent",
-                  css: "--ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;",
+                  css: "--ha-marker-color: transparent; --ha-marker-background: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;",
                   history_line_color: "#03a9f4",
                   history_show_dots: true,
                   history_show_lines: true,

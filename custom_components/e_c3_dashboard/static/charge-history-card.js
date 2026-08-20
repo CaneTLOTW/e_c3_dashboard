@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, chargeSessionId, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.5.9";
-import { localeFor, textFor } from "./i18n.js?v=0.5.9";
+import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, chargeSessionId, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.5.10";
+import { localeFor, textFor } from "./i18n.js?v=0.5.10";
 
 const SELECTION_QUERY_PARAM = "e_c3_charge";
 
