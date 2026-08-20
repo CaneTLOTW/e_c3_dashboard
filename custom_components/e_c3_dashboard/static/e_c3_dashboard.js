@@ -453,12 +453,8 @@ ${strings.install}
       entity: entity("battery"), show_name: false, show_state: false, show_icon: false,
       tap_action: { action: "none" }, grid_options: { columns: "full", rows: 4.5 },
       styles: {
-        // Do not use the vehicle PNG as a CSS background.  iOS/WebKit can paint
-        // transparent PNG pixels against a black layer in that combination.
-        // A real image element retains the PNG alpha channel in dark mode too.
-        card: [{ position: "relative" }, { height: "270px" }, { overflow: "hidden" }, { "border-radius": "12px" }, { padding: 0 }, { background: "transparent !important" }, { "background-color": "transparent !important" }, { "--ha-card-background": "transparent" }, { "--card-background-color": "transparent" }, { "box-shadow": "none !important" }, { "background-image": "none !important" }],
+        card: [{ position: "relative" }, { height: "270px" }, { overflow: "hidden" }, { "border-radius": "12px" }, { padding: 0 }, { background: "transparent !important" }, { "background-color": "transparent !important" }, { "--ha-card-background": "transparent" }, { "--card-background-color": "transparent" }, { "box-shadow": "none !important" }, { "background-image": vehiclePicture ? `url("${vehiclePicture}")` : "none" }, { "background-repeat": "no-repeat" }, { "background-size": "100% auto" }, { "background-position": "center 54%" }],
         custom_fields: {
-          vehicle_image: [{ position: "absolute" }, { inset: 0 }, { "z-index": 0 }, { overflow: "hidden" }, { "pointer-events": "none" }],
           range: [{ position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 20 }],
           right_status: [{ position: "absolute" }, { top: "12px" }, { right: "50px" }, { "z-index": 20 }],
           info: [{ position: "absolute" }, { top: "10px" }, { right: "10px" }, { "z-index": 21 }],
@@ -469,9 +465,6 @@ ${strings.install}
         },
       },
       custom_fields: {
-        vehicle_image: vehiclePicture
-          ? `<img src="${vehiclePicture}" alt="" style="position:absolute;top:54%;left:50%;display:block;width:100%;height:auto;transform:translate(-50%,-50%);background:transparent!important;object-fit:contain;" />`
-          : "",
         range: { card: { type: "custom:button-card", entity: entity("autonomy"), show_icon: true, show_name: true, show_state: false, icon: "mdi:map-marker-distance", tap_action: { action: "more-info" }, hold_action: { action: "more-info" }, name: `[[[ const e = states["${entity("autonomy")}"]; return e && !['unknown','unavailable'].includes(e.state) && Number.isFinite(Number(e.state)) ? Math.round(Number(e.state)) + ' km' : '-- km'; ]]]`, styles: heroChipStyles } },
         right_status: { card: { type: "custom:button-card", entity: entity("temperature"), show_icon: true, show_name: true, show_state: false, icon: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; return charging && end && !['unknown','unavailable','none',''].includes(end.state) ? 'mdi:clock-end' : charging ? 'mdi:battery-charging' : 'mdi:thermometer'; ]]]`, name: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; const formatClock = (value) => { const raw = String(value ?? '').trim(); if (!raw || ['unknown','unavailable','none'].includes(raw.toLowerCase())) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return /^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : ''; return String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0'); }; if (charging) { const endText = formatClock(end?.state); return endText ? '${language(hass) === "de" ? "bis" : "until"} ' + endText : '${language(hass) === "de" ? "Lädt" : "Charging"}'; } const temp = states["${entity("temperature")}"]; return temp && !['unknown','unavailable'].includes(temp.state) && Number.isFinite(Number(temp.state)) ? temp.state + ' ' + (temp.attributes?.unit_of_measurement || '°C') : '-- °C'; ]]]`, tap_action: { action: "more-info" }, hold_action: { action: "more-info" }, styles: heroChipStyles } },
         info: vehicleInfoButton,
