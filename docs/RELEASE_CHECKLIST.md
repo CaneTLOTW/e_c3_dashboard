@@ -24,6 +24,8 @@ Before changing repository visibility or publishing a release:
 - [ ] Test the config-flow resource preflight and the browser-side fallback
       with each of Bubble Card, Button Card, ha-map-card and layout-card
       missing one at a time.
+- [ ] Test the e-C3 picture-marker compatibility shim in browser/HA dark mode;
+      verify that unrelated ha-map-card markers remain unchanged.
 - [ ] Test German and English UI.
 - [ ] Test an upstream update and clean integration unload/reload.
 - [ ] Create GitHub Release `v0.1.0` with migration notes.

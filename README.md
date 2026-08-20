@@ -16,6 +16,9 @@ Use this button to open the repository directly in HACS. It must be added as an
 - A Home Assistant setup flow that discovers a connected Stellantis vehicle.
 - A Community Dashboard strategy: no VIN, entity IDs, or dashboard YAML must be copied.
 - A UI that requires Bubble Card, Button Card, ha-map-card and layout-card.
+- A scoped compatibility shim for the e-C3 vehicle picture marker in ha-map-card:
+  transparent PNGs remain transparent in browser/HA dark mode without changing
+  other map-card markers.
 - Portable local metrics for trips, charging, GPS history, wake-up and optional notifications.
   On first start, the distance since charge is reconciled from compatible
   Stellantis Recorder history when it is still available.
@@ -88,6 +91,10 @@ Discussions are described in the [community guide](docs/COMMUNITY.en.md).
 The runtime integration is located in `custom_components/e_c3_dashboard/`.
 It is deliberately independent of Stellantis API internals: it only reads
 Home Assistant entities created by the upstream integration.
+
+The package-owned frontend resources also include `map-marker-fix.js`. It is
+loaded automatically and patches only map markers explicitly marked by the
+e-C3 strategy. No additional HACS card or manual card-mod rule is required.
 
 ## Privacy and trademark notice
 

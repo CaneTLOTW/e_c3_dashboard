@@ -72,6 +72,11 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Fixed the vehicle picture marker showing a black square in browser/HA dark
+  mode. The e-C3 package now ships a scoped runtime compatibility shim that
+  applies `background` and `background-color: transparent !important` directly
+  to the `ha-map-card` shadow-DOM picture marker. Only e-C3 markers opt in;
+  other `ha-map-card` markers are untouched.
 - Removed the duplicate Trips view. Trip history remains available in the
   Vehicle view, where it is already part of the latest-activity section.
 - The charge-selection query parameter is now removed automatically when the

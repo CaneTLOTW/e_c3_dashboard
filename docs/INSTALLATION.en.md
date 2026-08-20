@@ -56,6 +56,27 @@ If a required custom card is missing, the dashboard displays a setup page with
 the exact missing card. Install it through HACS, restart Home Assistant and
 reload the browser page.
 
+### Vehicle picture marker in dark mode
+
+The package includes its own `map-marker-fix.js` compatibility resource for
+the e-C3 vehicle picture marker. It is registered automatically with the other
+package-owned Lovelace modules. No `card-mod`, browser extension or manual CSS
+override is required.
+
+After installing or updating the package:
+
+1. Restart Home Assistant so the integration registers the new versioned
+   resource.
+2. Reload the dashboard. On a desktop browser use a hard reload; on the HA
+   mobile app close and reopen the app if the old JavaScript is still cached.
+3. Open the Vehicle or GPS view in dark mode. The e-C3 vehicle picture marker
+   should have a transparent background while the LIVE vehicle picture keeps
+   its existing appearance.
+
+The compatibility code is opt-in. It affects only marker hosts carrying the
+private `--ec3-transparent-picture-marker: 1` property. Other maps and
+markers in the Home Assistant installation are not modified.
+
 ## History modules
 
 Trip, charging and GPS history require Home Assistant Recorder history. The
