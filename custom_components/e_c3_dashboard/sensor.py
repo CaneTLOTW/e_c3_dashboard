@@ -441,27 +441,23 @@ class Ec3VehicleInfoSensor(Ec3MetricSensor):
 
     @property
     def extra_state_attributes(self):
-        data = super().extra_state_attributes
         info = getattr(self.metrics.server_history, "data", {}).get("vehicle_info", {})
         maintenance = info.get("maintenance", {}) if isinstance(info, dict) else {}
-        # Keep the native more-info dialog compact and human-readable. Raw HAL
-        # links and the complete picture list remain in the history store, but
-        # are not useful as popup attributes.
-        data.update({
-            "vehicle_id": info.get("vehicle_id"),
-            "vin": info.get("vin"),
-            "brand": info.get("brand"),
-            "motorization": info.get("motorization"),
-            "picture": info.get("picture"),
-            "picture_count": info.get("picture_count", 0),
-            "maintenance_available": maintenance.get("available", False),
-            "maintenance_days_remaining": maintenance.get("days_remaining"),
-            "maintenance_mileage_remaining_km": maintenance.get("mileage_remaining_km"),
-            "maintenance_created_at": maintenance.get("created_at"),
-            "maintenance_updated_at": maintenance.get("updated_at"),
-            "data_source": "Stellantis Fahrzeug- und Wartungsdaten",
-        })
-        return data
+        # Native HA more-info is intentionally used here. Keep its attributes
+        # compact and user-facing; raw HAL links and picture lists stay in the
+        # server-history store and are not shown in the popup.
+        return {
+            "Marke": info.get("brand") or "—",
+            "Antrieb": info.get("motorization") or "—",
+            "VIN": info.get("vin") or "—",
+            "Fahrzeug-ID": info.get("vehicle_id") or "—",
+            "Bildanzahl": info.get("picture_count", 0),
+            "Wartung verfügbar": "Ja" if maintenance.get("available") else "Nein",
+            "Wartung verbleibende Tage": maintenance.get("days_remaining") or "—",
+            "Wartung verbleibende Kilometer": maintenance.get("mileage_remaining_km") or "—",
+            "Wartung aktualisiert": maintenance.get("updated_at") or "—",
+            "Datenquelle": "Stellantis Fahrzeug- und Wartungsdaten",
+        }
 
 
 class Ec3TrailingConsumptionSensor(Ec3MetricSensor):

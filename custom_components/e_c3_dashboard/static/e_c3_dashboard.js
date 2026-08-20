@@ -400,64 +400,12 @@ ${strings.install}
       name: [{ margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" }, { "white-space": "nowrap" }, { color: "white" }],
     };
     const vehicleInfoEntity = metric("vehicle_info");
-    const vehicleInfoPicture = vehicleInfoEntity
-      ? hass.states[vehicleInfoEntity]?.attributes?.picture
-      : undefined;
-    const vehicleInfoPopup = vehicleInfoEntity ? {
-      action: "fire-dom-event",
-      browser_mod: {
-        service: "browser_mod.popup",
-        data: {
-        title: language(hass) === "de" ? "Fahrzeug- und Wartungsdaten" : "Vehicle and maintenance data",
-        content: {
-          type: "vertical-stack",
-          cards: [
-            vehicleInfoPicture ? { type: "picture", image: vehicleInfoPicture, alt_text: language(hass) === "de" ? "Fahrzeug" : "Vehicle" } : null,
-            {
-              type: "markdown",
-              content: language(hass) === "de" ? `### Fahrzeug
-
-| | |
-|---|---|
-| Marke | {{ state_attr('${vehicleInfoEntity}', 'brand') or '—' }} |
-| Antrieb | {{ state_attr('${vehicleInfoEntity}', 'motorization') or '—' }} |
-| VIN | {{ state_attr('${vehicleInfoEntity}', 'vin') or '—' }} |
-| Fahrzeug-ID | {{ state_attr('${vehicleInfoEntity}', 'vehicle_id') or '—' }} |
-
-### Wartung
-
-| | |
-|---|---|
-| Verbleibende Tage | {{ state_attr('${vehicleInfoEntity}', 'maintenance_days_remaining') or '—' }} |
-| Verbleibende Strecke | {{ state_attr('${vehicleInfoEntity}', 'maintenance_mileage_remaining_km') or '—' }} km |
-| Aktualisiert | {{ state_attr('${vehicleInfoEntity}', 'maintenance_updated_at') or '—' }} |` : `### Vehicle
-
-| | |
-|---|---|
-| Brand | {{ state_attr('${vehicleInfoEntity}', 'brand') or '—' }} |
-| Powertrain | {{ state_attr('${vehicleInfoEntity}', 'motorization') or '—' }} |
-| VIN | {{ state_attr('${vehicleInfoEntity}', 'vin') or '—' }} |
-| Vehicle ID | {{ state_attr('${vehicleInfoEntity}', 'vehicle_id') or '—' }} |
-
-### Maintenance
-
-| | |
-|---|---|
-| Days remaining | {{ state_attr('${vehicleInfoEntity}', 'maintenance_days_remaining') or '—' }} |
-| Mileage remaining | {{ state_attr('${vehicleInfoEntity}', 'maintenance_mileage_remaining_km') or '—' }} km |
-| Updated | {{ state_attr('${vehicleInfoEntity}', 'maintenance_updated_at') or '—' }} |`,
-            },
-          ].filter(Boolean),
-        },
-        },
-      },
-    } : null;
     const vehicleInfoButton = vehicleInfoEntity ? {
       card: {
         type: "custom:button-card", entity: vehicleInfoEntity,
         show_name: false, show_state: false, show_icon: true,
         icon: "mdi:information-outline",
-        tap_action: vehicleInfoPopup, hold_action: vehicleInfoPopup,
+        tap_action: { action: "more-info" }, hold_action: { action: "more-info" },
         styles: {
           card: [{ width: "30px" }, { height: "30px" }, { "min-height": "30px" }, { padding: 0 }, { margin: 0 }, { "border-radius": "50%" }, { border: "none" }, { background: "rgba(20,20,20,0.72)" }, { color: "white" }, { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" }],
           icon: [{ width: "18px" }, { height: "18px" }, { color: "white" }],
