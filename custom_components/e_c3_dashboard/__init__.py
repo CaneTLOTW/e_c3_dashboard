@@ -25,6 +25,7 @@ from .coordinator import Ec3DashboardCoordinator
 from .dashboard import async_ensure_dashboard, async_remove_dashboard_marker
 from .metrics import VehicleMetricsManager
 from .notifications import VehicleNotificationManager
+from .server_history import ServerHistoryManager
 
 type Ec3DashboardConfigEntry = ConfigEntry
 
@@ -88,6 +89,11 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     frontend_file = static_dir / "e_c3_dashboard.js"
     await hass.http.async_register_static_paths(
         [
+            StaticPathConfig(
+                "/e_c3_dashboard/map-marker-fix.js",
+                str(static_dir / "map-marker-fix.js"),
+                cache_headers=False,
+            ),
             StaticPathConfig(FRONTEND_URL, str(frontend_file), cache_headers=False),
             StaticPathConfig(
                 "/e_c3_dashboard/trip-history-card.js",
@@ -128,6 +134,12 @@ async def async_setup_entry(
     )
     await metrics.async_initialize()
     coordinator.metrics = metrics
+    server_history = ServerHistoryManager(
+        hass, entry, coordinator.data["entity_mapping"], metrics
+    )
+    await server_history.async_initialize()
+    coordinator.server_history = server_history
+    metrics.server_history = server_history
     notifications = VehicleNotificationManager(
         hass, entry, coordinator.data["entity_mapping"], metrics
     )
@@ -165,6 +177,8 @@ async def async_remove_entry(
     """
     slug = entry.data[CONF_VEHICLE_SLUG]
     await Store(hass, 1, f"{DOMAIN}_{slug}_metrics").async_remove()
+    await Store(hass, 1, f"{DOMAIN}_{slug}_server_history").async_remove()
+    await Store(hass, 1, f"{DOMAIN}_{slug}_charge_curves").async_remove()
     await Store(hass, 1, f"{DOMAIN}_{slug}_notifications").async_remove()
     await async_remove_dashboard_marker(hass, entry.entry_id)
 

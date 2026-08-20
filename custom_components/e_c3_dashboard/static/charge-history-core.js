@@ -178,6 +178,8 @@ export function buildLocalChargeSessions(resultStates = []) {
             average_power_kw: numericOrNull(attrs.average_power_kw),
             maximum_power_kw: numericOrNull(attrs.maximum_power_kw),
             charge_type: attrs.charge_type || "—",
+            samples: Array.isArray(attrs.samples) ? attrs.samples : [],
+            has_charge_curve: Array.isArray(attrs.samples) && attrs.samples.length >= 2,
             estimated: attrs.estimated !== false,
         }))
         .filter((session) => Number.isFinite(timestampValue(session.start)) && Number.isFinite(timestampValue(session.end)));

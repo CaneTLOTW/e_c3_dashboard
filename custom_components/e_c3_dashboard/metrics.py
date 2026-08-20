@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
+from statistics import median
 from typing import Any
 
 from homeassistant.components.recorder import get_instance
@@ -33,6 +34,7 @@ _CHARGE_FINALIZE_DELAY = timedelta(minutes=2)
 _RETRY_DELAY = timedelta(minutes=2)
 _WINDOW_KM = 500.0
 _STORE_VERSION = 1
+_MAX_CHARGE_SAMPLES = 720
 
 
 class VehicleMetricsManager:
@@ -62,6 +64,25 @@ class VehicleMetricsManager:
         self._unsub: list[callable] = []
         self._cancel_trip_finalize: callable | None = None
         self._cancel_charge_finalize: callable | None = None
+        self.server_history = None
+
+    def canonical_trips(self) -> list[dict[str, Any]]:
+        """Return validated server trips, falling back to local rows."""
+        rows = getattr(self.server_history, "data", {}).get("trips", []) if self.server_history else []
+        return rows if rows else self.data.get("trips", [])
+
+    def canonical_charges(self) -> list[dict[str, Any]]:
+        """Return server-derived charges, falling back to local rows."""
+        rows = getattr(self.server_history, "data", {}).get("charges", []) if self.server_history else []
+        return rows if rows else self.data.get("charges", [])
+
+    def canonical_last_trip(self) -> dict[str, Any] | None:
+        rows = self.canonical_trips()
+        return rows[-1] if rows else self.data.get("last_trip")
+
+    def canonical_last_charge(self) -> dict[str, Any] | None:
+        rows = self.canonical_charges()
+        return rows[-1] if rows else self.data.get("last_charge")
 
     async def async_initialize(self) -> None:
         """Restore state and subscribe to upstream state changes."""
@@ -328,43 +349,57 @@ class VehicleMetricsManager:
         if self.data.get("active_charge"):
             return
         now = dt_util.utcnow()
-        soc = self._number("battery")
+        first_sample = self._charge_sample()
+        soc = first_sample.get("soc")
+        location = self._current_position()
         self.data["active_charge"] = {
             "start_time": now.isoformat(),
             "start_soc": soc,
             "start_mileage": self._number("mileage"),
-            "capacity_kwh": self._capacity(),
-            "charge_type": self._state("battery_charging_type") or "Unknown",
-            "samples": ([{"time": now.isoformat(), "soc": soc}] if soc is not None else []),
+            "capacity_kwh": first_sample["capacity_kwh"],
+            "charge_type": first_sample.get("charge_type") or "Unknown",
+            "location": location,
+            "location_source": "live_tracker" if location else None,
+            "samples": ([first_sample] if soc is not None else []),
         }
         self.data["current_charge_power_kw"] = None
         await self._save_and_refresh()
 
     async def async_track_charge_sample(self) -> None:
-        """Derive a coarse battery-side kW value from subsequent SOC updates."""
+        """Persist a raw charge sample and derive only defensible power."""
         active = self.data.get("active_charge")
-        soc = self._number("battery")
+        sample = self._charge_sample()
+        soc = sample.get("soc")
         if not isinstance(active, dict) or soc is None or not self._is_on("battery_charging"):
             return
-        now = dt_util.utcnow()
         samples = [item for item in active.get("samples", []) if isinstance(item, dict)]
         previous = samples[-1] if samples else None
         previous_soc = self._as_float(previous.get("soc")) if previous else None
-        previous_time = dt_util.parse_datetime(str(previous.get("time") or "")) if previous else None
-        if previous_soc is not None and previous_time is not None and soc > previous_soc:
-            seconds = (now - previous_time).total_seconds()
-            capacity = self._as_float(active.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
-            power = (soc - previous_soc) * capacity / 100 * 3600 / seconds if seconds > 30 else None
-            if power is not None and 0 < power <= 250:
-                self.data["current_charge_power_kw"] = round(power, 2)
-                samples.append({"time": now.isoformat(), "soc": soc, "power_kw": round(power, 2)})
-            else:
-                samples.append({"time": now.isoformat(), "soc": soc})
-        elif previous_soc != soc:
-            samples.append({"time": now.isoformat(), "soc": soc})
-        else:
+        previous_time = self._sample_time(previous) if previous else None
+        current_time = self._sample_time(sample)
+        previous_residual = self._as_float(previous.get("residual_kwh")) if previous else None
+        residual = self._as_float(sample.get("residual_kwh"))
+        seconds = (current_time - previous_time).total_seconds() if previous_time and current_time else None
+        power = None
+        power_source = None
+        if seconds is not None and seconds > 0 and previous_residual is not None and residual is not None:
+            power = (residual - previous_residual) * 3600 / seconds
+            power_source = "residual_energy_delta"
+        elif seconds is not None and seconds > 30 and previous_soc is not None and soc > previous_soc:
+            capacity = self._as_float(sample.get("capacity_kwh")) or self._as_float(active.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
+            power = (soc - previous_soc) * capacity / 100 * 3600 / seconds
+            power_source = "soc_delta"
+        if power is not None and 0 < power <= 250:
+            sample["derived_power_kw"] = round(power, 2)
+            sample["power_source"] = power_source
+            self.data["current_charge_power_kw"] = sample["derived_power_kw"]
+        # Preserve repeated whole-percent SOC reports as raw timeline points;
+        # they simply have no derived power. Suppress only an actual duplicate
+        # of the same upstream timestamp (for example a HA attribute refresh).
+        if previous and previous.get("source_time") == sample.get("source_time"):
             return
-        active["samples"] = samples[-180:]
+        samples.append(sample)
+        active["samples"] = samples[-_MAX_CHARGE_SAMPLES:]
         await self._save_and_refresh()
 
     def _schedule_charge_finalize(self, delay: timedelta) -> None:
@@ -400,15 +435,26 @@ class VehicleMetricsManager:
         capacity = self._as_float(active.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
         start_soc = self._as_float(active.get("start_soc"))
         end_soc = self._number("battery")
-        energy_kwh = (
+        samples = [item for item in active.get("samples", []) if isinstance(item, dict)]
+        start_residual = self._as_float(samples[0].get("residual_kwh")) if samples else None
+        end_residual = self._number("battery_residual")
+        residual_energy = (
+            round(max(0, end_residual - start_residual), 3)
+            if start_residual is not None and end_residual is not None
+            else None
+        )
+        soc_energy = (
             round(max(0, end_soc - start_soc) * capacity / 100, 3)
             if start_soc is not None and end_soc is not None
             else None
         )
-        samples = [item for item in active.get("samples", []) if isinstance(item, dict)]
-        powers = [self._as_float(item.get("power_kw")) for item in samples]
+        energy_kwh = residual_energy if residual_energy is not None else soc_energy
+        energy_source = "residual_energy_delta" if residual_energy is not None else "soc_delta"
+        powers = [self._as_float(item.get("derived_power_kw", item.get("power_kw"))) for item in samples]
         powers = [power for power in powers if power is not None]
         average_power = round(energy_kwh * 3600 / duration_seconds, 2) if energy_kwh is not None else None
+        power_sources = {item.get("power_source") for item in samples if item.get("power_source")}
+        timestamp_sources = [item.get("timestamp_source") for item in samples]
         charge = {
             "id": end_time.isoformat(),
             "start_time": start_time.isoformat(),
@@ -419,9 +465,24 @@ class VehicleMetricsManager:
             "soc_end": end_soc,
             "capacity_kwh": round(capacity, 2),
             "energy_kwh": energy_kwh,
+            "energy_source": energy_source,
             "average_power_kw": average_power,
             "maximum_power_kw": round(max(powers), 2) if powers else average_power,
+            "minimum_power_kw": round(min(powers), 2) if powers else average_power,
+            "median_power_kw": round(median(powers), 2) if powers else average_power,
+            "maximum_power_kw_estimated": True,
+            "power_estimated": True,
+            "power_source": next(iter(power_sources)) if len(power_sources) == 1 else "mixed" if power_sources else None,
             "charge_type": active.get("charge_type") or "Unknown",
+            "location": active.get("location"),
+            "location_source": active.get("location_source"),
+            # Persist the observed SOC timeline as well.  The points remain
+            # coarse (whole-percent SOC), but they are the only source for a
+            # restart-safe, battery-side curve when Recorder later expires.
+            "samples": samples,
+            "sample_count": len(samples),
+            "source_timestamp_count": timestamp_sources.count("stellantis"),
+            "ha_fallback_timestamp_count": timestamp_sources.count("home_assistant"),
             "estimated": True,
         }
         self.data["charges"] = [
@@ -614,8 +675,65 @@ class VehicleMetricsManager:
         state = self.hass.states.get(entity_id) if entity_id else None
         return self._as_float(state.state if state else None)
 
+    def _charge_sample(self) -> dict[str, Any]:
+        """Capture the best available timestamp and unmodified upstream values."""
+        received_at = dt_util.utcnow()
+        battery_entity = self.mapping.get("battery")
+        state = self.hass.states.get(battery_entity) if battery_entity else None
+        attributes = getattr(state, "attributes", {}) or {}
+        source_time = self._parse_sample_timestamp(attributes.get("Last updated"))
+        timestamp_source = "stellantis" if source_time else None
+        if source_time is None and state is not None:
+            source_time = getattr(state, "last_updated", None)
+            timestamp_source = "home_assistant" if source_time else None
+        if source_time is None:
+            source_time = received_at
+            timestamp_source = "received_at"
+        return {
+            "source_time": source_time.isoformat(),
+            "received_at": received_at.isoformat(),
+            "timestamp_source": timestamp_source,
+            # Compatibility bridge for older stores/tools that used `time`.
+            "time": source_time.isoformat(),
+            "soc": self._as_float(state.state if state else None),
+            "capacity_kwh": self._capacity(),
+            "residual_kwh": self._number("battery_residual"),
+            "charging_rate_kmh": self._number("battery_charging_rate"),
+            "charge_type": self._state("battery_charging_type") or "Unknown",
+            "derived_power_kw": None,
+            "power_source": None,
+        }
+
+    @staticmethod
+    def _parse_sample_timestamp(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if value is None:
+            return None
+        return dt_util.parse_datetime(str(value))
+
+    def _sample_time(self, sample: dict[str, Any]) -> datetime | None:
+        return self._parse_sample_timestamp(sample.get("source_time") or sample.get("time"))
+
     def _capacity(self) -> float:
         return self._number("battery_capacity") or _FALLBACK_CAPACITY_KWH
+
+    def _current_position(self) -> dict[str, Any] | None:
+        """Capture a live tracker point when the selected device exposes it.
+
+        This is optional enrichment for matching a live charge to a later
+        server parking window.  It is deliberately stored as coordinates only
+        and never reverse-geocoded here.
+        """
+        entity_id = self.mapping.get("vehicle")
+        state = self.hass.states.get(entity_id) if entity_id else None
+        attributes = getattr(state, "attributes", {}) or {}
+        try:
+            latitude = float(attributes.get("latitude"))
+            longitude = float(attributes.get("longitude"))
+        except (TypeError, ValueError):
+            return None
+        return {"geometry": {"coordinates": [longitude, latitude]}}
 
     def _is_on(self, mapping_key: str) -> bool:
         entity_id = self.mapping.get(mapping_key)

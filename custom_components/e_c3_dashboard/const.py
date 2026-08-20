@@ -36,9 +36,10 @@ DEFAULT_OPTIONS = {
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.4.33"
+FRONTEND_VERSION = "0.5.24"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (
+    "/e_c3_dashboard/map-marker-fix.js",
     "/e_c3_dashboard/trip-history-card.js",
     "/e_c3_dashboard/charge-history-card.js",
     FRONTEND_URL,

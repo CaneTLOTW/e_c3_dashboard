@@ -9,6 +9,36 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added canonical Stellantis trip history with paginated server synchronisation,
+  server-trip IDs, zero-distance event retention, SOC-based energy fallbacks and
+  vehicle metadata.
+- Added canonical charge history that combines split Home Assistant/Recorder
+  charging sessions with SOC-rise windows between server trips. Reconstructed
+  windows retain their standstill interval without inventing charging duration,
+  power, type or a curve.
+- Added restart-safe charge samples with Stellantis source timestamps,
+  received-time fallbacks, residual-energy priority and compact curve samples
+  for the frontend.
+- Added a manual server-history synchronisation button and a dedicated trip
+  history view using the canonical server data.
+- The Vehicle view now uses a compact trip-history filter preset: last 30 days,
+  trips up to 1 km hidden and zero-distance events hidden. The full Trips view
+  retains the complete filter controls.
+- Added a persistent observed-charge archive. Recorder data is refreshed within
+  90 days but appended to the local server-history Store, so older observed
+  sessions and their SOC samples remain available after Recorder expiry.
+- Expanded the full Trips view with a larger scroll window and incremental
+  client-side loading of older server trips. The view now keeps the complete
+  server history available instead of stopping at a 250-row display limit.
+- Added a server-trip GeoJSON overlay to the GPS view. Historical Stellantis
+  start/stop positions are shown alongside HA Recorder history; connecting
+  lines are explicitly marked as start/stop approximations.
+- Moved the server-history sync action into the full Trips view and aligned it
+  with the standard dashboard action-button layout.
+
+- Added a Long-term statistics view for SOH capacity/resistance, odometer
+  state and monthly driven distance, plus the rolling 500 km consumption.
+  The relevant Vehicle cards now navigate to this view.
 - Added a dedicated, localised Functions & usage view explaining dashboard
   interactions, expandable trip rows, charging-session navigation, controls,
   GPS history and the interpretation of estimated values.
@@ -29,6 +59,8 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Raised the integration version to 0.5.8 while retaining the develop
+  long-term statistics view alongside the canonical history migration.
 - Replaced the oversized package brand asset with a 256×256 local integration
   icon, compatible with Home Assistant's custom-integration Brands API.
 - Removed the technical `ready` status badge from the Vehicle view. The
@@ -40,6 +72,11 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Fixed the vehicle picture marker showing a black square in browser/HA dark
+  mode. The e-C3 package now ships a scoped runtime compatibility shim that
+  applies `background` and `background-color: transparent !important` directly
+  to the `ha-map-card` shadow-DOM picture marker. Only e-C3 markers opt in;
+  other `ha-map-card` markers are untouched.
 - Removed the duplicate Trips view. Trip history remains available in the
   Vehicle view, where it is already part of the latest-activity section.
 - The charge-selection query parameter is now removed automatically when the

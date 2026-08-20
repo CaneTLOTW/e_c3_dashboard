@@ -172,8 +172,12 @@ selected device mapping:
 
 - vehicle overview with battery, range, vehicle state, charging, climate,
   remote connection and current map;
-- 90-day trip history and local ride-result data;
-- 90-day AC/DC charging history reconstructed from Recorder;
+- compact Vehicle activity history with a 30-day filter preset;
+- full server-backed Trips view with expandable details, filters, incremental
+  loading and manual synchronisation;
+- charging history combining observed Recorder sessions and reconstructed SOC
+  windows;
+- charge-curve browsing for sessions with retained live/Recorder samples;
 - GPS history using the Home Assistant global date selector, recorder-backed
   route lines and points, and the current-position details;
 - manual wake-up plus an integration/system diagnostics view.
@@ -184,11 +188,22 @@ independent from the original Stellantis vehicle card.
 
 ## Bundled Lovelace resources
 
-The strategy, trip-history card and charge-history/curve card are registered as
-three versioned, package-owned JavaScript modules. They use package-specific
+The strategy, map-marker compatibility shim, trip-history card and
+charge-history/curve card are registered as four versioned, package-owned
+JavaScript modules. They use package-specific
 custom-element names. This prevents a fresh installation from relying on a
 similarly named resource that happened to be installed for another dashboard,
 and avoids clashes with the original household dashboard.
+
+The same resource set includes `map-marker-fix.js`, a compatibility shim for
+the picture-marker shadow DOM used by `ha-map-card`. In dark mode, the upstream
+marker can provide a dark fallback background behind a transparent vehicle PNG.
+The e-C3 strategy opts its own picture markers in with
+`--ec3-transparent-picture-marker: 1`; the shim then sets both `background` and
+`background-color` to transparent on the inner `.marker.picture` element.
+Existing markers and Lit re-renders are handled, and the patch is idempotent.
+Because the patch is package-owned, it does not modify or require a fork of
+`ha-map-card` and it does not affect unrelated map markers.
 
 ## Reference-view fidelity
 

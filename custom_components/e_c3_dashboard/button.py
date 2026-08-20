@@ -18,6 +18,7 @@ async def async_setup_entry(
     async_add_entities([
         Ec3ActionButton(coordinator, entry, "manual_wakeup", "Wake vehicle now", "mdi:car-key"),
         Ec3ActionButton(coordinator, entry, "test_notification", "Test notification", "mdi:message-alert-outline"),
+        Ec3ActionButton(coordinator, entry, "sync_server_history", "Sync server history", "mdi:database-sync"),
     ])
     await coordinator.notifications.async_refresh_entities()
 
@@ -37,6 +38,8 @@ class Ec3ActionButton(ButtonEntity):
     async def async_press(self) -> None:
         if self.key == "manual_wakeup":
             await self.coordinator.notifications.async_manual_wakeup()
+        elif self.key == "sync_server_history":
+            await self.coordinator.server_history.async_full_sync()
         else:
             await self.coordinator.notifications.async_test_notification()
 

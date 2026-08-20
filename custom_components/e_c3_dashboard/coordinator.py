@@ -40,6 +40,7 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=None,
         )
         self.entry = entry
+        self.server_history = None
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Build a safe, VIN-independent snapshot from the entity registry."""

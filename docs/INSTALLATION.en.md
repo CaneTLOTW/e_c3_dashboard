@@ -56,11 +56,47 @@ If a required custom card is missing, the dashboard displays a setup page with
 the exact missing card. Install it through HACS, restart Home Assistant and
 reload the browser page.
 
+### Vehicle picture marker in dark mode
+
+The package includes its own `map-marker-fix.js` compatibility resource for
+the e-C3 vehicle picture marker. It is registered automatically with the other
+package-owned Lovelace modules. No `card-mod`, browser extension or manual CSS
+override is required.
+
+After installing or updating the package:
+
+1. Restart Home Assistant so the integration registers the new versioned
+   resource.
+2. Reload the dashboard. On a desktop browser use a hard reload; on the HA
+   mobile app close and reopen the app if the old JavaScript is still cached.
+3. Open the Vehicle or GPS view in dark mode. The e-C3 vehicle picture marker
+   should have a transparent background while the LIVE vehicle picture keeps
+   its existing appearance.
+
+The compatibility code is opt-in. It affects only marker hosts carrying the
+private `--ec3-transparent-picture-marker: 1` property. Other maps and
+markers in the Home Assistant installation are not modified.
+
 ## History modules
 
-Trip, charging and GPS history require Home Assistant Recorder history. The
-package's default history display window is 90 days, but it cannot create or
-retain history itself.
+Trip, charging and GPS history use several deliberately separated sources.
+Completed trips come from the Stellantis server-history synchronisation. Live
+and observed charging detail comes from Home Assistant states and Recorder;
+historical charging without live samples is reconstructed from SOC rises
+between adjacent server trips.
+
+The compact Vehicle view uses a 30-day preset, hides trips up to 1 km and hides
+zero-distance server events. The full Trips view keeps the complete filter
+controls and can show older server trips. Older rows are loaded incrementally
+while scrolling. The **Update server history** action performs a fresh server
+synchronisation when needed.
+
+The dashboard keeps its server-history and observed-charge archive beyond the
+90-day display window. Ninety days is a default UI/Recorder window, not a hard
+deletion boundary. Previously captured charging samples remain available in
+the package store after Recorder retention expires. Recorder history is still
+required for live/observed session boundaries and curves; the package does not
+change Recorder retention or purge settings.
 
 Before using that window, verify that Recorder `purge_keep_days` is at least
 90 (or at least the configured **History display window**) and that all
