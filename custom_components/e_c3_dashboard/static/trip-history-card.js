@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.5.5";
+import { localeFor, textFor } from "./i18n.js?v=0.5.6";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -10,6 +10,8 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         _hass: { state: true },
         _config: { state: true },
         _trips: { state: true },
+        _allTrips: { state: true },
+        _visibleTripCount: { state: true },
         _loading: { state: true },
         _error: { state: true },
         _expandedTripKey: { state: true },
@@ -33,6 +35,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         .table-scroll::-webkit-scrollbar { width: 8px; }
         .table-scroll::-webkit-scrollbar-thumb { background: var(--divider-color); border-radius: 999px; }
         .table-scroll::-webkit-scrollbar-track { background: transparent; }
+        .table-scroll.expanded { max-height: min(720px, 70vh); }
         .trip-table { width: 100%; border-collapse: collapse; font-size: var(--ha-font-size-s); }
         .trip-table th { position: sticky; top: 0; z-index: 1; color: var(--secondary-text-color); background: var(--card-background-color); font-weight: 500; text-align: left; padding: 0 8px 8px 0; white-space: nowrap; }
         .trip-table td { border-top: 1px solid var(--divider-color); padding: 9px 8px 9px 0; vertical-align: top; white-space: nowrap; }
@@ -48,6 +51,9 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         .filters label { display: inline-flex; align-items: center; gap: 5px; color: var(--secondary-text-color); }
         .filters select { min-height: 30px; border: 1px solid var(--divider-color); border-radius: 7px; color: var(--primary-text-color); background: var(--secondary-background-color); font: inherit; }
         .filter-note { margin: 0 0 12px; color: var(--secondary-text-color); font-size: var(--ha-font-size-s); }
+        .table-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; color: var(--secondary-text-color); font-size: var(--ha-font-size-s); }
+        .table-footer button { border: 1px solid var(--divider-color); border-radius: 7px; padding: 6px 12px; color: var(--primary-text-color); background: var(--secondary-background-color); font: inherit; cursor: pointer; }
+        .table-footer button:hover, .table-footer button:focus { border-color: var(--primary-color); color: var(--primary-color); }
     `;
 
     setConfig(config) {
@@ -55,6 +61,9 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
             throw new Error("Entity must be specified");
         }
         this._config = { hours_to_show: 2160, max_trips: 50, language: "auto", ...config };
+        this._expandedWindow = Boolean(config.expanded_window);
+        this._allTrips = [];
+        this._visibleTripCount = 0;
         this._compactFilters = Boolean(config.compact_filters);
         this._filterDays = Number(config.filter_days ?? (this._compactFilters ? 30 : 0));
         this._showZeroEvents = this._compactFilters ? false : Boolean(config.show_zero_events);
@@ -131,7 +140,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                     ...serverTrips,
                     ...(this._showZeroEvents ? zeroEvents : []),
                 ];
-                this._trips = this._filterServerTrips(allServerTrips).map((trip) => ({
+                const normalizedTrips = this._filterServerTrips(allServerTrips).map((trip) => ({
                     state: trip.distance_km,
                     last_updated: trip.end_time || trip.start_time,
                     _sourceEntityId: this._config.server_entity,
@@ -147,7 +156,8 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                         energy_per_100_km: trip.energy_per_100_km,
                         avg_speed: trip.average_speed,
                     },
-                })).reverse().slice(0, Number(this._config.max_trips));
+                })).reverse();
+                this._setAllTrips(normalizedTrips);
                 return;
             }
             const tripEntityIds = this._tripEntityIds();
@@ -261,7 +271,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
             });
             const uniqueTrips = [...localTrips, ...nativeTrips.filter((trip) => !isNativeDuplicateOfLocal(trip))]
                 .sort((a, b) => new Date(a.last_updated).getTime() - new Date(b.last_updated).getTime());
-            this._trips = uniqueTrips
+            const normalizedTrips = uniqueTrips
                 .map((trip) => {
                     const tripTime = new Date(trip.last_updated).getTime();
                     const tripDistance = Number.parseFloat(trip.state);
@@ -277,14 +287,35 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                         ? { ...trip, attributes: { ...trip.attributes, ...result.attributes } }
                         : trip;
                 })
-                .reverse()
-                .slice(0, Number(this._config.max_trips));
+                .reverse();
+            this._setAllTrips(normalizedTrips);
         } catch (error) {
+            this._allTrips = [];
             this._trips = [];
             this._error = error?.message ?? String(error);
         } finally {
             this._loading = false;
         }
+    }
+
+    _setAllTrips(trips) {
+        const maxTrips = Number(this._config.max_trips);
+        this._allTrips = Number.isFinite(maxTrips) && maxTrips > 0 ? trips.slice(0, maxTrips) : trips;
+        const initial = Number(this._config.initial_visible_trips ?? (this._expandedWindow ? 100 : this._allTrips.length));
+        this._visibleTripCount = Math.min(this._allTrips.length, Number.isFinite(initial) && initial > 0 ? initial : this._allTrips.length);
+        this._trips = this._allTrips.slice(0, this._visibleTripCount);
+    }
+
+    _loadMoreTrips() {
+        if (!this._allTrips?.length || this._visibleTripCount >= this._allTrips.length) return;
+        this._visibleTripCount = Math.min(this._visibleTripCount + 100, this._allTrips.length);
+        this._trips = this._allTrips.slice(0, this._visibleTripCount);
+    }
+
+    _onTableScroll(event) {
+        if (!this._expandedWindow) return;
+        const element = event.currentTarget;
+        if (element.scrollTop + element.clientHeight >= element.scrollHeight - 120) this._loadMoreTrips();
     }
 
     _formatDate(value) {
@@ -379,6 +410,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         if (!this._config) return nothing;
         const text = this._text();
         const trips = this._trips ?? [];
+        const hasMoreTrips = (this._allTrips?.length ?? 0) > trips.length;
         const hasMaxSpeed = trips.some((trip) => trip.attributes?.max_speed);
         const hasEnergy = trips.some((trip) => trip.attributes?.energy_kwh !== undefined);
         const columnCount = 4 + (hasEnergy ? 2 : 0) + (hasMaxSpeed ? 1 : 0);
@@ -405,7 +437,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                     ${this._error ? html`<span class="error">${text.error} ${this._error}</span>` : nothing}
                     ${!this._loading && !this._error && trips.length === 0 ? html`<span class="muted">${text.empty}</span>` : nothing}
                     ${trips.length ? html`
-                        <div class="table-scroll" tabindex="0" aria-label=${text.scroll}>
+                        <div class=${this._expandedWindow ? "table-scroll expanded" : "table-scroll"} tabindex="0" aria-label=${text.scroll} @scroll=${(event) => this._onTableScroll(event)}>
                             <table class="trip-table"><thead><tr><th>${text.date}</th><th>${text.duration}</th><th>${text.distance}</th><th>${text.average}</th>${hasEnergy ? html`<th>${text.energy}</th><th>${text.consumption}</th>` : nothing}${hasMaxSpeed ? html`<th>${text.maximum}</th>` : nothing}</tr></thead>
                             <tbody>${trips.map((trip, index) => {
                                 const key = this._tripKey(trip, index);
@@ -428,7 +460,8 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                                 </td>
                             </tr>` : nothing}`;
                             })}</tbody></table>
-                        </div>` : nothing}
+                        </div>
+                        ${hasMoreTrips ? html`<div class="table-footer"><span>${de ? `${trips.length} von ${this._allTrips.length} Fahrten sichtbar` : `${trips.length} of ${this._allTrips.length} trips visible`}</span><button type="button" @click=${() => this._loadMoreTrips()}>${de ? "Weitere Fahrten laden" : "Load more trips"}</button></div>` : nothing}` : nothing}
                 </div>
             </ha-card>
         `;
