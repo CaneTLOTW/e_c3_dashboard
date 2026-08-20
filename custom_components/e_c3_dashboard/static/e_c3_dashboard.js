@@ -405,7 +405,7 @@ ${strings.install}
         type: "custom:button-card", entity: vehicleInfoEntity,
         show_name: false, show_state: false, show_icon: true,
         icon: "mdi:information-outline",
-        tap_action: { action: "more-info" }, hold_action: { action: "more-info" },
+        tap_action: { action: "more-info", entity: vehicleInfoEntity }, hold_action: { action: "more-info", entity: vehicleInfoEntity },
         styles: {
           card: [{ width: "30px" }, { height: "30px" }, { "min-height": "30px" }, { padding: 0 }, { margin: 0 }, { "border-radius": "50%" }, { border: "none" }, { background: "rgba(20,20,20,0.72)" }, { color: "white" }, { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" }],
           icon: [{ width: "18px" }, { height: "18px" }, { color: "white" }],
