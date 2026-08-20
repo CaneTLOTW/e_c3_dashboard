@@ -504,7 +504,7 @@ ${strings.install}
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
-        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: markerPicture, size: 90, color: "transparent", css: "--ha-marker-color: transparent; --ha-marker-background: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: rgba(0,0,0,0) !important; background-image: none; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
+        tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: markerPicture, size: 90, color: "transparent", css: "--ec3-transparent-picture-marker: 1; --ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
       ]) },
       { type: "grid", cards: present([
         separator(strings.vehicleDetails, "mdi:car-info"),
@@ -705,7 +705,7 @@ No GPS coordinates available.
                   picture: markerPicture,
                   size: 72,
                   color: "transparent",
-                  css: "--ha-marker-color: transparent; --ha-marker-background: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; background: transparent !important; background-color: transparent !important; border: none !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;",
+                  css: "--ec3-transparent-picture-marker: 1; --ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; border: none !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;",
                   history_line_color: "#03a9f4",
                   history_show_dots: true,
                   history_show_lines: true,

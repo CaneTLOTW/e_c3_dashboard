@@ -89,6 +89,11 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     frontend_file = static_dir / "e_c3_dashboard.js"
     await hass.http.async_register_static_paths(
         [
+            StaticPathConfig(
+                "/e_c3_dashboard/map-marker-fix.js",
+                str(static_dir / "map-marker-fix.js"),
+                cache_headers=False,
+            ),
             StaticPathConfig(FRONTEND_URL, str(frontend_file), cache_headers=False),
             StaticPathConfig(
                 "/e_c3_dashboard/trip-history-card.js",
