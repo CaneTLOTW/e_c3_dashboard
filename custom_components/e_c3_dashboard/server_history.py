@@ -542,7 +542,9 @@ class ServerHistoryManager:
         return {
             "server_trips_raw": [],
             "recorder_observed_charges": [],
+            "recorder_observed_charges_archive": [],
             "recorder_capacity_samples": [],
+            "recorder_capacity_samples_archive": [],
             "legacy_live_snapshot": None,
             "canonical_trips": [],
             "canonical_charges": [],
@@ -550,7 +552,7 @@ class ServerHistoryManager:
             "trips": [],
             "charges": [],
             "vehicle_info": {},
-            "migration_metadata": {"schema": 2, "migrated_at": None},
+            "migration_metadata": {"schema": 3, "migrated_at": None},
             "sync_metadata": {"last_sync": None, "sync_mode": None},
             "updated_at": None,
             "last_sync": None,
@@ -562,10 +564,103 @@ class ServerHistoryManager:
     def register_entity(self, entity) -> None:
         self._entities.append(entity)
 
+    @staticmethod
+    def _archive_session_key(session: dict[str, Any]) -> str:
+        """Build a stable key for one observed charge session."""
+        start = session.get("start_time")
+        if start:
+            return f"start:{start}"
+        return f"id:{session.get('id') or ''}"
+
+    @staticmethod
+    def _merge_session_samples(
+        existing: list[dict[str, Any]], incoming: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Merge raw SOC samples without duplicating equal source timestamps."""
+        merged: dict[str, dict[str, Any]] = {}
+        existing_items = existing if isinstance(existing, list) else []
+        incoming_items = incoming if isinstance(incoming, list) else []
+        for sample in [*existing_items, *incoming_items]:
+            if not isinstance(sample, dict):
+                continue
+            key = str(sample.get("source_time") or sample.get("time") or sample.get("received_at") or "")
+            if not key:
+                key = f"received:{len(merged)}"
+            merged[key] = sample
+        return sorted(
+            merged.values(),
+            key=lambda sample: str(
+                sample.get("source_time") or sample.get("time") or sample.get("received_at") or ""
+            ),
+        )
+
+    @classmethod
+    def _merge_observed_archive(
+        cls, existing: list[dict[str, Any]], incoming: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Append Recorder sessions permanently while allowing later enrichment."""
+        merged: dict[str, dict[str, Any]] = {}
+        existing_items = existing if isinstance(existing, list) else []
+        incoming_items = incoming if isinstance(incoming, list) else []
+        for session in [*existing_items, *incoming_items]:
+            if not isinstance(session, dict):
+                continue
+            key = cls._archive_session_key(session)
+            previous = merged.get(key, {})
+            combined = {**previous, **session}
+            combined["samples"] = cls._merge_session_samples(
+                previous.get("samples", []), session.get("samples", [])
+            )
+            merged[key] = combined
+        return sorted(
+            merged.values(),
+            key=lambda session: str(session.get("start_time") or session.get("id") or ""),
+        )
+
+    @staticmethod
+    def _merge_capacity_archive(
+        existing: list[dict[str, Any]], incoming: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Keep the latest known capacity sample for each source timestamp."""
+        merged: dict[str, dict[str, Any]] = {}
+        existing_items = existing if isinstance(existing, list) else []
+        incoming_items = incoming if isinstance(incoming, list) else []
+        for sample in [*existing_items, *incoming_items]:
+            if not isinstance(sample, dict) or not sample.get("time"):
+                continue
+            merged[str(sample["time"])] = sample
+        return [merged[key] for key in sorted(merged)]
+
+    def _update_archive_metadata(self) -> None:
+        archive = self.data.get("recorder_observed_charges_archive", [])
+        self.data["archive_metadata"] = {
+            "observed_charge_count": len(archive),
+            "oldest_observed_charge": archive[0].get("start_time") if archive else None,
+            "newest_observed_charge": archive[-1].get("start_time") if archive else None,
+            "capacity_sample_count": len(self.data.get("recorder_capacity_samples_archive", [])),
+            "updated_at": dt_util.utcnow().isoformat(),
+        }
+
     def _migrate_data(self, stored: dict[str, Any]) -> None:
         """Read v1 data without losing its raw fields, then rebuild v2 aliases."""
         if isinstance(stored.get("server_trips_raw"), list):
             self.data.update(stored)
+            self.data.setdefault("recorder_observed_charges_archive", [])
+            self.data.setdefault("recorder_capacity_samples_archive", [])
+            self.data["recorder_observed_charges_archive"] = self._merge_observed_archive(
+                self.data["recorder_observed_charges_archive"],
+                self.data.get("recorder_observed_charges", []),
+            )
+            self.data["recorder_capacity_samples_archive"] = self._merge_capacity_archive(
+                self.data["recorder_capacity_samples_archive"],
+                self.data.get("recorder_capacity_samples", []),
+            )
+            self.data["migration_metadata"] = {
+                **self.data.get("migration_metadata", {}),
+                "schema": 3,
+                "observed_charge_archive": True,
+            }
+            self._update_archive_metadata()
             return
         legacy_trips = [item for item in stored.get("trips", []) if isinstance(item, dict)]
         raw_trips = [
@@ -586,11 +681,23 @@ class ServerHistoryManager:
         self.data["server_trips_raw"] = [item for item in raw_trips if item.get("id")]
         self.data["vehicle_info"] = stored.get("vehicle_info", {})
         self.data["telemetry"] = stored.get("telemetry", {"available": False})
+        self.data["recorder_observed_charges_archive"] = self._merge_observed_archive(
+            stored.get("recorder_observed_charges", []),
+            [
+                item for item in stored.get("canonical_charges", [])
+                if isinstance(item, dict) and item.get("quality") == "observed"
+            ],
+        )
+        self.data["recorder_capacity_samples_archive"] = self._merge_capacity_archive(
+            stored.get("recorder_capacity_samples", []), []
+        )
         self.data["migration_metadata"] = {
-            "schema": 2,
+            "schema": 3,
             "migrated_at": dt_util.utcnow().isoformat(),
             "from_schema": 1,
+            "observed_charge_archive": True,
         }
+        self._update_archive_metadata()
 
     def _capacity_for_trip(self, raw: dict[str, Any]) -> float:
         historic = self._historical_capacity(raw.get("startedAt"))
@@ -616,7 +723,7 @@ class ServerHistoryManager:
         if event_time is None:
             return None
         candidates = []
-        for sample in self.data.get("recorder_capacity_samples", []):
+        for sample in self.data.get("recorder_capacity_samples_archive", self.data.get("recorder_capacity_samples", [])):
             if not isinstance(sample, dict):
                 continue
             sample_time = _parse_time(sample.get("time"))
@@ -689,7 +796,10 @@ class ServerHistoryManager:
             ]))
             observed_by_id[preferred["id"]] = preferred
 
-        for recorder_charge in self.data.get("recorder_observed_charges", []):
+        for recorder_charge in self.data.get(
+            "recorder_observed_charges_archive",
+            self.data.get("recorder_observed_charges", []),
+        ):
             if normalized := normalize_observed_charge(recorder_charge, "ha_recorder"):
                 add_observed(normalized, prefer_new=False)
         # Persisted live results are preferred over a Recorder reconstruction
@@ -704,6 +814,7 @@ class ServerHistoryManager:
         self.data["canonical_charges"] = canonical_charges
         self.data["trips"] = [trip for trip in all_trips if _is_real_trip(trip)]
         self.data["charges"] = canonical_charges
+        self._update_archive_metadata()
 
     def _annotate_legacy_trip_matches(self, server_trips: list[dict[str, Any]]) -> None:
         """Attach comparison metadata without making local rows canonical."""
@@ -789,7 +900,21 @@ class ServerHistoryManager:
         self.data["vehicle_info"] = self._public_vehicle_info(self._vehicle)
         self._latest_recorder_capacity_samples = list(self.data.get("recorder_capacity_samples", []))
         self.data["recorder_observed_charges"] = await self._async_recorder_charges()
+        self.data["recorder_observed_charges_archive"] = self._merge_observed_archive(
+            self.data.get("recorder_observed_charges_archive", []),
+            [
+                *self.data["recorder_observed_charges"],
+                *(
+                    item for item in getattr(self.metrics, "data", {}).get("charges", [])
+                    if isinstance(item, dict)
+                ),
+            ],
+        )
         self.data["recorder_capacity_samples"] = self._latest_recorder_capacity_samples
+        self.data["recorder_capacity_samples_archive"] = self._merge_capacity_archive(
+            self.data.get("recorder_capacity_samples_archive", []),
+            self.data["recorder_capacity_samples"],
+        )
         latest = max(
             (item.get("startedAt") for item in self.data.get("server_trips_raw", []) if item.get("startedAt")),
             default=None,

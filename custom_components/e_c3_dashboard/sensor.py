@@ -315,10 +315,13 @@ class Ec3ServerChargeHistorySensor(Ec3MetricSensor):
                 "samples": _compact_curve_samples(samples),
             }
         history = getattr(self.metrics, "server_history", None)
+        archive = getattr(history, "data", {}).get("archive_metadata", {}) if history else {}
         data.update({
             "count": len(rows),
             "charges": rows,
             "active_charge": active_payload,
+            "archive_observed_count": archive.get("observed_charge_count", 0),
+            "archive_oldest_observed_charge": archive.get("oldest_observed_charge"),
             "source": "canonical_history",
             "server_history_ready": bool(history and history.data.get("updated_at") and not history.data.get("error")),
         })

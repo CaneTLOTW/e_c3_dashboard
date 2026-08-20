@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.5.4";
+import { languageFor, textFor } from "./i18n.js?v=0.5.5";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const LONG_TERM_STATISTICS_DAYS = 3650;

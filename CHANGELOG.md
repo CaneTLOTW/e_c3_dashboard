@@ -24,6 +24,9 @@ and uses [Semantic Versioning](https://semver.org/).
 - The Vehicle view now uses a compact trip-history filter preset: last 30 days,
   trips up to 1 km hidden and zero-distance events hidden. The full Trips view
   retains the complete filter controls.
+- Added a persistent observed-charge archive. Recorder data is refreshed within
+  90 days but appended to the local server-history Store, so older observed
+  sessions and their SOC samples remain available after Recorder expiry.
 
 - Added a Long-term statistics view for SOH capacity/resistance, odometer
   state and monthly driven distance, plus the rolling 500 km consumption.
@@ -48,7 +51,7 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Raised the integration version to 0.5.4 while retaining the develop
+- Raised the integration version to 0.5.5 while retaining the develop
   long-term statistics view alongside the canonical history migration.
 - Replaced the oversized package brand asset with a 256×256 local integration
   icon, compatible with Home Assistant's custom-integration Brands API.
