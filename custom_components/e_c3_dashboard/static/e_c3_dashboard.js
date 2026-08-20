@@ -428,7 +428,6 @@ ${strings.install}
           title: language(hass) === "de" ? "Wartung" : "Maintenance",
           show_header_toggle: false,
           entities: [
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verfügbar", name: language(hass) === "de" ? "Status" : "Status" },
             { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Tage", name: language(hass) === "de" ? "Verbleibende Tage" : "Days remaining" },
             { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Kilometer", name: language(hass) === "de" ? "Verbleibende Kilometer" : "Mileage remaining" },
             { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung aktualisiert", name: language(hass) === "de" ? "Aktualisiert" : "Updated" },

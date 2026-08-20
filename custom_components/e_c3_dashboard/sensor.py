@@ -13,6 +13,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
@@ -425,6 +426,24 @@ class Ec3ServerChargeHistorySensor(Ec3MetricSensor):
         return data
 
 
+def _relative_age(value: Any) -> str:
+    """Format a backend timestamp as a short German relative age."""
+    parsed = dt_util.parse_datetime(str(value)) if value else None
+    if parsed is None:
+        return "—"
+    parsed = dt_util.as_utc(parsed)
+    seconds = max(0, int((dt_util.utcnow() - parsed).total_seconds()))
+    if seconds < 60:
+        return f"vor {seconds} Sekunden"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"vor {minutes} Minuten"
+    hours = minutes // 60
+    if hours < 24:
+        return f"vor {hours} Stunden"
+    return f"vor {hours // 24} Tagen"
+
+
 class Ec3VehicleInfoSensor(Ec3MetricSensor):
     """Expose backend-supplied vehicle metadata without VIN inference."""
 
@@ -451,10 +470,9 @@ class Ec3VehicleInfoSensor(Ec3MetricSensor):
             "Antrieb": info.get("motorization") or "—",
             "VIN": info.get("vin") or "—",
             "Bildanzahl": info.get("picture_count", 0),
-            "Wartung verfügbar": "Ja" if maintenance.get("available") else "Nein",
             "Wartung verbleibende Tage": maintenance.get("days_remaining") or "—",
             "Wartung verbleibende Kilometer": maintenance.get("mileage_remaining_km") or "—",
-            "Wartung aktualisiert": maintenance.get("updated_at") or "—",
+            "Wartung aktualisiert": _relative_age(maintenance.get("updated_at")),
             "Datenquelle": "Stellantis Fahrzeug- und Wartungsdaten",
         }
 
