@@ -335,10 +335,15 @@ ${strings.install}
       if (!entityId) return "";
 
       const entityLiteral = JSON.stringify(entityId);
+      const chargingEntityLiteral = JSON.stringify(entity("battery_charging"));
       const valueCode = kind === "power"
-        ? `const value = stateEntity?.state;
+        ? `const chargingEntity = hass.states[${chargingEntityLiteral}];
+        const charging = chargingEntity?.state === 'on';
+        const value = stateEntity?.state;
         const numericValue = Number(value);
-        const text = invalid(value) || !Number.isFinite(numericValue)
+        const text = !charging
+          ? '-'
+          : invalid(value) || !Number.isFinite(numericValue)
           ? '0 kW'
           : numericValue.toFixed(1).replace('.', ',') + ' ' + (stateEntity.attributes?.unit_of_measurement || 'kW');`
         : kind === "time"

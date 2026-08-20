@@ -72,6 +72,11 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Fixed stale current charge power after an upstream charging sensor recovered
+  from `unavailable` directly to `off`. The active local charge is now
+  finalized in that case, its transient power is cleared, and the Vehicle
+  charging card shows `-` whenever charging is not active instead of retaining
+  the last derived kW value.
 - Fixed the vehicle picture marker showing a black square in browser/HA dark
   mode. The e-C3 package now ships a scoped runtime compatibility shim that
   applies `background` and `background-color: transparent !important` directly

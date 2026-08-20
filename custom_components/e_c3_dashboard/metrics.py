@@ -172,7 +172,11 @@ class VehicleMetricsManager:
         elif entity_id == self.mapping.get("battery_charging"):
             if new_state.state == "on" and (old_state is None or old_state.state != "on"):
                 self.hass.async_create_task(self.async_start_charge())
-            elif new_state.state == "off" and old_state is not None and old_state.state == "on":
+            elif new_state.state == "off" and self.data.get("active_charge"):
+                # The upstream binary sensor can recover from unavailable
+                # directly to off after a restart.  Do not require the old
+                # state to be on, otherwise the active session and its last
+                # derived power remain stuck in the Store indefinitely.
                 self._schedule_charge_finalize(_CHARGE_FINALIZE_DELAY)
         elif entity_id == self.mapping.get("battery") and self._is_on("battery_charging"):
             self.hass.async_create_task(self.async_track_charge_sample())
