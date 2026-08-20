@@ -9,6 +9,19 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added canonical Stellantis trip history with paginated server synchronisation,
+  server-trip IDs, zero-distance event retention, SOC-based energy fallbacks and
+  vehicle metadata.
+- Added canonical charge history that combines split Home Assistant/Recorder
+  charging sessions with SOC-rise windows between server trips. Reconstructed
+  windows retain their standstill interval without inventing charging duration,
+  power, type or a curve.
+- Added restart-safe charge samples with Stellantis source timestamps,
+  received-time fallbacks, residual-energy priority and compact curve samples
+  for the frontend.
+- Added a manual server-history synchronisation button and a dedicated trip
+  history view using the canonical server data.
+
 - Added a Long-term statistics view for SOH capacity/resistance, odometer
   state and monthly driven distance, plus the rolling 500 km consumption.
   The relevant Vehicle cards now navigate to this view.
@@ -32,6 +45,8 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Raised the integration version to 0.5.3 while retaining the develop
+  long-term statistics view alongside the canonical history migration.
 - Replaced the oversized package brand asset with a 256×256 local integration
   icon, compatible with Home Assistant's custom-integration Brands API.
 - Removed the technical `ready` status badge from the Vehicle view. The

@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.4.34";
+import { languageFor, textFor } from "./i18n.js?v=0.5.3";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const LONG_TERM_STATISTICS_DAYS = 3650;
@@ -195,6 +195,9 @@ ${strings.install}
     const mapped = attributes.entity_mapping || {};
     const controls = attributes.control_entities || {};
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
+    const serverHistoryEntity = (key) => attributes.server_history_entities?.[key];
+    const serverTripEntity = serverHistoryEntity("server_trip_history");
+    const serverChargeEntity = serverHistoryEntity("server_charge_history");
     const entity = (key) => mapped[key];
     const control = (key) => controls[key];
     const controlSwitch = (key, name, icon, columns = 6) => control(key) ? {
@@ -337,6 +340,13 @@ ${strings.install}
         const text = invalid(value) || !Number.isFinite(numericValue)
           ? '0 kW'
           : numericValue.toFixed(1).replace('.', ',') + ' ' + (stateEntity.attributes?.unit_of_measurement || 'kW');`
+        : kind === "time"
+          ? `const value = stateEntity?.state;
+        const raw = String(value ?? '').trim();
+        const parsed = new Date(raw);
+        const text = invalid(value) ? '-' : Number.isNaN(parsed.getTime())
+          ? (/^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : '-')
+          : String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0');`
         : `const text = invalid(stateEntity?.state) ? '-' : stateEntity.state;`;
 
       return "${(() => {\n" +
@@ -350,7 +360,7 @@ ${strings.install}
 
     const chargingCardSubStateStyles = [
       chargeSubStateFormatter(1, entity("battery_charging_type")),
-      chargeSubStateFormatter(2, entity("battery_charging_end")),
+      chargeSubStateFormatter(2, entity("battery_charging_end"), "time"),
       chargeSubStateFormatter(3, currentChargePower, "power"),
     ].filter(Boolean).join("\n");
 
@@ -405,7 +415,7 @@ ${strings.install}
       },
       custom_fields: {
         range: { card: { type: "custom:button-card", entity: entity("autonomy"), show_icon: true, show_name: true, show_state: false, icon: "mdi:map-marker-distance", tap_action: { action: "more-info" }, hold_action: { action: "more-info" }, name: `[[[ const e = states["${entity("autonomy")}"]; return e && !['unknown','unavailable'].includes(e.state) && Number.isFinite(Number(e.state)) ? Math.round(Number(e.state)) + ' km' : '-- km'; ]]]`, styles: heroChipStyles } },
-        right_status: { card: { type: "custom:button-card", entity: entity("temperature"), show_icon: true, show_name: true, show_state: false, icon: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; return charging && end && !['unknown','unavailable','none',''].includes(end.state) ? 'mdi:clock-end' : charging ? 'mdi:battery-charging' : 'mdi:thermometer'; ]]]`, name: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; if (charging) return end && !['unknown','unavailable','none',''].includes(end.state) ? '${language(hass) === "de" ? "bis" : "until"} ' + end.state : '${language(hass) === "de" ? "Lädt" : "Charging"}'; const temp = states["${entity("temperature")}"]; return temp && !['unknown','unavailable'].includes(temp.state) && Number.isFinite(Number(temp.state)) ? temp.state + ' ' + (temp.attributes?.unit_of_measurement || '°C') : '-- °C'; ]]]`, tap_action: { action: "more-info" }, hold_action: { action: "more-info" }, styles: heroChipStyles } },
+        right_status: { card: { type: "custom:button-card", entity: entity("temperature"), show_icon: true, show_name: true, show_state: false, icon: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; return charging && end && !['unknown','unavailable','none',''].includes(end.state) ? 'mdi:clock-end' : charging ? 'mdi:battery-charging' : 'mdi:thermometer'; ]]]`, name: `[[[ const charging = states["${entity("battery_charging")}"]?.state === 'on'; const end = states["${entity("battery_charging_end")}"]; const formatClock = (value) => { const raw = String(value ?? '').trim(); if (!raw || ['unknown','unavailable','none'].includes(raw.toLowerCase())) return ''; const parsed = new Date(raw); if (Number.isNaN(parsed.getTime())) return /^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : ''; return String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0'); }; if (charging) { const endText = formatClock(end?.state); return endText ? '${language(hass) === "de" ? "bis" : "until"} ' + endText : '${language(hass) === "de" ? "Lädt" : "Charging"}'; } const temp = states["${entity("temperature")}"]; return temp && !['unknown','unavailable'].includes(temp.state) && Number.isFinite(Number(temp.state)) ? temp.state + ' ' + (temp.attributes?.unit_of_measurement || '°C') : '-- °C'; ]]]`, tap_action: { action: "more-info" }, hold_action: { action: "more-info" }, styles: heroChipStyles } },
         climate: `[[[ const temp = states["${entity("temperature")}"]; const icon = temp && !['unknown','unavailable'].includes(temp.state) && Number(temp.state) <= 20 ? 'mdi:radiator' : 'mdi:air-conditioner'; return '<ha-icon icon="' + icon + '" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>'; ]]]`,
         cable: '<ha-icon icon="mdi:ev-plug-type2" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>',
         driving: '<ha-icon icon="mdi:lightning-bolt" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>',
@@ -437,7 +447,7 @@ ${strings.install}
         entity("battery_charging_limit_number") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("battery_charging_limit_number"), name: strings.chargeLimit, icon: "mdi:battery-charging-80", show_state: true, force_icon: true } : null,
         entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: `${strings.chargeLimit} ${language(hass) === "de" ? "aktiv" : "enabled"}`, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
         bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
-        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: language(hass) === "de" ? "Ladekurve" : "Charge curve", charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: 43.4 }, grid_options: { columns: "full" } } : null,
+        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: language(hass) === "de" ? "Ladekurve" : "Charge curve", charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), server_entity: serverChargeEntity, include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: 43.4 }, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
@@ -448,6 +458,7 @@ ${strings.install}
         entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }` } : null,
         entity("daylight") ? { ...bubble("daylight", language(hass) === "de" ? "Tageslicht erkannt" : "Daylight detected", "mdi:weather-sunny", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Ja" : "Yes", language(hass) === "de" ? "Nein" : "No", "mdi:weather-sunny", "mdi:weather-sunny-off") } : null,
         entity("alarm") ? { ...bubble("alarm", strings.alarm, "mdi:shield-lock", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Aktiv" : "Active", language(hass) === "de" ? "Inaktiv" : "Inactive", "mdi:shield-lock", "mdi:shield-off-outline") } : null,
+        metric("vehicle_info") ? bubble("vehicle_info", language(hass) === "de" ? "Fahrzeuginformationen" : "Vehicle information", "mdi:car-info", [], "full", metric("vehicle_info")) : null,
         entity("privacy") ? { ...bubble("privacy", language(hass) === "de" ? "Datenschutz / Datenfreigabe" : "Privacy / data sharing", "mdi:shield-check", [subState("privacy_mode", "", "mdi:shield-account")]), show_state: false, styles: `\${(() => { const raw=hass.states[entity]?.state; card.querySelector('.bubble-state').innerText=raw==='on'?'${language(hass) === "de" ? "Uneingeschränkt" : "Unrestricted"}':raw==='off'?'${language(hass) === "de" ? "Eingeschränkt" : "Restricted"}':'—'; icon.setAttribute('icon',raw==='on'?'mdi:shield-check':raw==='off'?'mdi:shield-alert-outline':'mdi:shield-question'); })()}` } : null,
       ]) },
       { type: "grid", cards: present([
@@ -460,8 +471,8 @@ ${strings.install}
         separator(strings.latestActivities, "mdi:history"),
         lastTripDisplayEntity ? bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6, lastTripDisplayEntity) : null,
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
-        modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
-        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
+        modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
+        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, server_entity: serverChargeEntity, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.settings, "mdi:cog-outline"),
@@ -470,6 +481,7 @@ ${strings.install}
         entity("abrp_sync") ? separator("ABRP", "mdi:map-marker-path") : null,
         entity("abrp_sync") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("abrp_sync"), name: "ABRP Live-Daten", icon: "mdi:transit-connection-variant", show_state: true, force_icon: true } : null,
         entity("abrp_token") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: entity("abrp_token"), name: "ABRP Token", icon: "mdi:key", show_state: false, force_icon: true, button_action: { tap_action: { action: "more-info" } } } : null,
+        control("sync_server_history") ? controlButton("sync_server_history", language(hass) === "de" ? "Serverhistorie synchronisieren" : "Sync server history", "mdi:database-sync") : null,
       ]) },
     ];
 
@@ -491,70 +503,29 @@ ${strings.install}
 
     if (entity("battery_health_capacity") || entity("battery_health_resistance") || entity("mileage") || metric("trailing_consumption_500km")) {
       const statisticsCards = [
-        entity("battery_health_capacity") ? {
-          type: "statistics-graph",
-          title: strings.sohCapacityHistory,
-          entities: [entity("battery_health_capacity")],
-          days_to_show: LONG_TERM_STATISTICS_DAYS,
-          period: "month",
-          stat_types: ["mean", "min", "max"],
-          chart_type: "line",
-          grid_options: { columns: "full", rows: 5 },
-        } : null,
-        entity("battery_health_resistance") ? {
-          type: "statistics-graph",
-          title: strings.sohResistanceHistory,
-          entities: [entity("battery_health_resistance")],
-          days_to_show: LONG_TERM_STATISTICS_DAYS,
-          period: "month",
-          stat_types: ["mean", "min", "max"],
-          chart_type: "line",
-          grid_options: { columns: "full", rows: 5 },
-        } : null,
-        entity("mileage") ? {
-          type: "statistics-graph",
-          title: strings.mileageHistory,
-          entities: [entity("mileage")],
-          days_to_show: LONG_TERM_STATISTICS_DAYS,
-          period: "month",
-          stat_types: ["state"],
-          chart_type: "line",
-          grid_options: { columns: "full", rows: 5 },
-        } : null,
-        entity("mileage") ? {
-          type: "statistics-graph",
-          title: strings.drivenDistanceHistory,
-          entities: [entity("mileage")],
-          days_to_show: LONG_TERM_STATISTICS_DAYS,
-          period: "month",
-          stat_types: ["change"],
-          chart_type: "bar",
-          grid_options: { columns: "full", rows: 5 },
-        } : null,
-        metric("trailing_consumption_500km") ? {
-          type: "statistics-graph",
-          title: strings.consumptionHistory,
-          entities: [metric("trailing_consumption_500km")],
-          days_to_show: LONG_TERM_STATISTICS_DAYS,
-          period: "month",
-          stat_types: ["mean"],
-          chart_type: "line",
-          grid_options: { columns: "full", rows: 5 },
-        } : null,
+        entity("battery_health_capacity") ? { type: "statistics-graph", title: strings.sohCapacityHistory, entities: [entity("battery_health_capacity")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "month", stat_types: ["mean", "min", "max"], chart_type: "line", grid_options: { columns: "full", rows: 5 } } : null,
+        entity("battery_health_resistance") ? { type: "statistics-graph", title: strings.sohResistanceHistory, entities: [entity("battery_health_resistance")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "month", stat_types: ["mean", "min", "max"], chart_type: "line", grid_options: { columns: "full", rows: 5 } } : null,
+        entity("mileage") ? { type: "statistics-graph", title: strings.mileageHistory, entities: [entity("mileage")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "month", stat_types: ["state"], chart_type: "line", grid_options: { columns: "full", rows: 5 } } : null,
+        entity("mileage") ? { type: "statistics-graph", title: strings.drivenDistanceHistory, entities: [entity("mileage")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "month", stat_types: ["change"], chart_type: "bar", grid_options: { columns: "full", rows: 5 } } : null,
+        metric("trailing_consumption_500km") ? { type: "statistics-graph", title: strings.consumptionHistory, entities: [metric("trailing_consumption_500km")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "month", stat_types: ["mean"], chart_type: "line", grid_options: { columns: "full", rows: 5 } } : null,
       ].filter(Boolean);
 
+      views.push({ title: strings.longTermStatistics, path: "statistics", icon: "mdi:chart-timeline-variant", type: "sections", max_columns: 2, sections: [{ type: "grid", cards: [{ type: "heading", heading: strings.longTermStatistics, icon: "mdi:chart-timeline-variant", heading_style: "title" }, markdown(strings.longTermStatisticsIntro), ...statisticsCards] }] });
+    }
+
+    if (modules.trips && serverTripEntity) {
       views.push({
-        title: strings.longTermStatistics,
-        path: "statistics",
-        icon: "mdi:chart-timeline-variant",
+        title: strings.tripHistory,
+        path: "trips",
+        icon: "mdi:car-clock",
         type: "sections",
         max_columns: 2,
         sections: [{
           type: "grid",
           cards: [
-            { type: "heading", heading: strings.longTermStatistics, icon: "mdi:chart-timeline-variant", heading_style: "title" },
-            markdown(strings.longTermStatisticsIntro),
-            ...statisticsCards,
+            { type: "heading", heading: strings.tripHistory, icon: "mdi:car-clock", heading_style: "title" },
+            markdown(language(hass) === "de" ? "Abgeschlossene Fahrten stammen aus der Stellantis-Serverhistorie. Energie- und Verbrauchswerte sind SOC-basierte Näherungen; nicht belastbare Werte werden als **—** angezeigt." : "Completed trips come from Stellantis server history. Energy and consumption are SOC-based estimates; unreliable values are shown as **—**."),
+            { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, max_trips: 250, grid_options: { columns: "full", rows: 8 } },
           ],
         }],
       });
@@ -582,6 +553,7 @@ ${strings.install}
                 mode_entity: entity("battery_charging_type"),
                 capacity_entity: entity("battery_capacity"),
                 result_entity: metric("last_charge_result"),
+                server_entity: serverChargeEntity,
                 navigation_path: chargeViewPath,
                 selection_storage_key: chargeSelectionKey,
                 hours_to_show: historyHours,

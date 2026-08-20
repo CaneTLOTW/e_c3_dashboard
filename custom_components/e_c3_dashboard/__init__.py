@@ -25,6 +25,7 @@ from .coordinator import Ec3DashboardCoordinator
 from .dashboard import async_ensure_dashboard, async_remove_dashboard_marker
 from .metrics import VehicleMetricsManager
 from .notifications import VehicleNotificationManager
+from .server_history import ServerHistoryManager
 
 type Ec3DashboardConfigEntry = ConfigEntry
 
@@ -128,6 +129,12 @@ async def async_setup_entry(
     )
     await metrics.async_initialize()
     coordinator.metrics = metrics
+    server_history = ServerHistoryManager(
+        hass, entry, coordinator.data["entity_mapping"], metrics
+    )
+    await server_history.async_initialize()
+    coordinator.server_history = server_history
+    metrics.server_history = server_history
     notifications = VehicleNotificationManager(
         hass, entry, coordinator.data["entity_mapping"], metrics
     )
@@ -165,6 +172,7 @@ async def async_remove_entry(
     """
     slug = entry.data[CONF_VEHICLE_SLUG]
     await Store(hass, 1, f"{DOMAIN}_{slug}_metrics").async_remove()
+    await Store(hass, 1, f"{DOMAIN}_{slug}_server_history").async_remove()
     await Store(hass, 1, f"{DOMAIN}_{slug}_notifications").async_remove()
     await async_remove_dashboard_marker(hass, entry.entry_id)
 

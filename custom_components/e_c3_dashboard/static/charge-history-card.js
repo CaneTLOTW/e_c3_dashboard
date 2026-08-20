@@ -1,14 +1,28 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.4.34";
-import { localeFor, textFor } from "./i18n.js?v=0.4.34";
+import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, chargeSessionId, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.5.3";
+import { localeFor, textFor } from "./i18n.js?v=0.5.3";
 
 const SELECTION_QUERY_PARAM = "e_c3_charge";
+
+function deriveServerChargeDisplay(charge, fallbackCapacity = 43.4) {
+    const observed = charge.quality === "observed";
+    const capacity = Number(charge.capacity_kwh) > 0 ? Number(charge.capacity_kwh) : Number(fallbackCapacity);
+    return {
+        ...charge,
+        capacity_kwh: capacity,
+        start: observed ? charge.start_time : charge.window_start,
+        end: observed ? charge.end_time : null,
+        duration_seconds: observed ? charge.charging_duration_seconds : null,
+        time_window: !observed,
+    };
+}
 
 class CodexStellantisChargeHistoryCardV1 extends LitElement {
     static properties = {
         _hass: { state: true },
         _config: { state: true },
         _sessions: { state: true },
+        _expandedSessionId: { state: true },
         _loading: { state: true },
         _error: { state: true },
     };
@@ -38,6 +52,11 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         .error { color: var(--error-color); }
         .hint { display: block; margin-top: 10px; color: var(--secondary-text-color); font-size: var(--ha-font-size-xs); }
         .type { font-weight: 600; }
+        .charge-details td { padding: 0 0 10px; border-top: 0; white-space: normal; }
+        .detail { padding: 9px 10px; border-left: 3px solid var(--primary-color); background: color-mix(in srgb, var(--primary-color) 7%, transparent); }
+        .detail-grid { display: flex; flex-wrap: wrap; gap: 7px 16px; }
+        .detail-hint { display: block; margin-top: 8px; color: var(--secondary-text-color); }
+        button { margin-top: 9px; padding: 7px 10px; border: 0; border-radius: 8px; color: var(--text-primary-color); background: var(--primary-color); font: inherit; cursor: pointer; }
     `;
 
     setConfig(config) {
@@ -76,6 +95,7 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
             this._config.mode_entity,
             this._config.capacity_entity,
             this._config.result_entity,
+            this._config.server_entity,
         ].filter(Boolean);
     }
 
@@ -93,6 +113,17 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         this._loading = true;
         this._error = null;
         try {
+            const serverState = this._config.server_entity ? this._hass.states[this._config.server_entity] : null;
+            const serverCharges = serverState?.attributes?.server_history_ready
+                ? serverState.attributes.charges
+                : null;
+            if (Array.isArray(serverCharges)) {
+                this._sessions = serverCharges
+                    .map((charge) => deriveServerChargeDisplay(charge, this._config.fallback_capacity_kwh))
+                    .reverse()
+                    .slice(0, Number(this._config.max_sessions));
+                return;
+            }
             const entityIds = this._entityIds();
             const response = await this._hass.callWS({
                 type: "history/history_during_period",
@@ -185,6 +216,33 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         }
     }
 
+    _toggleSession(session) {
+        this._expandedSessionId = this._expandedSessionId === session.id ? undefined : session.id;
+    }
+
+    _detail(session) {
+        const observed = session.quality === "observed";
+        const de = this._locale().startsWith("de");
+        return html`<div class="detail">
+            <div class="detail-grid">
+                <span><strong>SOC:</strong> ${this._number(session.soc_start, 0)} → ${this._number(session.soc_end, 0)} %</span>
+                <span><strong>${de ? "Geladen" : "Battery energy"}:</strong> ${this._number(session.energy_kwh)} kWh</span>
+                ${observed ? html`
+                    <span><strong>${de ? "Ladebeginn" : "Start"}:</strong> ${this._formatDate(session.start_time)}</span>
+                    <span><strong>${de ? "Ladeende" : "End"}:</strong> ${this._formatDate(session.end_time)}</span>
+                    <span><strong>${de ? "Ladedauer" : "Duration"}:</strong> ${this._formatDuration(session.charging_duration_seconds)}</span>
+                    <span><strong>${de ? "Ø Leistung" : "Average power"}:</strong> ${this._number(session.average_power_kw)} kW</span>
+                ` : html`
+                    <span><strong>${de ? "Standzeit" : "Standstill"}:</strong> ${this._formatDuration(session.standstill_duration_seconds)}</span>
+                    <span><strong>${de ? "Ladezeit" : "Charging duration"}:</strong> —</span>
+                    <span><strong>${de ? "Typ" : "Type"}:</strong> —</span>
+                `}
+            </div>
+            ${observed && session.has_charge_curve ? html`<button @click=${(event) => { event.stopPropagation(); this._openSession(session); }}>${de ? "Ladekurve anzeigen" : "Show charge curve"}</button>` : nothing}
+            ${!observed ? html`<span class="detail-hint">${de ? "Dieser Ladevorgang wurde aus der SOC-Änderung zwischen zwei Fahrten rekonstruiert. Eine Ladezeit oder Ladekurve ist nicht verfügbar." : "This event was reconstructed from the SOC change between two trips. Charging duration and curve are unavailable."}</span>` : nothing}
+        </div>`;
+    }
+
     render() {
         if (!this._config) return nothing;
         const text = this._text();
@@ -201,16 +259,19 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
                         <div class="table-wrap">
                             <table class="charge-table">
                                 <thead><tr><th>${text.start}</th><th>${text.duration}</th><th>${text.energy}</th><th>${text.average}</th><th>${text.maximum}</th><th>${text.type}</th></tr></thead>
-                                <tbody>${sessions.map((session) => html`<tr class="charge-row" tabindex="0" role="button"
-                                    @click=${() => this._openSession(session)}
-                                    @keydown=${(event) => (event.key === "Enter" || event.key === " ") && this._openSession(session)}>
+                                <tbody>${sessions.map((session) => {
+                                    const expanded = this._expandedSessionId === session.id;
+                                    return html`<tr class="charge-row" tabindex="0" role="button" aria-expanded=${expanded}
+                                    @click=${() => this._toggleSession(session)}
+                                    @keydown=${(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); this._toggleSession(session); } }}>
                                     <td>${this._formatDate(session.start)}</td>
                                     <td>${this._formatDuration(session.duration_seconds)}</td>
                                     <td>${this._number(session.energy_kwh)}</td>
                                     <td>${this._number(session.average_power_kw)}</td>
                                     <td>${this._number(session.maximum_power_kw)}</td>
                                     <td class="type">${session.charge_type}</td>
-                                </tr>`)}</tbody>
+                                </tr>${expanded ? html`<tr class="charge-details"><td colspan="6">${this._detail(session)}</td></tr>` : nothing}`;
+                                })}</tbody>
                             </table>
                         </div>
                         <span class="hint">${text.hint}</span>
@@ -541,7 +602,8 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
 
     _entityIds() {
         return [this._config?.charging_entity, this._config?.soc_entity, this._config?.power_entity,
-            this._config?.mode_entity, this._config?.capacity_entity, this._config?.result_entity].filter(Boolean);
+            this._config?.mode_entity, this._config?.capacity_entity, this._config?.result_entity,
+            this._config?.server_entity].filter(Boolean);
     }
 
     _selectionKey() {
@@ -613,6 +675,74 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 this._statesFor(response, entityIds, this._config.result_entity)
             );
             const mergedSessions = mergeChargeSessions(sessions, localSessions);
+            // Completed observed sessions are retained in the canonical Store
+            // with their raw samples.  Add them to the browser as a fallback
+            // after Recorder retention has expired.  Reconstructed server
+            // parking windows deliberately never appear here: they have no
+            // real charging timeline and therefore no curve.
+            const serverState = this._config.server_entity ? this._hass.states[this._config.server_entity] : null;
+            const serverCharges = serverState?.attributes?.server_history_ready
+                ? serverState.attributes.charges
+                : [];
+            for (const rawCharge of Array.isArray(serverCharges) ? serverCharges : []) {
+                if (rawCharge?.quality !== "observed") continue;
+                const serverSession = deriveServerChargeDisplay(rawCharge, this._config.fallback_capacity_kwh);
+                if (!serverSession.start || !serverSession.end) continue;
+                const index = mergedSessions.findIndex((session) =>
+                    session.id === serverSession.id
+                    || Math.abs(Date.parse(session.start) - Date.parse(serverSession.start)) <= 5 * 60000
+                );
+                if (index >= 0) {
+                    const existing = mergedSessions[index];
+                    mergedSessions[index] = {
+                        ...existing,
+                        ...serverSession,
+                        samples: Array.isArray(serverSession.samples) && serverSession.samples.length
+                            ? serverSession.samples
+                            : existing.samples,
+                        has_charge_curve: Boolean(serverSession.has_charge_curve || existing.has_charge_curve),
+                    };
+                } else {
+                    mergedSessions.push(serverSession);
+                }
+            }
+            const activeCharge = serverState?.attributes?.active_charge;
+            const activeSamples = Array.isArray(activeCharge?.samples)
+                ? activeCharge.samples.filter((sample) => sample?.soc !== null && sample?.soc !== undefined)
+                : [];
+            if (activeCharge?.start_time && activeSamples.length >= 2) {
+                const start = activeCharge.start_time;
+                const end = new Date().toISOString();
+                const startSoc = Number(activeCharge.soc_start);
+                const endSoc = Number(activeSamples.at(-1)?.soc);
+                const capacity = Number(activeCharge.capacity_kwh) > 0
+                    ? Number(activeCharge.capacity_kwh)
+                    : Number(this._config.fallback_capacity_kwh);
+                const energy = Number.isFinite(startSoc) && Number.isFinite(endSoc)
+                    ? Math.max(0, (endSoc - startSoc) * capacity / 100)
+                    : null;
+                const duration = (Date.parse(end) - Date.parse(start)) / 1000;
+                const activeSession = {
+                    id: chargeSessionId(start),
+                    start,
+                    end,
+                    duration_seconds: duration,
+                    soc_start: Number.isFinite(startSoc) ? startSoc : null,
+                    soc_end: Number.isFinite(endSoc) ? endSoc : null,
+                    capacity_kwh: capacity,
+                    energy_kwh: energy,
+                    average_power_kw: energy !== null && duration > 0 ? energy / (duration / 3600) : null,
+                    charge_type: activeCharge.charge_type || "—",
+                    samples: activeSamples,
+                    has_charge_curve: true,
+                    estimated: true,
+                    active: true,
+                };
+                const activeIndex = mergedSessions.findIndex((session) => session.id === activeSession.id);
+                if (activeIndex >= 0) mergedSessions[activeIndex] = { ...mergedSessions[activeIndex], ...activeSession };
+                else mergedSessions.push(activeSession);
+            }
+            mergedSessions.sort((left, right) => Date.parse(right.start) - Date.parse(left.start));
             this._history = history;
             this._sessions = mergedSessions.slice(0, Number(this._config.max_sessions));
             this._applyStoredSelection();
@@ -642,6 +772,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     }
 
     _duration(seconds) {
+        if (!Number.isFinite(Number(seconds))) return "—";
         const total = Math.max(0, Math.round(Number(seconds) || 0));
         return `${Math.floor(total / 3600)}:${String(Math.floor((total % 3600) / 60)).padStart(2, "0")} h`;
     }
@@ -690,8 +821,14 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
         const requestedSession = findChargeSession(sessions, this._requestedSelection());
         const selectedId = requestedSession?.id ?? this._selectedId;
         const selected = sessions.find((session) => session.id === selectedId);
+        const storedSoc = Array.isArray(selected?.samples)
+            ? selected.samples.map((sample) => ({
+                state: sample.soc,
+                last_updated: sample.source_time || sample.time || sample.received_at,
+            })).filter((sample) => sample.state !== null && sample.state !== undefined && sample.last_updated)
+            : [];
         const curve = selected && this._history ? buildChargeCurve({
-            socStates: this._history.soc,
+            socStates: storedSoc.length >= 2 ? storedSoc : this._history.soc,
             modeStates: this._history.modes,
             start: selected.start,
             end: selected.end,
