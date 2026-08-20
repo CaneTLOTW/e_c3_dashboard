@@ -404,9 +404,10 @@ ${strings.install}
       ? hass.states[vehicleInfoEntity]?.attributes?.picture
       : undefined;
     const vehicleInfoPopup = vehicleInfoEntity ? {
-      action: "call-service",
-      service: "browser_mod.popup",
-      service_data: {
+      action: "fire-dom-event",
+      browser_mod: {
+        service: "browser_mod.popup",
+        data: {
         title: language(hass) === "de" ? "Fahrzeug- und Wartungsdaten" : "Vehicle and maintenance data",
         content: {
           type: "vertical-stack",
@@ -447,6 +448,7 @@ ${strings.install}
 | Updated | {{ state_attr('${vehicleInfoEntity}', 'maintenance_updated_at') or '—' }} |`,
             },
           ].filter(Boolean),
+        },
         },
       },
     } : null;

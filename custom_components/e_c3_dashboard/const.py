@@ -36,7 +36,7 @@ DEFAULT_OPTIONS = {
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.5.12"
+FRONTEND_VERSION = "0.5.13"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (
     "/e_c3_dashboard/trip-history-card.js",
