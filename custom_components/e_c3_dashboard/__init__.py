@@ -173,6 +173,7 @@ async def async_remove_entry(
     slug = entry.data[CONF_VEHICLE_SLUG]
     await Store(hass, 1, f"{DOMAIN}_{slug}_metrics").async_remove()
     await Store(hass, 1, f"{DOMAIN}_{slug}_server_history").async_remove()
+    await Store(hass, 1, f"{DOMAIN}_{slug}_charge_curves").async_remove()
     await Store(hass, 1, f"{DOMAIN}_{slug}_notifications").async_remove()
     await async_remove_dashboard_marker(hass, entry.entry_id)
 

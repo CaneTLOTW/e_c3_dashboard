@@ -34,6 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 # migration callback makes Home Assistant reject the existing file before our
 # safe migration can run.
 _STORE_VERSION = 1
+_CURVE_STORE_VERSION = 1
 _FALLBACK_CAPACITY_KWH = 43.4
 _MIN_TRIP_DISTANCE_KM = 1.0
 _MATCH_TOLERANCE = timedelta(minutes=10)
@@ -531,6 +532,8 @@ class ServerHistoryManager:
         self.metrics = metrics
         slug = entry.data[CONF_VEHICLE_SLUG]
         self._store = Store(hass, _STORE_VERSION, f"{DOMAIN}_{slug}_server_history")
+        self._curve_store = Store(hass, _CURVE_STORE_VERSION, f"{DOMAIN}_{slug}_charge_curves")
+        self._curve_data: dict[str, Any] = self._empty_curve_data()
         self.data: dict[str, Any] = self._empty_data()
         self._entities: list[Any] = []
         self._client = None
@@ -559,6 +562,15 @@ class ServerHistoryManager:
             "sync_mode": None,
             "error": None,
             "telemetry": {"available": False},
+        }
+
+    @staticmethod
+    def _empty_curve_data() -> dict[str, Any]:
+        """Return the durable, per-vehicle raw charge-curve store."""
+        return {
+            "schema": 1,
+            "sessions": {},
+            "updated_at": None,
         }
 
     def register_entity(self, entity) -> None:
@@ -631,6 +643,122 @@ class ServerHistoryManager:
             merged[str(sample["time"])] = sample
         return [merged[key] for key in sorted(merged)]
 
+    @classmethod
+    def _curve_sessions_keyed(
+        cls, sessions: list[dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """Index full observed sessions by their deterministic start key."""
+        return {
+            cls._archive_session_key(session): session
+            for session in sessions
+            if isinstance(session, dict) and cls._archive_session_key(session)
+        }
+
+    def _hydrate_observed_sessions(
+        self, sessions: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Join metadata from server history with raw samples from curve Store."""
+        curve_sessions = self._curve_data.get("sessions", {})
+        hydrated: list[dict[str, Any]] = []
+        for session in sessions if isinstance(sessions, list) else []:
+            if not isinstance(session, dict):
+                continue
+            curve = curve_sessions.get(self._archive_session_key(session), {})
+            combined = {**curve, **session}
+            combined["samples"] = self._merge_session_samples(
+                curve.get("samples", []) if isinstance(curve, dict) else [],
+                session.get("samples", []),
+            )
+            if combined["samples"]:
+                combined["sample_count"] = len(combined["samples"])
+                combined["has_charge_curve"] = True
+            hydrated.append(combined)
+        return self._merge_observed_archive([], hydrated)
+
+    async def _load_curve_store(self) -> None:
+        """Load and migrate the separate raw-sample store without data loss."""
+        stored = await self._curve_store.async_load()
+        if isinstance(stored, dict) and isinstance(stored.get("sessions"), dict):
+            self._curve_data = {
+                "schema": 1,
+                "sessions": self._curve_sessions_keyed(
+                    [
+                        item
+                        for item in stored["sessions"].values()
+                        if isinstance(item, dict)
+                    ]
+                ),
+                "updated_at": stored.get("updated_at"),
+            }
+        else:
+            self._curve_data = self._empty_curve_data()
+
+        # Older releases kept complete samples in server_history.  Copy them
+        # once into the dedicated Store before the main payload is compacted.
+        legacy_sources = [
+            *self.data.get("recorder_observed_charges_archive", []),
+            *self.data.get("recorder_observed_charges", []),
+            *(
+                item
+                for item in self.data.get("canonical_charges", [])
+                if isinstance(item, dict) and item.get("quality") == "observed"
+            ),
+        ]
+        merged = self._merge_observed_archive(
+            list(self._curve_data.get("sessions", {}).values()), legacy_sources
+        )
+        new_sessions = self._curve_sessions_keyed(merged)
+        if new_sessions != self._curve_data.get("sessions", {}):
+            self._curve_data["sessions"] = new_sessions
+            self._curve_data["updated_at"] = dt_util.utcnow().isoformat()
+            await self._curve_store.async_save(self._curve_data)
+        self.data["recorder_observed_charges_archive"] = self._hydrate_observed_sessions(
+            self.data.get("recorder_observed_charges_archive", [])
+        )
+        self._update_archive_metadata()
+
+    async def _sync_curve_store(self, sessions: list[dict[str, Any]]) -> None:
+        """Merge current Recorder/live sessions and persist all raw samples."""
+        merged = self._merge_observed_archive(
+            list(self._curve_data.get("sessions", {}).values()), sessions
+        )
+        new_sessions = self._curve_sessions_keyed(merged)
+        if new_sessions == self._curve_data.get("sessions", {}):
+            self.data["recorder_observed_charges_archive"] = self._hydrate_observed_sessions(
+                sessions
+            )
+            self._update_archive_metadata()
+            return
+        self._curve_data["sessions"] = new_sessions
+        self._curve_data["updated_at"] = dt_util.utcnow().isoformat()
+        await self._curve_store.async_save(self._curve_data)
+        self.data["recorder_observed_charges_archive"] = self._hydrate_observed_sessions(
+            sessions
+        )
+        self._update_archive_metadata()
+
+    @staticmethod
+    def _without_samples(value: Any) -> Any:
+        """Keep main history compact; raw samples live in charge_curves Store."""
+        if not isinstance(value, dict):
+            return value
+        compact = dict(value)
+        compact.pop("samples", None)
+        return compact
+
+    def _persistable_data(self) -> dict[str, Any]:
+        """Return server history metadata without duplicating curve payloads."""
+        payload = dict(self.data)
+        for key in (
+            "recorder_observed_charges",
+            "recorder_observed_charges_archive",
+            "canonical_charges",
+            "charges",
+        ):
+            if isinstance(payload.get(key), list):
+                payload[key] = [self._without_samples(item) for item in payload[key]]
+        return payload
+
     def _update_archive_metadata(self) -> None:
         archive = self.data.get("recorder_observed_charges_archive", [])
         self.data["archive_metadata"] = {
@@ -638,6 +766,16 @@ class ServerHistoryManager:
             "oldest_observed_charge": archive[0].get("start_time") if archive else None,
             "newest_observed_charge": archive[-1].get("start_time") if archive else None,
             "capacity_sample_count": len(self.data.get("recorder_capacity_samples_archive", [])),
+            "curve_store": True,
+            "raw_sample_session_count": len(self._curve_data.get("sessions", {})),
+            "raw_sample_count": sum(
+                len(session.get("samples", []))
+                for session in self._curve_data.get("sessions", {}).values()
+                if isinstance(session, dict)
+            ),
+            "curve_oldest_session": next(
+                iter(self._curve_data.get("sessions", {}).values()), {}
+            ).get("start_time") if self._curve_data.get("sessions") else None,
             "updated_at": dt_util.utcnow().isoformat(),
         }
 
@@ -733,6 +871,9 @@ class ServerHistoryManager:
         return _capacity(max(candidates, key=lambda item: item[0])[1]) if candidates else None
 
     def _rebuild_canonical(self) -> None:
+        self.data["recorder_observed_charges_archive"] = self._hydrate_observed_sessions(
+            self.data.get("recorder_observed_charges_archive", [])
+        )
         trips = [
             normalize_trip(raw, self._capacity_for_trip(raw))
             for raw in self.data.get("server_trips_raw", [])
@@ -865,13 +1006,14 @@ class ServerHistoryManager:
         self.data["trips"] = []
         self.data["charges"] = []
         self.data["sync_metadata"] = {"last_sync": None, "sync_mode": None}
-        await self._store.async_save(self.data)
+        await self._store.async_save(self._persistable_data())
         await self.async_initialize()
 
     async def async_initialize(self, _retry: int = 0) -> None:
         stored = await self._store.async_load()
         if isinstance(stored, dict):
             self._migrate_data(stored)
+        await self._load_curve_store()
         if self.data.get("legacy_live_snapshot") is None and self.metrics:
             # Preserve the pre-migration local results in the new store as a
             # restore/comparison artifact. The original metrics Store remains
@@ -892,7 +1034,7 @@ class ServerHistoryManager:
         self._client, self._vehicle = self._resolve_upstream()
         if not self._client or not self._vehicle:
             self.data["error"] = "upstream_vehicle_unavailable"
-            await self._store.async_save(self.data)
+            await self._store.async_save(self._persistable_data())
             if _retry < 3:
                 self.hass.async_create_task(self._retry_initialize(_retry + 1))
             return
@@ -910,6 +1052,7 @@ class ServerHistoryManager:
                 ),
             ],
         )
+        await self._sync_curve_store(self.data["recorder_observed_charges_archive"])
         self.data["recorder_capacity_samples"] = self._latest_recorder_capacity_samples
         self.data["recorder_capacity_samples_archive"] = self._merge_capacity_archive(
             self.data.get("recorder_capacity_samples_archive", []),
@@ -949,11 +1092,11 @@ class ServerHistoryManager:
                     "error": None,
                 }
             )
-            await self._store.async_save(self.data)
+            await self._store.async_save(self._persistable_data())
         except Exception as err:  # Existing canonical data survives API failure.
             self.data["error"] = str(err)
             _LOGGER.warning("Server trip history unavailable: %s", err)
-            await self._store.async_save(self.data)
+            await self._store.async_save(self._persistable_data())
 
         for entity in self._entities:
             entity.async_write_ha_state()

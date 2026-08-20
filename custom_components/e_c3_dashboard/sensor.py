@@ -415,6 +415,10 @@ class Ec3ServerChargeHistorySensor(Ec3MetricSensor):
             "active_charge": active_payload,
             "archive_observed_count": archive.get("observed_charge_count", 0),
             "archive_oldest_observed_charge": archive.get("oldest_observed_charge"),
+            "curve_store": archive.get("curve_store", False),
+            "curve_raw_sample_sessions": archive.get("raw_sample_session_count", 0),
+            "curve_raw_sample_count": archive.get("raw_sample_count", 0),
+            "curve_oldest_session": archive.get("curve_oldest_session"),
             "source": "canonical_history",
             "server_history_ready": bool(history and history.data.get("updated_at") and not history.data.get("error")),
         })
