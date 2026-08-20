@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.5.3";
+import { localeFor, textFor } from "./i18n.js?v=0.5.4";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -47,6 +47,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         .filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0 0 12px; font-size: var(--ha-font-size-s); }
         .filters label { display: inline-flex; align-items: center; gap: 5px; color: var(--secondary-text-color); }
         .filters select { min-height: 30px; border: 1px solid var(--divider-color); border-radius: 7px; color: var(--primary-text-color); background: var(--secondary-background-color); font: inherit; }
+        .filter-note { margin: 0 0 12px; color: var(--secondary-text-color); font-size: var(--ha-font-size-s); }
     `;
 
     setConfig(config) {
@@ -54,10 +55,11 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
             throw new Error("Entity must be specified");
         }
         this._config = { hours_to_show: 2160, max_trips: 50, language: "auto", ...config };
-        this._filterDays = Number(config.filter_days ?? 0);
-        this._showZeroEvents = Boolean(config.show_zero_events);
-        this._hideShortTrips = Boolean(config.hide_short_trips);
-        this._onlyConsumption = Boolean(config.only_consumption);
+        this._compactFilters = Boolean(config.compact_filters);
+        this._filterDays = Number(config.filter_days ?? (this._compactFilters ? 30 : 0));
+        this._showZeroEvents = this._compactFilters ? false : Boolean(config.show_zero_events);
+        this._hideShortTrips = this._compactFilters ? true : Boolean(config.hide_short_trips);
+        this._onlyConsumption = this._compactFilters ? false : Boolean(config.only_consumption);
         if (this._hass) {
             this._lastUpdated = undefined;
             this._loadHistory();
@@ -380,22 +382,25 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         const hasMaxSpeed = trips.some((trip) => trip.attributes?.max_speed);
         const hasEnergy = trips.some((trip) => trip.attributes?.energy_kwh !== undefined);
         const columnCount = 4 + (hasEnergy ? 2 : 0) + (hasMaxSpeed ? 1 : 0);
+        const de = this._locale().startsWith("de");
         return html`
             <ha-card .header=${this._config.title || text.title}>
                 <div class="card-content">
-                    ${this._config.server_entity ? html`<div class="filters">
-                        <label>${this._locale().startsWith("de") ? "Zeitraum" : "Period"}
+                    ${this._config.server_entity ? (this._compactFilters ? html`
+                        <div class="filter-note">${de ? "Letzte 30 Tage; Kurzstrecken ≤ 1 km und 0-km-Ereignisse ausgeblendet." : "Last 30 days; trips ≤ 1 km and 0 km events are hidden."}</div>
+                    ` : html`<div class="filters">
+                        <label>${de ? "Zeitraum" : "Period"}
                             <select .value=${String(this._filterDays ?? 0)} @change=${(event) => this._changeFilter("_filterDays", event)}>
-                                <option value="0">${this._locale().startsWith("de") ? "Alle" : "All"}</option>
-                                <option value="7">7 ${this._locale().startsWith("de") ? "Tage" : "days"}</option>
-                                <option value="30">30 ${this._locale().startsWith("de") ? "Tage" : "days"}</option>
-                                <option value="90">90 ${this._locale().startsWith("de") ? "Tage" : "days"}</option>
+                                <option value="0">${de ? "Alle" : "All"}</option>
+                                <option value="7">7 ${de ? "Tage" : "days"}</option>
+                                <option value="30">30 ${de ? "Tage" : "days"}</option>
+                                <option value="90">90 ${de ? "Tage" : "days"}</option>
                             </select>
                         </label>
-                        <label><input type="checkbox" .checked=${this._hideShortTrips} @change=${(event) => this._changeFilter("_hideShortTrips", event)}> ${this._locale().startsWith("de") ? "≤ 1 km ausblenden" : "Hide ≤ 1 km"}</label>
-                        <label><input type="checkbox" .checked=${this._onlyConsumption} @change=${(event) => this._changeFilter("_onlyConsumption", event)}> ${this._locale().startsWith("de") ? "nur Verbrauch" : "Consumption only"}</label>
-                        <label><input type="checkbox" .checked=${this._showZeroEvents} @change=${(event) => this._changeFilter("_showZeroEvents", event)}> ${this._locale().startsWith("de") ? "0-km-Ereignisse" : "0 km events"}</label>
-                    </div>` : nothing}
+                        <label><input type="checkbox" .checked=${this._hideShortTrips} @change=${(event) => this._changeFilter("_hideShortTrips", event)}> ${de ? "≤ 1 km ausblenden" : "Hide ≤ 1 km"}</label>
+                        <label><input type="checkbox" .checked=${this._onlyConsumption} @change=${(event) => this._changeFilter("_onlyConsumption", event)}> ${de ? "nur Verbrauch" : "Consumption only"}</label>
+                        <label><input type="checkbox" .checked=${this._showZeroEvents} @change=${(event) => this._changeFilter("_showZeroEvents", event)}> ${de ? "0-km-Ereignisse" : "0 km events"}</label>
+                    </div>`) : nothing}
                     ${this._loading && trips.length === 0 ? html`<span class="muted">${text.loading}</span>` : nothing}
                     ${this._error ? html`<span class="error">${text.error} ${this._error}</span>` : nothing}
                     ${!this._loading && !this._error && trips.length === 0 ? html`<span class="muted">${text.empty}</span>` : nothing}
