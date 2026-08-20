@@ -453,7 +453,7 @@ ${strings.install}
       entity: entity("battery"), show_name: false, show_state: false, show_icon: false,
       tap_action: { action: "none" }, grid_options: { columns: "full", rows: 4.5 },
       styles: {
-        card: [{ position: "relative" }, { height: "270px" }, { overflow: "hidden" }, { "border-radius": "12px" }, { padding: 0 }, { background: "transparent" }, { "background-image": vehiclePicture ? `url("${vehiclePicture}")` : "none" }, { "background-repeat": "no-repeat" }, { "background-size": "100% auto" }, { "background-position": "center 54%" }],
+        card: [{ position: "relative" }, { height: "270px" }, { overflow: "hidden" }, { "border-radius": "12px" }, { padding: 0 }, { background: "transparent !important" }, { "background-color": "transparent !important" }, { "--ha-card-background": "transparent" }, { "--card-background-color": "transparent" }, { "box-shadow": "none !important" }, { "background-image": vehiclePicture ? `url("${vehiclePicture}")` : "none" }, { "background-repeat": "no-repeat" }, { "background-size": "100% auto" }, { "background-position": "center 54%" }],
         custom_fields: {
           range: [{ position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 20 }],
           right_status: [{ position: "absolute" }, { top: "12px" }, { right: "50px" }, { "z-index": 20 }],
