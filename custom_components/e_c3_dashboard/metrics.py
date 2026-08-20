@@ -132,7 +132,11 @@ class VehicleMetricsManager:
         if self.data.get("pending_trips"):
             self._schedule_finalize(_RETRY_DELAY)
         if self.data.get("active_charge") and self._is_off("battery_charging"):
-            self._schedule_charge_finalize(_RETRY_DELAY)
+            # After a restart there is no pending final SOC update to wait
+            # for when the upstream sensor is already stably off. Finalize
+            # immediately so a persisted active session cannot keep its last
+            # derived power visible indefinitely.
+            await self.async_finish_charge()
         elif self._is_on("battery_charging") and not self.data.get("active_charge"):
             await self.async_start_charge()
 
