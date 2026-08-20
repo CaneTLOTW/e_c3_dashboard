@@ -1040,6 +1040,14 @@ class ServerHistoryManager:
             return
 
         self.data["vehicle_info"] = self._public_vehicle_info(self._vehicle)
+        maintenance_reader = getattr(self._client, "get_vehicle_maintenance", None)
+        if maintenance_reader is not None:
+            try:
+                maintenance = await maintenance_reader(self._vehicle)
+            except Exception as err:  # Maintenance is optional and must not break history.
+                _LOGGER.debug("Could not read Stellantis maintenance data: %s", err)
+                maintenance = {}
+            self.data["vehicle_info"]["maintenance"] = self._public_maintenance_info(maintenance)
         self._latest_recorder_capacity_samples = list(self.data.get("recorder_capacity_samples", []))
         self.data["recorder_observed_charges"] = await self._async_recorder_charges()
         self.data["recorder_observed_charges_archive"] = self._merge_observed_archive(
@@ -1269,6 +1277,21 @@ class ServerHistoryManager:
             "vin": vehicle.get("vin"),
             "brand": vehicle.get("brand"),
             "motorization": vehicle.get("motorization"),
+            "picture": vehicle.get("picture"),
+            "picture_count": len(vehicle.get("pictures", [])) if isinstance(vehicle.get("pictures"), list) else 0,
             "pictures": vehicle.get("pictures", []),
             "links": vehicle.get("_links", {}),
+        }
+
+    @staticmethod
+    def _public_maintenance_info(maintenance: dict[str, Any] | None) -> dict[str, Any]:
+        """Normalize the optional Stellantis maintenance HAL resource."""
+        if not isinstance(maintenance, dict) or not maintenance:
+            return {"available": False}
+        return {
+            "available": True,
+            "created_at": maintenance.get("createdAt"),
+            "updated_at": maintenance.get("updatedAt"),
+            "days_remaining": maintenance.get("daysBeforeMaintenance"),
+            "mileage_remaining_km": maintenance.get("mileageBeforeMaintenance"),
         }
