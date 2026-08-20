@@ -450,7 +450,6 @@ class Ec3VehicleInfoSensor(Ec3MetricSensor):
             "Marke": info.get("brand") or "—",
             "Antrieb": info.get("motorization") or "—",
             "VIN": info.get("vin") or "—",
-            "Fahrzeug-ID": info.get("vehicle_id") or "—",
             "Bildanzahl": info.get("picture_count", 0),
             "Wartung verfügbar": "Ja" if maintenance.get("available") else "Nein",
             "Wartung verbleibende Tage": maintenance.get("days_remaining") or "—",

@@ -421,7 +421,6 @@ ${strings.install}
             { entity: vehicleInfoEntity, attribute: "Marke", name: language(hass) === "de" ? "Marke" : "Brand" },
             { entity: vehicleInfoEntity, attribute: "Antrieb", name: language(hass) === "de" ? "Antrieb" : "Powertrain" },
             { entity: vehicleInfoEntity, attribute: "VIN", name: "VIN" },
-            { entity: vehicleInfoEntity, attribute: "Fahrzeug-ID", name: language(hass) === "de" ? "Fahrzeug-ID" : "Vehicle ID" },
           ],
         },
         {
