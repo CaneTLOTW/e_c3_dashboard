@@ -76,6 +76,66 @@ def _packed_trip_row(trip: dict[str, Any]) -> list[Any]:
     return [row.get(column) for column in _TRIP_ATTRIBUTE_COLUMNS]
 
 
+def _geojson_coordinates(position: Any) -> list[float] | None:
+    """Extract a valid GeoJSON longitude/latitude pair from a trip position."""
+    if not isinstance(position, dict):
+        return None
+    geometry = position.get("geometry") if position.get("type") == "Feature" else position
+    coordinates = geometry.get("coordinates") if isinstance(geometry, dict) else None
+    if not isinstance(coordinates, (list, tuple)) or len(coordinates) < 2:
+        return None
+    try:
+        longitude, latitude = float(coordinates[0]), float(coordinates[1])
+    except (TypeError, ValueError):
+        return None
+    if not (-180 <= longitude <= 180 and -90 <= latitude <= 90):
+        return None
+    return [longitude, latitude]
+
+
+def _trip_position_geojson(trips: Any) -> dict[str, Any]:
+    """Build a bounded GeoJSON overlay from canonical server-trip positions.
+
+    The Stellantis trip endpoint provides start/stop points, not necessarily a
+    complete route.  Lines in this overlay therefore deliberately represent
+    start-to-stop approximations; HA Recorder history remains the detailed
+    live route source when available.
+    """
+    features: list[dict[str, Any]] = []
+    for trip in trips if isinstance(trips, list) else []:
+        if not isinstance(trip, dict) or trip.get("distance_km") == 0:
+            continue
+        start = _geojson_coordinates(trip.get("display_start_position") or trip.get("raw_start_position"))
+        end = _geojson_coordinates(trip.get("display_end_position") or trip.get("raw_stop_position"))
+        properties = {
+            "trip_id": str(trip.get("id") or trip.get("server_id") or "")[-20:],
+            "start_time": trip.get("start_time"),
+            "end_time": trip.get("end_time"),
+            "distance_km": trip.get("distance_km"),
+            "position_source": trip.get("position_source") or "server_trip",
+            "route_detail": "start_stop_only",
+        }
+        if start:
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": start},
+                "properties": {**properties, "point_type": "start"},
+            })
+        if end:
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": end},
+                "properties": {**properties, "point_type": "end"},
+            })
+        if start and end and start != end:
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": [start, end]},
+                "properties": properties,
+            })
+    return {"type": "FeatureCollection", "features": features}
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -88,6 +148,7 @@ async def async_setup_entry(
     entities = [
         status,
         Ec3ServerTripHistorySensor(coordinator, entry),
+        Ec3ServerGpsHistorySensor(coordinator, entry),
         Ec3ServerChargeHistorySensor(coordinator, entry),
         Ec3VehicleInfoSensor(coordinator, entry),
         Ec3TrailingConsumptionSensor(coordinator, entry),
@@ -261,6 +322,38 @@ class Ec3ServerTripHistorySensor(Ec3MetricSensor):
             "count": len(rows), "raw_count": raw_count, "zero_distance_count": max(0, raw_count - len(rows)),
             "trip_columns": _TRIP_ATTRIBUTE_COLUMNS, "trip_rows": rows,
             "zero_trip_rows": zero_rows, "source": "canonical_history",
+            "server_history_ready": bool(history and history.data.get("updated_at") and not history.data.get("error")),
+        })
+        return data
+
+
+class Ec3ServerGpsHistorySensor(Ec3MetricSensor):
+    """Expose server-trip positions as a GeoJSON map overlay."""
+
+    _attr_name = "Server GPS history"
+    _attr_icon = "mdi:map-marker-path"
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator, entry, "server_gps_history")
+
+    @property
+    def native_value(self):
+        history = getattr(self.metrics, "server_history", None)
+        trips = getattr(history, "data", {}).get("canonical_trips", []) if history else []
+        return sum(1 for trip in trips if isinstance(trip, dict) and trip.get("distance_km") != 0)
+
+    @property
+    def extra_state_attributes(self):
+        data = super().extra_state_attributes
+        history = getattr(self.metrics, "server_history", None)
+        trips = getattr(history, "data", {}).get("canonical_trips", []) if history else []
+        geojson = _trip_position_geojson(trips)
+        data.update({
+            "geojson": geojson,
+            "source": "stellantis_trip_positions",
+            "route_detail": "start_stop_only",
+            "trip_count": self.native_value,
+            "feature_count": len(geojson["features"]),
             "server_history_ready": bool(history and history.data.get("updated_at") and not history.data.get("error")),
         })
         return data

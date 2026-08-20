@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.5.6";
+import { languageFor, textFor } from "./i18n.js?v=0.5.7";
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
 const LONG_TERM_STATISTICS_DAYS = 3650;
@@ -197,6 +197,7 @@ ${strings.install}
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
     const serverHistoryEntity = (key) => attributes.server_history_entities?.[key];
     const serverTripEntity = serverHistoryEntity("server_trip_history");
+    const serverGpsEntity = serverHistoryEntity("server_gps_history");
     const serverChargeEntity = serverHistoryEntity("server_charge_history");
     const entity = (key) => mapped[key];
     const control = (key) => controls[key];
@@ -659,7 +660,19 @@ No GPS coordinates available.
                   gradual_opacity: 0.45,
                   use_base_entity_only: true,
                   position_update_threshold: 0,
-                }],
+                }, ...(serverGpsEntity ? [{
+                  entity: serverGpsEntity,
+                  display: "state",
+                  geojson: {
+                    attribute: "geojson",
+                    color: "#ff9800",
+                    weight: 3,
+                    opacity: 0.8,
+                    hide_marker: true,
+                  },
+                  focus_on_fit: false,
+                  tap_action: { action: "more-info" },
+                }] : [])],
                 map_options: { zoomControl: true },
               },
             ],

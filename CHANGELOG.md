@@ -30,6 +30,9 @@ and uses [Semantic Versioning](https://semver.org/).
 - Expanded the full Trips view with a larger scroll window and incremental
   client-side loading of older server trips. The view now keeps the complete
   server history available instead of stopping at a 250-row display limit.
+- Added a server-trip GeoJSON overlay to the GPS view. Historical Stellantis
+  start/stop positions are shown alongside HA Recorder history; connecting
+  lines are explicitly marked as start/stop approximations.
 
 - Added a Long-term statistics view for SOH capacity/resistance, odometer
   state and monthly driven distance, plus the rolling 500 km consumption.
@@ -54,7 +57,7 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Raised the integration version to 0.5.6 while retaining the develop
+- Raised the integration version to 0.5.7 while retaining the develop
   long-term statistics view alongside the canonical history migration.
 - Replaced the oversized package brand asset with a 256×256 local integration
   icon, compatible with Home Assistant's custom-integration Brands API.
