@@ -418,9 +418,9 @@ ${strings.install}
           title: language(hass) === "de" ? "Fahrzeug" : "Vehicle",
           show_header_toggle: false,
           entities: [
-            { entity: vehicleInfoEntity, attribute: "Marke", name: language(hass) === "de" ? "Marke" : "Brand" },
-            { entity: vehicleInfoEntity, attribute: "Antrieb", name: language(hass) === "de" ? "Antrieb" : "Powertrain" },
-            { entity: vehicleInfoEntity, attribute: "VIN", name: "VIN" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Marke", name: language(hass) === "de" ? "Marke" : "Brand" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Antrieb", name: language(hass) === "de" ? "Antrieb" : "Powertrain" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "VIN", name: "VIN" },
           ],
         },
         {
@@ -428,10 +428,10 @@ ${strings.install}
           title: language(hass) === "de" ? "Wartung" : "Maintenance",
           show_header_toggle: false,
           entities: [
-            { entity: vehicleInfoEntity, attribute: "Wartung verfügbar", name: language(hass) === "de" ? "Status" : "Status" },
-            { entity: vehicleInfoEntity, attribute: "Wartung verbleibende Tage", name: language(hass) === "de" ? "Verbleibende Tage" : "Days remaining" },
-            { entity: vehicleInfoEntity, attribute: "Wartung verbleibende Kilometer", name: language(hass) === "de" ? "Verbleibende Kilometer" : "Mileage remaining" },
-            { entity: vehicleInfoEntity, attribute: "Wartung aktualisiert", name: language(hass) === "de" ? "Aktualisiert" : "Updated" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verfügbar", name: language(hass) === "de" ? "Status" : "Status" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Tage", name: language(hass) === "de" ? "Verbleibende Tage" : "Days remaining" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Kilometer", name: language(hass) === "de" ? "Verbleibende Kilometer" : "Mileage remaining" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung aktualisiert", name: language(hass) === "de" ? "Aktualisiert" : "Updated" },
           ],
         },
       ],
