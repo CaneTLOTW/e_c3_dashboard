@@ -75,6 +75,11 @@ and uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Fixed the charge-curve selector being forced back to the first previously
+  stored session after every render. The latest charge is now selected by
+  default when no explicit history-link selection is present, and changing
+  the dropdown updates the displayed curve.
+
 - Fixed stale current charge power after an upstream charging sensor recovered
   from `unavailable` directly to `off`. The active local charge is now
   finalized in that case, its transient power is cleared, and the Vehicle

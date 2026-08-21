@@ -613,11 +613,11 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     _requestedSelection() {
         const urlSelection = new URLSearchParams(window.location.search).get(SELECTION_QUERY_PARAM);
         if (urlSelection) return urlSelection;
-        try {
-            return sessionStorage.getItem(this._selectionKey());
-        } catch (_error) {
-            return null;
-        }
+        // A stale sessionStorage value must not pin the browser to an older
+        // curve. Explicit navigation from the history card carries the
+        // selection in the URL; without that hand-off the newest session is
+        // the default.
+        return null;
     }
 
     _applyStoredSelection() {
@@ -758,6 +758,11 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
     _selectSession(event) {
         this._selectedId = event.target.value;
         this._selectionMissing = false;
+        try {
+            sessionStorage.setItem(this._selectionKey(), this._selectedId);
+        } catch (_error) {
+            // Private browsing/storage restrictions must not break selection.
+        }
         const target = new URL(window.location.href);
         if (target.searchParams.has(SELECTION_QUERY_PARAM)) {
             target.searchParams.delete(SELECTION_QUERY_PARAM);
