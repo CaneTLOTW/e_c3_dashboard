@@ -37,7 +37,7 @@ and uses [Semantic Versioning](https://semver.org/).
   with the standard dashboard action-button layout.
 
 - Added a Long-term statistics view for SOH capacity/resistance, odometer
-  state and monthly driven distance, plus the rolling 500 km consumption.
+  state and weekly driven distance, plus the rolling 500 km consumption.
   The relevant Vehicle cards now navigate to this view.
 - Added a dedicated, localised Functions & usage view explaining dashboard
   interactions, expandable trip rows, charging-session navigation, controls,
@@ -58,6 +58,9 @@ and uses [Semantic Versioning](https://semver.org/).
   timestamp plus Recorder history.
 
 ### Changed
+
+- Changed all long-term statistics plots from monthly to weekly aggregation
+  and hid the value legend below each plot to keep the view compact.
 
 - Raised the integration version to 0.5.8 while retaining the develop
   long-term statistics view alongside the canonical history migration.
