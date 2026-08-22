@@ -36,7 +36,7 @@ DEFAULT_OPTIONS = {
 }
 
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.5.27"
+FRONTEND_VERSION = "0.5.28"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (
     "/e_c3_dashboard/map-marker-fix.js",
