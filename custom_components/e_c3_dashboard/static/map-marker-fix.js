@@ -11,6 +11,11 @@
  *    output is post-processed so LIVE uses a tracker-bound button-card with a
  *    real <img>. That card re-renders when the tracker changes and is fully
  *    independent from the map-marker workaround.
+ *
+ * The LIVE patch is installed synchronously when the strategy custom element
+ * is registered. Waiting only for customElements.whenDefined() is too late for
+ * the initial Lovelace build because Home Assistant can call the strategy in
+ * the same task immediately after customElements.define().
  */
 (() => {
   const MARKER_TAG = "map-card-entity-marker";
@@ -232,8 +237,7 @@
     return dashboard;
   };
 
-  customElements.whenDefined(STRATEGY_TAG).then(() => {
-    const StrategyClass = customElements.get(STRATEGY_TAG);
+  const installLiveStrategyPatch = (StrategyClass) => {
     if (!StrategyClass || StrategyClass[LIVE_PATCH_FLAG]) {
       return;
     }
@@ -254,5 +258,32 @@
       enumerable: false,
       writable: false,
     });
-  });
+  };
+
+  const existingStrategyClass = customElements.get(STRATEGY_TAG);
+  if (existingStrategyClass) {
+    installLiveStrategyPatch(existingStrategyClass);
+  } else {
+    const originalDefine = customElements.define.bind(customElements);
+    let defineWrapped = true;
+
+    customElements.define = function (name, constructor, options) {
+      if (name === STRATEGY_TAG) {
+        installLiveStrategyPatch(constructor);
+        if (defineWrapped) {
+          customElements.define = originalDefine;
+          defineWrapped = false;
+        }
+      }
+      return originalDefine(name, constructor, options);
+    };
+
+    customElements.whenDefined(STRATEGY_TAG).then(() => {
+      installLiveStrategyPatch(customElements.get(STRATEGY_TAG));
+      if (defineWrapped) {
+        customElements.define = originalDefine;
+        defineWrapped = false;
+      }
+    });
+  }
 })();
