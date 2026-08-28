@@ -13,6 +13,7 @@ MIN_UPSTREAM_VERSION = "2026.7.2"
 CONF_VEHICLE_DEVICE_ID = "vehicle_device_id"
 CONF_VEHICLE_SLUG = "vehicle_slug"
 
+OPTION_DASHBOARD_NAME = "dashboard_name"
 OPTION_TRIPS = "trips"
 OPTION_CHARGING = "charging"
 OPTION_GPS = "gps"
@@ -22,6 +23,7 @@ OPTION_NOTIFICATION_RECIPIENTS = "notification_recipients"
 OPTION_HISTORY_HOURS = "history_hours"
 
 DEFAULT_OPTIONS = {
+    OPTION_DASHBOARD_NAME: "",
     OPTION_TRIPS: True,
     OPTION_CHARGING: True,
     OPTION_GPS: True,
@@ -34,7 +36,7 @@ DEFAULT_OPTIONS = {
 # Home Assistant knows exactly one package-owned Lovelace resource. All other
 # package modules are internal ES modules loaded by this entry point.
 FRONTEND_URL = "/e_c3_dashboard/frontend.js"
-FRONTEND_VERSION = "0.5.37"
+FRONTEND_VERSION = "0.5.38"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (FRONTEND_URL,)
 
