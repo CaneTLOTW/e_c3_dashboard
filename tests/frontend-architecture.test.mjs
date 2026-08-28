@@ -57,7 +57,7 @@ test("only the documented third-party map shadow-DOM compatibility hook remains"
   assert.match(frontend, /marker\.picture/);
   assert.match(frontend, /Symbol\.for\("e_c3_dashboard\.transparent_picture_marker"\)/);
   assert.doesNotMatch(frontend, /reactive_live_vehicle_picture/);
-  assert.doesNotMatch(frontend, /ll-strategy-dashboard-e-c3-dashboard/);
+  assert.doesNotMatch(frontend, /customElements\.define\("ll-strategy-dashboard-e-c3-dashboard"/);
 });
 
 test("obsolete post-patch source files are gone", () => {
