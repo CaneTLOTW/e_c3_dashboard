@@ -7,7 +7,9 @@ const source = await readFile(
   "utf8",
 );
 const {
+  dateRangeWindow,
   dateWindow,
+  earliestGeoJsonTime,
   filterGeoJsonByWindow,
   localDateKey,
   normalizeDateKey,
@@ -42,6 +44,23 @@ test("today uses now as the display end while past days use next midnight", () =
   assert.equal(past.endMs - past.startMs, 24 * 60 * 60 * 1000);
 });
 
+test("accepts a multi-day range from the Home Assistant period selector", () => {
+  const start = new Date(2026, 7, 23, 0, 0, 0);
+  const end = new Date(2026, 7, 26, 23, 59, 59);
+  const window = dateRangeWindow(start, end, fixedNow);
+  assert.equal(window.startMs, start.getTime());
+  assert.equal(window.endMs, end.getTime());
+  assert.equal(window.historyEnd, end.toISOString());
+});
+
+test("clamps a range ending today to now instead of querying the future", () => {
+  const start = new Date(2026, 7, 23, 0, 0, 0);
+  const end = new Date(2026, 7, 28, 23, 59, 59);
+  const window = dateRangeWindow(start, end, fixedNow);
+  assert.equal(window.endMs, fixedNow.getTime());
+  assert.equal(window.historyEnd, "now");
+});
+
 test("filters canonical server features to the selected local day", () => {
   const window = dateWindow("2026-08-27", fixedNow);
   const geojson = {
@@ -60,6 +79,36 @@ test("filters canonical server features to the selected local day", () => {
     ["selected", "crossing"],
   );
   assert.equal(geojson.features.length, 4, "source archive must remain untouched");
+});
+
+test("filters the same canonical overlay across an arbitrary multi-day range", () => {
+  const start = new Date(2026, 7, 23, 0, 0, 0);
+  const end = new Date(2026, 7, 26, 0, 0, 0);
+  const window = dateRangeWindow(start, end, fixedNow);
+  const geojson = {
+    type: "FeatureCollection",
+    features: [
+      trip("before", iso(start.getTime() - 3600000), iso(start.getTime() - 1800000)),
+      trip("day1", iso(start.getTime() + 3600000), iso(start.getTime() + 7200000)),
+      trip("day3", iso(end.getTime() - 7200000), iso(end.getTime() - 3600000)),
+      trip("after", iso(end.getTime() + 3600000), iso(end.getTime() + 7200000)),
+    ],
+  };
+  assert.deepEqual(
+    filterGeoJsonByWindow(geojson, window).features.map((feature) => feature.properties.trip_id),
+    ["day1", "day3"],
+  );
+});
+
+test("finds the first timestamp for an explicit all-history selection", () => {
+  const geojson = {
+    type: "FeatureCollection",
+    features: [
+      trip("new", "2026-08-20T12:00:00Z", "2026-08-20T12:30:00Z"),
+      trip("old", "2026-06-03T08:00:00Z", "2026-06-03T08:30:00Z"),
+    ],
+  };
+  assert.equal(earliestGeoJsonTime(geojson), Date.parse("2026-06-03T08:00:00Z"));
 });
 
 test("drops features without timestamps instead of leaking archive data", () => {
