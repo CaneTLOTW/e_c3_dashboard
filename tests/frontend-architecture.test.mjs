@@ -7,14 +7,15 @@ const read = (path) => fs.readFileSync(new URL(path, root), "utf8");
 
 const frontend = read("static/frontend.js");
 const strategy = read("static/e_c3_dashboard.js");
+const overview = read("static/vehicle-overview-card.js");
 const gps = read("static/gps-history-card.js");
 const constants = read("const.py");
 
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.38"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.38"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.39"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.39"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -23,15 +24,19 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.38"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.39"\)/);
 });
 
-test("LIVE hero owns its reactive picture directly", () => {
-  assert.match(strategy, /triggers_update: \[tracker\]/);
-  assert.match(strategy, /states\[\$\{JSON\.stringify\(tracker\)\}\]\?\.attributes\?\.entity_picture/);
-  assert.match(strategy, /"background-image": `\[\[\[/);
-  assert.doesNotMatch(strategy, /custom_fields\.vehicle_image/);
-  assert.doesNotMatch(strategy, /patchLiveVehiclePicture/);
+test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
+  assert.match(strategy, /type: "custom:e-c3-dashboard-vehicle-overview-card"/);
+  assert.match(strategy, /variant: "live"/);
+  assert.match(strategy, /entry_id: attributes\.entry_id/);
+  assert.doesNotMatch(strategy, /The LIVE picture is part of the canonical hero configuration/);
+  assert.doesNotMatch(strategy, /"background-image": `\[\[\[/);
+  assert.match(overview, /config\.variant === "live"/);
+  assert.match(overview, /attributes\?\.entity_picture/);
+  assert.match(overview, /picture \|\| ""/);
+  assert.match(overview, /nextSignature !== this\._signature/);
 });
 
 test("GPS components are canonical cards, not Strategy wrappers", () => {
