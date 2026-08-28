@@ -110,17 +110,6 @@ function buildConfig(hass, config, statusState) {
   const climateDisplay = preconditioningStart ? "block" : "none";
   const showInfo = liveVariant && Boolean(vehicleInfo);
 
-  const badgeCardStyles = {
-    card: [
-      { padding: 0 }, { margin: 0 }, { border: "none" }, { "box-shadow": "none" },
-      { background: "transparent" }, { color: "white" }, { "min-height": 0 },
-      { cursor: "pointer" },
-    ],
-    grid: [
-      { display: "block" }, { padding: 0 }, { margin: 0 },
-    ],
-  };
-
   const heroCard = {
     type: "custom:button-card",
     entity: battery,
@@ -145,13 +134,13 @@ function buildConfig(hass, config, statusState) {
       ],
       custom_fields: {
         range: [
-          { position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 20 },
+          { position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 10 },
           { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
           { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
           { "white-space": "nowrap" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" },
         ],
         right_status: [
-          { position: "absolute" }, { top: "12px" }, { right: showInfo ? "50px" : "12px" }, { "z-index": 20 },
+          { position: "absolute" }, { top: "12px" }, { right: showInfo ? "50px" : "12px" }, { "z-index": 10 },
           { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
           { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
           { "text-align": "right" }, { "white-space": "nowrap" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" },
@@ -191,62 +180,34 @@ function buildConfig(hass, config, statusState) {
       },
     },
     custom_fields: {
-      range: autonomy ? {
-        card: {
-          type: "custom:button-card",
-          entity: autonomy,
-          show_name: false,
-          show_state: true,
-          show_icon: true,
-          icon: "mdi:map-marker-distance",
-          tap_action: { action: "more-info" },
-          state_display: `[[[
-            if (!entity || ['unknown','unavailable'].includes(entity.state) || !Number.isFinite(Number(entity.state))) return '-- km';
-            return Math.round(Number(entity.state)) + ' km';
-          ]]]`,
-          styles: {
-            ...badgeCardStyles,
-            grid: [{ "grid-template-areas": "'i s'" }, { "grid-template-columns": "16px auto" }, { gap: "4px" }, { "align-items": "center" }],
-            icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }],
-            state: [{ color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" }, { "white-space": "nowrap" }],
-          },
-        },
-      } : `[[[ return '<ha-icon icon="mdi:map-marker-distance" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> -- km'; ]]]`,
-      right_status: temperature ? {
-        card: {
-          type: "custom:button-card",
-          entity: temperature,
-          show_name: false,
-          show_state: true,
-          show_icon: true,
-          icon: `[[[ return states[${literal(charging)}]?.state === 'on' ? 'mdi:battery-charging' : 'mdi:thermometer'; ]]]`,
-          tap_action: { action: "more-info" },
-          triggers_update: [temperature, charging, chargingEnd].filter(Boolean),
-          state_display: `[[[
-            const isCharging = states[${literal(charging)}]?.state === 'on';
-            if (isCharging) {
-              const end = states[${literal(chargingEnd)}];
-              const raw = String(end?.state ?? '').trim();
-              if (raw && !['unknown','unavailable','none'].includes(raw.toLowerCase())) {
-                const parsed = new Date(raw);
-                const endText = Number.isNaN(parsed.getTime())
-                  ? (/^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : raw)
-                  : String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0');
-                if (endText) return 'bis ' + endText;
-              }
-              return 'Lädt';
-            }
-            if (!entity || ['unknown','unavailable'].includes(entity.state) || !Number.isFinite(Number(entity.state))) return '-- °C';
-            return entity.state + ' ' + (entity.attributes?.unit_of_measurement || '°C');
-          ]]]`,
-          styles: {
-            ...badgeCardStyles,
-            grid: [{ "grid-template-areas": "'i s'" }, { "grid-template-columns": "16px auto" }, { gap: "4px" }, { "align-items": "center" }],
-            icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }],
-            state: [{ color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" }, { "white-space": "nowrap" }],
-          },
-        },
-      } : `[[[ return '<ha-icon icon="mdi:thermometer" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> -- °C'; ]]]`,
+      range: `[[[
+        const e = states[${literal(autonomy)}];
+        if (!e || ['unknown','unavailable'].includes(e.state) || !Number.isFinite(Number(e.state))) {
+          return '<ha-icon icon="mdi:map-marker-distance" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> -- km';
+        }
+        return '<ha-icon icon="mdi:map-marker-distance" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> ' + Math.round(Number(e.state)) + ' km';
+      ]]]`,
+      right_status: `[[[
+        const isCharging = states[${literal(charging)}]?.state === 'on';
+        if (isCharging) {
+          const end = states[${literal(chargingEnd)}];
+          const raw = String(end?.state ?? '').trim();
+          let endText = '';
+          if (raw && !['unknown','unavailable','none'].includes(raw.toLowerCase())) {
+            const parsed = new Date(raw);
+            endText = Number.isNaN(parsed.getTime())
+              ? (/^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : raw)
+              : String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0');
+          }
+          if (endText) return '<ha-icon icon="mdi:clock-end" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> bis ' + endText;
+          return '<ha-icon icon="mdi:battery-charging" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> Lädt';
+        }
+        const temp = states[${literal(temperature)}];
+        if (!temp || ['unknown','unavailable'].includes(temp.state) || !Number.isFinite(Number(temp.state))) {
+          return '<ha-icon icon="mdi:thermometer" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> -- °C';
+        }
+        return '<ha-icon icon="mdi:thermometer" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> ' + temp.state + ' ' + (temp.attributes?.unit_of_measurement || '°C');
+      ]]]`,
       info: showInfo ? {
         card: {
           type: "custom:button-card",
@@ -283,14 +244,14 @@ function buildConfig(hass, config, statusState) {
             return Number(temp.state) > 20 ? 'mdi:air-conditioner' : 'mdi:radiator';
           ]]]`,
           tap_action: {
-            action: "perform-action",
-            perform_action: "button.press",
-            target: { entity_id: preconditioningStart },
+            action: "call-service",
+            service: "button.press",
+            service_data: { entity_id: preconditioningStart },
           },
           hold_action: preconditioningStop ? {
-            action: "perform-action",
-            perform_action: "button.press",
-            target: { entity_id: preconditioningStop },
+            action: "call-service",
+            service: "button.press",
+            service_data: { entity_id: preconditioningStop },
           } : { action: "none" },
           styles: {
             card: [

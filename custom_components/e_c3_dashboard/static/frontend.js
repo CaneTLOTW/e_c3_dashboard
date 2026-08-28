@@ -65,27 +65,18 @@ const installTransparentMapMarkerCompatibility = () => {
 installTransparentMapMarkerCompatibility();
 
 /*
- * Register Home Assistant's dashboard Strategy before doing any readiness or
- * package-card work. Home Assistant has its own short timeout while waiting for
- * ll-strategy-dashboard-e-c3-dashboard, so even a bounded dependency gate here
- * can be too slow on a cold start. Dependency observation and internal card
- * imports therefore run strictly after Strategy registration and never block it.
+ * Start package modules immediately. Only the dashboard Strategy itself waits
+ * for external HACS custom elements. Existing-but-still-loading cards therefore
+ * no longer produce a false missing-dependency page during the first reload.
  */
-await import("./e_c3_dashboard.js?v=0.5.42");
-
-const packageModules = Promise.allSettled([
-  import("./trip-history-card.js?v=0.5.42"),
-  import("./charge-history-card.js?v=0.5.42"),
-  import("./gps-history-card.js?v=0.5.42"),
-  import("./vehicle-overview-card.js?v=0.5.42"),
+const packageModules = Promise.all([
+  import("./trip-history-card.js?v=0.5.39"),
+  import("./charge-history-card.js?v=0.5.39"),
+  import("./gps-history-card.js?v=0.5.39"),
+  import("./vehicle-overview-card.js?v=0.5.39"),
 ]);
 const dependencyReadiness = Promise.all(REQUIRED_ELEMENTS.map(waitForElement));
-window.__ec3DashboardDependencyReadiness = dependencyReadiness;
 
-packageModules.then((results) => {
-  results.forEach((result, index) => {
-    if (result.status === "rejected") {
-      console.error(`e-C3 Dashboard package module ${index + 1} failed to load`, result.reason);
-    }
-  });
-});
+await packageModules;
+window.__ec3DashboardDependencyReadiness = await dependencyReadiness;
+await import("./e_c3_dashboard.js?v=0.5.39");
