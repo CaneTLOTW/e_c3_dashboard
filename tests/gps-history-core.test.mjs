@@ -19,6 +19,7 @@ const trip = (id, start, end) => ({
   geometry: { type: "LineString", coordinates: [[8.5, 51.2], [8.6, 51.3]] },
   properties: { trip_id: id, start_time: start, end_time: end },
 });
+const iso = (timestamp) => new Date(timestamp).toISOString();
 
 const fixedNow = new Date(2026, 7, 28, 12, 0, 0);
 
@@ -46,10 +47,10 @@ test("filters canonical server features to the selected local day", () => {
   const geojson = {
     type: "FeatureCollection",
     features: [
-      trip("old", "2026-08-26T10:00:00Z", "2026-08-26T10:30:00Z"),
-      trip("selected", "2026-08-27T10:00:00Z", "2026-08-27T10:30:00Z"),
-      trip("crossing", "2026-08-27T21:55:00Z", "2026-08-28T00:05:00Z"),
-      trip("future", "2026-08-28T10:00:00Z", "2026-08-28T10:30:00Z"),
+      trip("old", iso(window.startMs - 60 * 60 * 1000), iso(window.startMs - 30 * 60 * 1000)),
+      trip("selected", iso(window.startMs + 60 * 60 * 1000), iso(window.startMs + 90 * 60 * 1000)),
+      trip("crossing", iso(window.endMs - 5 * 60 * 1000), iso(window.endMs + 5 * 60 * 1000)),
+      trip("future", iso(window.endMs + 60 * 60 * 1000), iso(window.endMs + 90 * 60 * 1000)),
     ],
   };
 
