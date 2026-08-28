@@ -8,6 +8,7 @@
  */
 const STATUS_DOMAIN = "e_c3_dashboard";
 const CARD_TAG = "e-c3-dashboard-vehicle-overview-card";
+const EDITOR_TAG = "e-c3-dashboard-vehicle-overview-card-editor";
 
 const unavailable = (state) =>
   !state || ["unknown", "unavailable", "none", ""].includes(String(state.state ?? "").toLowerCase());
@@ -22,6 +23,18 @@ const statusCandidates = (hass, entryId) =>
       (!entryId || attributes.entry_id === entryId)
     );
   });
+
+const candidateLabel = (hass, candidate, index = 0) => {
+  const [, state] = candidate || [];
+  const attributes = state?.attributes || {};
+  const vehicleEntity = attributes.entity_mapping?.vehicle;
+  const vehicle = vehicleEntity ? hass?.states?.[vehicleEntity] : undefined;
+  return String(
+    vehicle?.attributes?.friendly_name ||
+    attributes.vehicle_slug ||
+    `e-C3 ${index + 1}`
+  );
+};
 
 const metricEntity = (hass, attributes, key) =>
   attributes?.metric_entities?.[key] ||
@@ -355,6 +368,10 @@ class Ec3DashboardVehicleOverviewCard extends HTMLElement {
     return {};
   }
 
+  static getConfigElement() {
+    return document.createElement(EDITOR_TAG);
+  }
+
   setConfig(config) {
     this._config = config || {};
     this._signature = undefined;
@@ -411,7 +428,13 @@ class Ec3DashboardVehicleOverviewCard extends HTMLElement {
     if (!this.isConnected || !this._hass || this._building) return;
     const selected = this._selected();
     if (!selected) {
-      this.innerHTML = `<ha-card><div style="padding:16px;color:var(--secondary-text-color)">e-C3 Dashboard: kein eindeutig zugeordnetes Fahrzeug gefunden.</div></ha-card>`;
+      const all = statusCandidates(this._hass);
+      const message = all.length > 1 && !this._config.entry_id
+        ? "e-C3 Dashboard: mehrere Fahrzeuge gefunden. Bitte im Karteneditor ein Fahrzeug auswählen."
+        : this._config.entry_id
+          ? "e-C3 Dashboard: das konfigurierte Fahrzeug ist nicht verfügbar."
+          : "e-C3 Dashboard: kein eindeutig zugeordnetes Fahrzeug gefunden.";
+      this.innerHTML = `<ha-card><div style="padding:16px;color:var(--secondary-text-color)">${message}</div></ha-card>`;
       this._inner = undefined;
       return;
     }
@@ -430,8 +453,75 @@ class Ec3DashboardVehicleOverviewCard extends HTMLElement {
   }
 }
 
+class Ec3DashboardVehicleOverviewCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this._config = {};
+    this._hass = undefined;
+  }
+
+  setConfig(config) {
+    this._config = config || {};
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  connectedCallback() {
+    this._render();
+  }
+
+  _emit(entryId) {
+    const next = { ...this._config };
+    if (entryId) next.entry_id = entryId;
+    else delete next.entry_id;
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      bubbles: true,
+      composed: true,
+      detail: { config: next },
+    }));
+  }
+
+  _render() {
+    if (!this.isConnected || !this._hass) return;
+    const candidates = statusCandidates(this._hass);
+    if (candidates.length === 0) {
+      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">Keine e-C3-Dashboard-Instanz verfügbar.</div>`;
+      return;
+    }
+    if (candidates.length === 1) {
+      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">Fahrzeug: automatisch · ${candidateLabel(this._hass, candidates[0], 0)}</div>`;
+      return;
+    }
+
+    const options = candidates.map((candidate, index) => {
+      const entryId = candidate[1]?.attributes?.entry_id || "";
+      const selected = entryId === this._config.entry_id ? " selected" : "";
+      const label = candidateLabel(this._hass, candidate, index);
+      return `<option value="${entryId}"${selected}>${label}</option>`;
+    }).join("");
+
+    this.innerHTML = `
+      <label style="display:block;padding:8px 0;font-weight:500">Fahrzeug</label>
+      <select id="vehicle" style="box-sizing:border-box;width:100%;min-height:42px;padding:0 10px;border:1px solid var(--divider-color);border-radius:10px;background:var(--card-background-color);color:var(--primary-text-color)">
+        <option value=""${this._config.entry_id ? "" : " selected"}>Fahrzeug auswählen …</option>
+        ${options}
+      </select>
+      <div style="padding:8px 0;color:var(--secondary-text-color);font-size:12px">Die Auswahl wird als e-C3-Config-Entry gespeichert und bleibt fest diesem Fahrzeug zugeordnet.</div>`;
+    this.querySelector("#vehicle")?.addEventListener("change", (event) => {
+      this._emit(event.target.value);
+    });
+  }
+}
+
 if (!customElements.get(CARD_TAG)) {
   customElements.define(CARD_TAG, Ec3DashboardVehicleOverviewCard);
+}
+if (!customElements.get(EDITOR_TAG)) {
+  customElements.define(EDITOR_TAG, Ec3DashboardVehicleOverviewCardEditor);
 }
 
 window.customCards = window.customCards || [];
