@@ -21,3 +21,5 @@ Normal telemetry and the remote-command connection can have independent availabi
 - No `e_c3_dashboard` code change is required for this incident.
 - No further runtime audit is required while the remote channel remains healthy.
 - If the symptom returns, check upstream Stellantis authentication/session/config-entry health before changing dashboard mappings.
+
+Issue: #17
