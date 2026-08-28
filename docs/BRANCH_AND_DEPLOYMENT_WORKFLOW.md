@@ -17,14 +17,46 @@ commit a public/stable release.
 GitHub Issue
   -> ChatGPT prepares implementation on develop
   -> repository/static tests on develop
-  -> Codex deploys the exact develop SHA to the designated HA acceptance instance
+  -> Candidate = exact develop SHA/version
+  -> Codex deploys that exact Candidate to the designated HA acceptance instance
+  -> Runtime = exact SHA/version actually served by Home Assistant
   -> browser/app/runtime validation
+  -> Validated = exact Runtime SHA/version that passed the required checks
   -> Codex reports results in the Issue
   -> ChatGPT reviews findings and prepares follow-up changes on develop if needed
   -> user/maintainer acceptance
-  -> fast-forward promotion of that exact validated SHA to main
+  -> fast-forward promotion of that exact Validated SHA to main
   -> tag/release from that exact main SHA
 ```
+
+## Candidate, Runtime and Validated are different states
+
+Every active deployment Issue must state all three explicitly:
+
+```text
+Candidate: <develop SHA> / <version>
+Runtime:   <deployed SHA> / <version> | NOT_DEPLOYED
+Validated: <accepted SHA> / <version> | NOT_VALIDATED
+```
+
+Rules:
+
+1. `Candidate` changes whenever a new intended test commit is prepared on
+   `develop`.
+2. `Runtime` changes **only** after Codex or another authorized deployment has
+   actually copied that exact candidate to Home Assistant and verified the
+   served files/version.
+3. A newer `develop` HEAD does not silently update the runtime. Until the next
+   explicit deployment, Home Assistant continues to run the previous Runtime.
+4. `Validated` changes only after the required live/browser/app/user checks
+   have passed against the exact Runtime SHA.
+5. A failed Runtime remains useful evidence but must never be described as the
+   current Candidate once a replacement Candidate exists.
+6. Only an exact `Validated` SHA may be promoted to `main`.
+
+This distinction is mandatory in Issue handoffs and prevents the common
+ambiguity where a fix exists on `develop` but has not yet reached the live
+acceptance instance.
 
 ## Invariants
 
@@ -61,14 +93,20 @@ include at least:
 ```text
 repository: CaneTLOTW/e_c3_dashboard
 source branch: develop
-source SHA: <sha>
-manifest version: <version>
-frontend version: <version>
+Candidate SHA/version: <sha> / <version>
+Runtime SHA/version before deploy: <sha> / <version>
+Runtime SHA/version after deploy: <sha> / <version>
+served frontend version: <version>
 HA deployment/restart: PASS|FAIL
 browser light/dark: PASS|FAIL|NOT_TESTED
 HA app light/dark: PASS|FAIL|NOT_TESTED
+Validated SHA/version: <sha> / <version> | NOT_VALIDATED
 issue acceptance: PASS|FAIL|BLOCKED
 ```
+
+The Runtime SHA/version must be established from the actual deployed files and
+served versioned Lovelace resources, not inferred from the current GitHub
+`develop` HEAD.
 
 A runtime copy with local modifications is not a new source of truth. If a
 runtime-only fix is unavoidable, Codex must immediately report the diff in the
@@ -85,9 +123,10 @@ The Issue remains the operative work thread. Use:
 ## ChatGPT Review / Next Step
 ```
 
-The handoff references the exact `develop` SHA. The Codex result references the
-actually deployed SHA. A later promotion comment records the exact stable SHA
-and release/tag.
+The handoff references the exact Candidate SHA/version and separately records
+what the runtime is believed to be running. The Codex result replaces that
+belief with the actually deployed Runtime SHA/version. A later promotion comment
+records the exact Validated/stable SHA and release/tag.
 
 ## Prohibited branch operations
 
