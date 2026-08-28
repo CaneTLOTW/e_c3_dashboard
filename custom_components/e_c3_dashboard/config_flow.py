@@ -19,6 +19,7 @@ from .const import (
     DEFAULT_OPTIONS,
     DOMAIN,
     OPTION_CHARGING,
+    OPTION_DASHBOARD_NAME,
     OPTION_GPS,
     OPTION_HISTORY_HOURS,
     OPTION_NOTIFICATIONS,
@@ -84,13 +85,7 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_dashboard_cards(self, user_input=None):
-        """Show a best-effort Lovelace-resource preflight before setup.
-
-        Lovelace resources are a backend registry while custom elements are
-        registered by each browser. This remains advisory; the generated
-        dashboard performs the definitive browser-side check before rendering
-        any custom card.
-        """
+        """Show a best-effort Lovelace-resource preflight before setup."""
         if user_input is not None:
             self.context["dashboard_card_preflight_seen"] = True
             return await self.async_step_user()
@@ -154,20 +149,16 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             for registry_entry in er.async_entries_for_device(entity_registry, device_id)
             if registry_entry.config_entry_id in upstream_entry_ids
         ]
-        keys = {
-            registry_entry.translation_key
-            for registry_entry in entries
-        }
+        keys = {registry_entry.translation_key for registry_entry in entries}
         return (
             {"vehicle", "battery", "mileage"}.issubset(keys)
             and any(entry.entity_id.startswith("device_tracker.") for entry in entries)
         )
 
     def _vehicle_name(self, device_id: str) -> str:
-        """Return the user-friendly selected vehicle name."""
+        """Return the selected upstream vehicle name for multi-entry fallback."""
         device = dr.async_get(self.hass).async_get(device_id)
         return device.name_by_user or device.name or "e-C3"
-
 
     @staticmethod
     @callback
@@ -177,20 +168,19 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
-    """Enable optional generated views without changing vehicle identity."""
+    """Configure one vehicle dashboard without changing its identity."""
 
     async def async_step_init(self, user_input=None):
-        """Configure portable modules."""
+        """Configure title and portable modules."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            normalized = dict(user_input)
+            normalized[OPTION_DASHBOARD_NAME] = str(
+                normalized.get(OPTION_DASHBOARD_NAME, "")
+            ).strip()
+            return self.async_create_entry(title="", data=normalized)
 
         options = dict(DEFAULT_OPTIONS)
         options.update(self.config_entry.options)
-        # Notify recipients are services, not necessarily registered HA
-        # entities. Looking them up through the entity registry caused the
-        # options dialog to fail on current Home Assistant versions. Querying
-        # the live service registry also keeps this list aligned with mobile
-        # app notifications and other configured notify targets.
         notify_services = self.hass.services.async_services().get("notify", {})
         notify_recipients = sorted(
             f"notify.{service_name}"
@@ -206,6 +196,10 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
         )
         schema = vol.Schema(
             {
+                vol.Optional(
+                    OPTION_DASHBOARD_NAME,
+                    default=options[OPTION_DASHBOARD_NAME],
+                ): str,
                 vol.Required(OPTION_TRIPS, default=options[OPTION_TRIPS]): bool,
                 vol.Required(
                     OPTION_CHARGING, default=options[OPTION_CHARGING]
