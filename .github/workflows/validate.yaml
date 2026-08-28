@@ -42,7 +42,7 @@ jobs:
           python3 -m json.tool hacs.json >/dev/null
           python3 -m json.tool custom_components/e_c3_dashboard/manifest.json >/dev/null
       - name: Check whitespace errors
-        run: git diff --check HEAD^
+        run: git diff --check HEAD^ HEAD
 
   hacs:
     name: HACS validation
