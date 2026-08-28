@@ -356,22 +356,22 @@ class Ec3DashboardStrategy extends HTMLElement {
       cards: [
         {
           type: "entities",
-          title: language(hass) === "de" ? "Fahrzeug" : "Vehicle",
-          show_header_toggle: false,
-          entities: [
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Marke", name: language(hass) === "de" ? "Marke" : "Brand" },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Antrieb", name: language(hass) === "de" ? "Antrieb" : "Powertrain" },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "VIN", name: "VIN" },
-          ],
-        },
-        {
-          type: "entities",
           title: language(hass) === "de" ? "Wartung" : "Maintenance",
           show_header_toggle: false,
           entities: [
             { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Tage", name: language(hass) === "de" ? "Verbleibende Tage" : "Days remaining" },
             { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Kilometer", name: language(hass) === "de" ? "Verbleibende Kilometer" : "Mileage remaining" },
             { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung aktualisiert", name: language(hass) === "de" ? "Aktualisiert" : "Updated" },
+          ],
+        },
+        {
+          type: "entities",
+          title: language(hass) === "de" ? "Fahrzeug" : "Vehicle",
+          show_header_toggle: false,
+          entities: [
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Marke", name: language(hass) === "de" ? "Marke" : "Brand" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Antrieb", name: language(hass) === "de" ? "Antrieb" : "Powertrain" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "VIN", name: "VIN" },
           ],
         },
       ],
@@ -429,7 +429,6 @@ class Ec3DashboardStrategy extends HTMLElement {
         entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }` } : null,
         entity("daylight") ? { ...bubble("daylight", language(hass) === "de" ? "Tageslicht erkannt" : "Daylight detected", "mdi:weather-sunny", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Ja" : "Yes", language(hass) === "de" ? "Nein" : "No", "mdi:weather-sunny", "mdi:weather-sunny-off") } : null,
         entity("alarm") ? { ...bubble("alarm", strings.alarm, "mdi:shield-lock", [], 6), show_state: false, styles: ageTextStyles(language(hass) === "de" ? "Aktiv" : "Active", language(hass) === "de" ? "Inaktiv" : "Inactive", "mdi:shield-lock", "mdi:shield-off-outline") } : null,
-        metric("vehicle_info") ? bubble("vehicle_info", language(hass) === "de" ? "Fahrzeuginformationen" : "Vehicle information", "mdi:car-info", [], "full", metric("vehicle_info")) : null,
         entity("privacy") ? { ...bubble("privacy", language(hass) === "de" ? "Datenschutz / Datenfreigabe" : "Privacy / data sharing", "mdi:shield-check", [subState("privacy_mode", "", "mdi:shield-account")]), show_state: false, styles: `\${(() => { const raw=hass.states[entity]?.state; card.querySelector('.bubble-state').innerText=raw==='on'?'${language(hass) === "de" ? "Uneingeschränkt" : "Unrestricted"}':raw==='off'?'${language(hass) === "de" ? "Eingeschränkt" : "Restricted"}':'—'; icon.setAttribute('icon',raw==='on'?'mdi:shield-check':raw==='off'?'mdi:shield-alert-outline':'mdi:shield-question'); })()}` } : null,
       ]) },
       { type: "grid", cards: present([
@@ -444,14 +443,6 @@ class Ec3DashboardStrategy extends HTMLElement {
         bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6),
         modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), compact_filters: true, filter_days: 30, hide_short_trips: true, show_zero_events: false, hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
         modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, server_entity: serverChargeEntity, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: metric("last_charge_result"), navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
-      ]) },
-      { type: "grid", cards: present([
-        separator(strings.settings, "mdi:cog-outline"),
-        entity("refresh_interval") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("refresh_interval"), name: language(hass) === "de" ? "Aktualisierungsintervall" : "Refresh interval", icon: "mdi:update", show_state: true, force_icon: true, button_action: { tap_action: { action: "more-info" }, hold_action: { action: "more-info" } } } : null,
-        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: language(hass) === "de" ? "Korrektur Batteriewerte" : "Correct battery values", icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
-        entity("abrp_sync") ? separator("ABRP", "mdi:map-marker-path") : null,
-        entity("abrp_sync") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("abrp_sync"), name: "ABRP Live-Daten", icon: "mdi:transit-connection-variant", show_state: true, force_icon: true } : null,
-        entity("abrp_token") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: entity("abrp_token"), name: "ABRP Token", icon: "mdi:key", show_state: false, force_icon: true, button_action: { tap_action: { action: "more-info" } } } : null,
       ]) },
     ];
 
@@ -681,6 +672,12 @@ class Ec3DashboardStrategy extends HTMLElement {
         { type: "heading", heading: strings.system, icon: "mdi:car-cog", heading_style: "title" },
         { type: "entities", title: strings.status, entities: [statusEntity], grid_options: { columns: "full" } },
         markdown(`**${strings.mappedEntities}:** ${Object.keys(mapped).length}`),
+        separator(strings.settings, "mdi:cog-outline"),
+        entity("refresh_interval") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("refresh_interval"), name: language(hass) === "de" ? "Aktualisierungsintervall" : "Refresh interval", icon: "mdi:update", show_state: true, force_icon: true, button_action: { tap_action: { action: "more-info" }, hold_action: { action: "more-info" } } } : null,
+        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: language(hass) === "de" ? "Korrektur Batteriewerte" : "Correct battery values", icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
+        entity("abrp_sync") ? separator("ABRP", "mdi:map-marker-path") : null,
+        entity("abrp_sync") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("abrp_sync"), name: "ABRP Live-Daten", icon: "mdi:transit-connection-variant", show_state: true, force_icon: true } : null,
+        entity("abrp_token") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: entity("abrp_token"), name: "ABRP Token", icon: "mdi:key", show_state: false, force_icon: true, button_action: { tap_action: { action: "more-info" } } } : null,
       ] }],
     });
 

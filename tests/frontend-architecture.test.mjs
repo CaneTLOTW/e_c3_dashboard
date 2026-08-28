@@ -14,8 +14,8 @@ const constants = read("const.py");
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.44"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.44"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.45"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.45"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -24,7 +24,7 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.44"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.45"\)/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
@@ -37,6 +37,26 @@ test("LIVE reuses the validated vehicle overview lifecycle instead of owning a s
   assert.match(overview, /attributes\?\.entity_picture/);
   assert.match(overview, /picture \|\| ""/);
   assert.match(overview, /nextSignature !== this\._signature/);
+});
+
+test("vehicle information popup puts maintenance before vehicle data", () => {
+  const maintenance = strategy.indexOf('title: language(hass) === "de" ? "Wartung" : "Maintenance"');
+  const vehicle = strategy.indexOf('title: language(hass) === "de" ? "Fahrzeug" : "Vehicle"');
+  assert.ok(maintenance >= 0);
+  assert.ok(vehicle > maintenance);
+  assert.doesNotMatch(strategy, /metric\("vehicle_info"\) \? bubble\("vehicle_info"/);
+});
+
+test("settings and ABRP remain in the system view, not the vehicle overview", () => {
+  const vehicleEnd = strategy.indexOf('const views = [{');
+  const systemStart = strategy.indexOf('path: "system"');
+  const settings = strategy.indexOf('separator(strings.settings, "mdi:cog-outline")');
+  const abrp = strategy.indexOf('entity("abrp_sync") ? separator("ABRP"');
+  assert.ok(vehicleEnd >= 0);
+  assert.ok(systemStart > vehicleEnd);
+  assert.ok(settings > systemStart);
+  assert.ok(abrp > systemStart);
+  assert.ok(settings < abrp);
 });
 
 test("GPS components are canonical cards, not Strategy wrappers", () => {
