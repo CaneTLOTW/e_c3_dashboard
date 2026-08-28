@@ -114,13 +114,15 @@ Run at least:
 
 ```sh
 python3 -m py_compile custom_components/e_c3_dashboard/*.py
+node --check custom_components/e_c3_dashboard/static/frontend.js
 node --check custom_components/e_c3_dashboard/static/i18n.js
 node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js
+node --check custom_components/e_c3_dashboard/static/vehicle-overview-card.js
+node --check custom_components/e_c3_dashboard/static/gps-history-card.js
+node --check custom_components/e_c3_dashboard/static/gps-history-core.js
 node --check custom_components/e_c3_dashboard/static/trip-history-card.js
 node --check custom_components/e_c3_dashboard/static/charge-history-card.js
-node --check custom_components/e_c3_dashboard/static/map-marker-fix.js
-node --check custom_components/e_c3_dashboard/static/gps-history-core.js
-node --check custom_components/e_c3_dashboard/static/gps-history-fix.js
+node --check custom_components/e_c3_dashboard/static/charge-history-core.js
 node --test tests/*.test.mjs
 python3 -m json.tool hacs.json
 python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
