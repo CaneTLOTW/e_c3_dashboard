@@ -20,18 +20,12 @@ It also keeps an explicit **All** action for the complete available GPS archive.
 - Parent `develop` before this GPS delta:
   `2f00e3442c0fc8e19e7cb8414856a163c3ade7b5` / 0.5.46.
 - 0.5.46 contains the notification rework from
-  `CaneTLOTW/e_c3_dashboard#23`, but Codex could not complete its runtime
-  acceptance: after the first controlled restart Home Assistant stopped
-  responding through Codex's management/transport paths and Codex restored the
-  previous package rather than issuing blind restart loops.
+  `CaneTLOTW/e_c3_dashboard#23`.
 
 Do not describe 0.5.46 or 0.5.47 as runtime-validated until the exact SHA is
-actually running and the checks below have passed.
+actually running and the functional checks below have passed.
 
 ## Important 0.5.46 startup correction included in 0.5.47
-
-The restart blocker exposed one concrete compatibility defect in the 0.5.46
-source that must be removed before another runtime attempt.
 
 0.5.45 used notification Store major version **1**. 0.5.46 changed
 `_STORE_VERSION` to **2**, although its new notification settings/markers are
@@ -40,14 +34,9 @@ initialization. Home Assistant's `Store` requires a migration callback when the
 major version changes; without one an existing v1 store cannot be loaded.
 
 0.5.47 therefore deliberately keeps `_STORE_VERSION = 1` and adds a regression
-test. This is a source-level correction based on Home Assistant's Store
-contract. It is a plausible contributor to a failed e-C3 config-entry setup,
-but a config-entry setup exception by itself is not evidence that the complete
-HA HTTP service has failed.
-
-Do not delete or manually rewrite the user's notification Store. The existing
-v1 file should load and gain missing keys through the normal initialization
-path.
+test. Do not delete or manually rewrite the user's notification Store. The
+existing v1 file should load and gain missing keys through the normal
+initialization path.
 
 ## Why the native picker is restored this way
 
@@ -67,13 +56,8 @@ beginning with `energy_`, isolated per eC3 config entry. The package does **not*
 reimplement Home Assistant's day/week/month/custom-range picker.
 
 Do **not** re-enable `ha-map-card`'s `history_date_selection: true` bridge.
-There is an upstream regression for HA 2026.4+ where that bridge no longer
-follows the date picker (`nathan-gs/ha-map-card#185`). The eC3 wrapper therefore
-reads the same Home Assistant energy collection directly and applies its
-`start`/`end` interval itself.
-
-This restores the familiar native HA period selector while avoiding the broken
-map-card date bridge.
+The eC3 wrapper reads the same Home Assistant energy collection directly and
+applies its `start`/`end` interval itself.
 
 ## Canonical implementation
 
@@ -115,20 +99,19 @@ For every selected HA period:
 
 ### All-history action
 
-The small **All** action beside the native selector does not introduce a second
-map mode. It sets the same native HA period collection to:
+The small **All** action beside the native selector sets the same native HA
+period collection to:
 
 - start: local midnight of the earliest timestamp in the canonical server GPS
   GeoJSON;
 - end: current day.
 
-The standard HA selector should therefore display a custom range after **All**
-is selected. Recorder naturally contributes only history it still retains;
-server history contributes the complete available canonical GPS archive.
+Recorder naturally contributes only history it still retains; server history
+contributes the complete available canonical GPS archive.
 
 ## Repository validation
 
-Before runtime deployment, run the full checks from `AGENTS.md`, especially:
+Before runtime deployment, run the normal repository checks from `AGENTS.md`:
 
 ```sh
 python3 -m py_compile custom_components/e_c3_dashboard/*.py
@@ -141,79 +124,48 @@ python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
 git diff --check
 ```
 
-Also confirm GitHub Validate is fully green for the exact candidate SHA.
+## Runtime procedure — intentionally simple
 
-## Runtime control policy — HA health vs. Codex transport
+Do **not** use direct `8123`, MCP, Supervisor, registry, Core-health, CLI-token,
+or similar helper checks as deployment gates. They are not part of the eC3
+acceptance and have repeatedly interrupted otherwise normal deployment work.
 
-The previous attempts were over-constrained by Codex-side transport checks.
-`192.168.20.10:8123`, HA-MCP and a Supervisor/management API are useful probes,
-but they are **not interchangeable with the user's actual Home Assistant UI**.
-A failed probe from Codex can mean that Codex's network/proxy path is unavailable
-while Home Assistant itself is healthy.
+Use the same simple procedure as for previous successful eC3 updates:
 
-Likewise, a management call that triggers `ha core restart` can time out because
-the service intentionally disappears while the request is still open. Such a
-timeout is evidence that the control connection was interrupted, **not** by
-itself that the restart failed.
-
-Therefore use this policy:
-
-1. **Before sync/restart**, record at least one available health signal. Prefer
-   the user's currently working HA UI/app or HA-MCP/API. Direct TCP/8123 from the
-   Codex execution environment is diagnostic only; do not make it a mandatory
-   gate when that network path is known to be unreliable.
-2. `ha core check` / Supervisor status are useful when available, but missing
-   CLI API credentials are not by themselves a deployment blocker.
-3. Take an eC3 package-only rollback copy, then synchronize only
-   `custom_components/e_c3_dashboard` from the exact candidate.
-4. Verify the Lovelace package resource is
+1. Take/retain an eC3 package-only rollback copy.
+2. Synchronize only `custom_components/e_c3_dashboard` from the exact candidate.
+3. Verify the Lovelace package resource is
    `/e_c3_dashboard/frontend.js?v=0.5.47`.
-5. If the inherited Python/platform delta requires a Core restart, issue
-   **exactly one** controlled restart and record the timestamp. Treat an immediate
-   timeout from the restart call as expected/indeterminate, not as FAIL.
-6. **Do not mutate or roll back package files while Core is still in an unknown
-   restarting state.** Wait at least 90 seconds before making a failure
-   decision. During that interval only passive probes are allowed.
-7. After 90 seconds, poll passive health signals every roughly 15–30 seconds for
-   up to 5 minutes. Any of the following is sufficient evidence that Core is
-   back:
-   - user can open the HA UI/app;
-   - HA-MCP/API responds normally;
-   - Supervisor reports Core running;
-   - the served eC3 resource/dashboard can be opened.
-8. A Codex-side `8123 timeout` or MCP `502` alone is **not** a rollback trigger,
-   especially during the restart window. If the user can access HA normally,
-   classify the failed probe as `CODEX_TRANSPORT_LIMITATION` and continue the
-   functional acceptance.
-9. If after 5 minutes Codex still has no authoritative signal, report
-   `RUNTIME_STATUS_UNCERTAIN` and ask the user whether HA is reachable. Do not
-   overwrite the package merely because Codex cannot see the LAN endpoint.
-10. Roll back only with affirmative evidence that Core did not recover, for
-    example the user confirms the UI/app is down, Supervisor reports Core
-    stopped/crashed, or startup logs show a blocking exception. Before rollback,
-    capture the relevant sanitized evidence if possible.
-11. If rollback is genuinely required, restore only the eC3 package and perform
-    at most one deliberate Core start/restart through a known working control
-    path. No blind restart loop.
+4. Perform **one normal Home Assistant Core restart** because this candidate
+   includes Python/platform changes.
+5. A restart request may itself time out when Core goes down. Do not interpret
+   that as a failed restart.
+6. Wait a normal startup interval before continuing. Do not poll LAN port 8123,
+   MCP, Supervisor, registry state, or management APIs as an acceptance gate.
+7. Continue with the actual eC3 functional acceptance below.
+8. If Home Assistant genuinely does not come back for the user, then the restart
+   failed. At that point diagnose/recover normally. Do not invent a separate
+   `RUNTIME_STATUS_UNCERTAIN` or transport-health state just because Codex cannot
+   reach one of its helper endpoints.
+9. No repeated restart loop. No rollback merely because a Codex-side helper
+   probe is unavailable.
 
-This policy supersedes the earlier requirement that direct 8123 reachability
-from Codex is itself an acceptance condition.
+In short: restart once, wait, then test the eC3 functionality. If HA really does
+not start, that is a real failure; otherwise helper-probe reachability is
+irrelevant.
 
-## Notification/backend smoke acceptance inherited from #23
+## Notification/backend smoke acceptance inherited from `CaneTLOTW/e_c3_dashboard#23`
 
-Before judging GPS, first prove that the 0.5.46 backend delta now starts safely:
+After Home Assistant has restarted, check the eC3 functionality itself:
 
-1. Home Assistant is usable after the restart according to at least one
-   authoritative health signal above.
-2. e-C3 config entry reaches loaded/ready state; no false "Einrichtung
-   erforderlich" page after entities settle.
-3. Existing notification switches/state survive the upgrade.
-4. New package-owned number/time controls exist.
-5. Existing v1 notification Store loads without migration exception.
-6. No push or wake-up is triggered merely by deployment/restart.
+1. e-C3 config entry is loaded; no false "Einrichtung erforderlich" state after
+   entities settle.
+2. Existing notification switches/state survive the upgrade.
+3. New package-owned number/time controls exist.
+4. Existing v1 notification Store loads without migration exception.
+5. No push or wake-up is triggered merely by deployment/restart.
 
-Do not attempt to manufacture a real warning condition just for this GPS
-acceptance run.
+Do not manufacture a real warning condition just for this acceptance run.
 
 ## GPS acceptance
 
@@ -250,11 +202,8 @@ be named in both.
 - exact SHA / version
 
 ### Runtime
-- exact SHA / version actually served
-- restart timestamp/result
-- authoritative HA health signal(s)
-- Codex transport status separately
-- e-C3 config-entry result
+- exact SHA / version actually deployed
+- one Core restart performed
 
 ### Validated
 - repository checks
@@ -266,8 +215,7 @@ be named in both.
 - browser/app result
 
 ### Blocker
-- only if applicable; distinguish `CODEX_TRANSPORT_LIMITATION`,
-  `RUNTIME_STATUS_UNCERTAIN`, and actual `BLOCKED_RUNTIME`
+- only a real functional/runtime blocker
 ```
 
 STOP after reporting. Do not update `main` until explicit user PASS.
