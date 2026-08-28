@@ -14,6 +14,21 @@ It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
   when it is ready for users. Create the corresponding GitHub release from
   `main`; HACS users track releases, not `develop`.
 
+## Issue-based task and agent handoff workflow
+
+- The GitHub Issue in `CaneTLOTW/e_c3_dashboard` is the canonical operative work item for bugs, features, migrations, investigations and follow-ups that are not completed immediately.
+- Do **not** create or maintain a duplicate Home Assistant `todo.codex` item for e-C3 repository work. This repository owns its own backlog through GitHub Issues.
+- Durable architecture, contracts and implementation decisions must still be committed to repository documentation/code; an Issue is the work thread, not the only technical documentation.
+- Before creating a new Issue, search open and recently closed Issues for the same feature/problem and reuse the existing thread when appropriate.
+- ChatGPT should prepare repository analysis, architecture, code, tests, documentation, mockups/artifacts and an executable runbook as far as possible before handing work to Codex.
+- Codex is primarily the executor for work that needs the real Home Assistant runtime: deployment, real entity/config-entry resolution, reload/restart, runtime tests and collection of sanitized evidence.
+- Codex may perform additional analysis/design when live runtime evidence invalidates the prepared assumptions or the task explicitly requires local investigation. Document the finding and resulting decision in the Issue and commit durable conclusions.
+- Use Issue comments headed `## ChatGPT → Codex Handoff`, `## Codex → ChatGPT Ergebnis`, and `## ChatGPT Review / Next Step` for handoffs and iterative review.
+- Handoff comments should reference the exact branch/commit, authoritative runbook or files, remaining runtime steps, acceptance criteria and areas that must not be changed.
+- Codex result comments should include final commit/branch, runtime PASS/FAIL, relevant findings, generated reports/exports, blockers and remaining local changes.
+- Keep an Issue open until its acceptance criteria and required runtime verification are complete; do not close it merely because code was committed.
+- Prefer `Refs #<issue>` during development. Use `Fixes/Closes #<issue>` only when the work is genuinely ready to close after the repository's validation rules.
+
 ## Scope and architecture
 
 - This repository is a portable companion integration for
