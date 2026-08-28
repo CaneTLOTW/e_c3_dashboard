@@ -45,5 +45,39 @@
         }
       }
     }
+  },
+  "entity": {
+    "number": {
+      "range_warning_km": {"name": "Low range warning"},
+      "range_reset_km": {"name": "Low range reset"},
+      "home_soc_warning": {"name": "Home SOC warning"},
+      "home_soc_reset": {"name": "Home SOC reset"},
+      "home_delay_minutes": {"name": "Home charge reminder delay"},
+      "service_battery_warning": {"name": "12 V battery warning"},
+      "service_battery_reset": {"name": "12 V battery reset"},
+      "stale_home_hours": {"name": "Availability timeout at home"},
+      "stale_away_hours": {"name": "Availability timeout away"},
+      "probe_wait_minutes": {"name": "Availability probe wait"},
+      "charge_start_delay_minutes": {"name": "Charge start notification delay"}
+    },
+    "time": {
+      "quiet_start": {"name": "Quiet hours start"},
+      "quiet_end": {"name": "Quiet hours end"}
+    },
+    "switch": {
+      "notifications": {"name": "Notifications"},
+      "trip_reports": {"name": "Trip reports"},
+      "charge_reports": {"name": "Charge reports"},
+      "alerts": {"name": "Vehicle alerts"},
+      "wakeup_hourly": {"name": "Hourly wake-up"},
+      "wakeup_charging": {"name": "Wake-up while charging"},
+      "wakeup_probe": {"name": "Availability wake-up probe"},
+      "notify_recipient": {"name": "Notify recipient: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Wake vehicle now"},
+      "test_notification": {"name": "Test notification"},
+      "sync_server_history": {"name": "Sync server history"}
+    }
   }
 }
