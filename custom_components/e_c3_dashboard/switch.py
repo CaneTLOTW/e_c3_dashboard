@@ -21,13 +21,13 @@ from .notifications import (
 )
 
 _BASE_DETAILS = {
-    SWITCH_NOTIFICATIONS: ("Notifications", "mdi:bell-ring-outline"),
-    SWITCH_TRIP_REPORTS: ("Trip reports", "mdi:car-info"),
-    SWITCH_CHARGE_REPORTS: ("Charge reports", "mdi:ev-station"),
-    SWITCH_ALERTS: ("Vehicle alerts", "mdi:alert-outline"),
-    SWITCH_WAKEUP_HOURLY: ("Hourly wake-up", "mdi:car-clock"),
-    SWITCH_WAKEUP_CHARGING: ("Wake-up while charging", "mdi:battery-sync-outline"),
-    SWITCH_WAKEUP_PROBE: ("Availability wake-up probe", "mdi:access-point-check"),
+    SWITCH_NOTIFICATIONS: "mdi:bell-ring-outline",
+    SWITCH_TRIP_REPORTS: "mdi:car-info",
+    SWITCH_CHARGE_REPORTS: "mdi:ev-station",
+    SWITCH_ALERTS: "mdi:alert-outline",
+    SWITCH_WAKEUP_HOURLY: "mdi:car-clock",
+    SWITCH_WAKEUP_CHARGING: "mdi:battery-sync-outline",
+    SWITCH_WAKEUP_PROBE: "mdi:access-point-check",
 }
 
 
@@ -38,7 +38,7 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]
     manager = coordinator.notifications
     entities = [
-        Ec3NotificationSwitch(coordinator, entry, key, *_BASE_DETAILS[key])
+        Ec3NotificationSwitch(coordinator, entry, key, _BASE_DETAILS[key])
         for key in BASE_SWITCHES
     ]
     entities.extend(
@@ -46,8 +46,8 @@ async def async_setup_entry(
             coordinator,
             entry,
             manager.recipient_switch_key(recipient),
-            f"Notify recipient: {recipient.removeprefix('notify.')}",
             "mdi:account-bell-outline",
+            recipient=recipient.removeprefix("notify."),
         )
         for recipient in manager.recipients
     )
@@ -63,12 +63,22 @@ class Ec3NotificationSwitch(SwitchEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, coordinator, entry: ConfigEntry, key: str, name: str, icon: str) -> None:
+    def __init__(
+        self,
+        coordinator,
+        entry: ConfigEntry,
+        key: str,
+        icon: str,
+        *,
+        recipient: str | None = None,
+    ) -> None:
         self.coordinator = coordinator
         self.entry = entry
         self.manager = coordinator.notifications
         self.key = key
-        self._attr_name = name
+        self._attr_translation_key = "notify_recipient" if recipient else key
+        if recipient:
+            self._attr_translation_placeholders = {"recipient": recipient}
         self._attr_icon = icon
         self._attr_unique_id = f"{entry.entry_id}_{key}"
 
