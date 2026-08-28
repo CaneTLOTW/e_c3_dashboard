@@ -14,8 +14,8 @@ const constants = read("const.py");
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.46"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.46"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.47"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.47"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -24,7 +24,7 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.46"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.47"\)/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
@@ -67,6 +67,15 @@ test("GPS components are canonical cards, not Strategy wrappers", () => {
   assert.doesNotMatch(gps, /Strategy\.generate/);
   assert.doesNotMatch(gps, /originalGenerate/);
   assert.doesNotMatch(gps, /customElements\.define =/);
+});
+
+test("GPS uses the native HA period selector and bypasses the broken ha-map-card bridge", () => {
+  assert.match(gps, /type: "energy-date-selection"/);
+  assert.match(gps, /collection_key: this\._collectionKey/);
+  assert.match(gps, /disable_compare: true/);
+  assert.match(gps, /config\.history_date_selection = false/);
+  assert.match(gps, /filterGeoJsonByWindow/);
+  assert.match(gps, /earliestGeoJsonTime/);
 });
 
 test("only the documented third-party map shadow-DOM compatibility hook remains", () => {
