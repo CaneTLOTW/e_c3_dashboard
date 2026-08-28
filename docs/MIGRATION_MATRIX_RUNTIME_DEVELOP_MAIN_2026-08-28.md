@@ -1,176 +1,166 @@
 # e-C3 Dashboard – Migrationsmatrix Runtime / develop / main
 
 Stand: 2026-08-28
-Status: Analyse / keine Umsetzung
+Status: Branchbasis bereinigt / fachliche Migration weiterhin schrittweise
 
-Diese Matrix dokumentiert den bereits durchgeführten Vergleich zwischen der produktiven
-Home-Assistant-Runtime, dem Branch `develop`, dem Branch `main` des Repositories
-`CaneTLOTW/e_c3_dashboard` sowie der Legacy-Komponente `stellantis_drive_metrics`.
+Diese Matrix dokumentiert den Vergleich zwischen der produktiven
+Home-Assistant-Runtime, `develop`, `main` sowie der Legacy-Komponente
+`stellantis_drive_metrics`.
 
-Ziel ist, die spätere Konsolidierung **featureweise** durchzuführen und nicht erneut bei null
-anzufangen oder Branches blind zusammenzuführen.
+## Update 2026-08-28 – Branch-Historie bereinigt
 
-## Kernbefund
+Der frühere Git-Querstand ist behoben.
 
-Die produktive Heimdall-Runtime ist backendseitig weitgehend identisch mit `develop`.
-Die wichtigste Divergenz liegt aktuell zwischen `develop` und `main`.
+Vor dem Cleanup waren `main` und `develop` seit
+`2797c2eee414eb72c8fab3301f963f45422c1ad9` unabhängig weitergelaufen. Dabei
+waren mehrere fachlich identische Fixes mit unterschiedlichen Commit-SHAs auf
+beiden Branches gelandet. Beispiele:
 
-Die Branches sollen daher nicht pauschal gemerged werden. Stattdessen ist pro Funktion zu
-entscheiden, welche Variante fachlich der Sollstand ist.
+- `Clear stale charge power after charging ends`
+- `Finalize stale active charge after restart`
 
-## Versionsstände beim Audit
+Zusätzlich war der reaktive LIVE-Fahrzeugbild-Fix zeitweise nur auf `main`
+vorhanden.
 
-| Stand | Integration | Frontend |
-| --- | ---: | ---: |
-| Produktive Heimdall-Runtime | 0.5.31 | 0.5.31 |
-| `develop` | 0.5.26 | 0.5.29 |
-| `main` | 0.5.28 | 0.5.28 |
+Bereinigung:
 
-Die Versionsnummer allein beschreibt nicht die funktionale Reihenfolge der Branches.
+- der LIVE-Fahrzeugbild-Fix wurde gezielt auf den aktuellen `develop`-Stand
+  portiert;
+- `develop` behält seinen aktuellen Funktionsstand;
+- die Historie wurde mit `main` als zusätzlichem Parent zusammengeführt, ohne
+  den `develop`-Tree auf ältere Dateien zurückzusetzen;
+- GitHub meldet anschließend `main...develop = ahead`, nicht mehr `diverged`;
+- `main` blieb unverändert und ist wieder Vorfahr von `develop`.
+
+Historien-Reconcile:
+
+`6262612e43312e455a65afeb9c6a41b01004dd28`
+
+Deployment-Vertrag:
+
+`docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md`
+
+Maintenance Issue:
+
+`#15 [MAINT] develop/main-Historie bereinigen und Deployment-Vertrag festschreiben`
+
+Damit ist die **Branchbasis entschieden**. Die übrigen fachlichen eC3-Themen
+werden trotzdem weiterhin einzeln bewertet und nicht als pauschale
+Funktionsmigration freigegeben.
+
+## Aktuelle Branchrollen
+
+```text
+develop = Integration + reale HA-Abnahme / Canary
+main    = letzter akzeptierter/publizierbarer Stable-Stand
+```
+
+Neue Arbeit entsteht ausschließlich auf `develop`. Codex deployt den exakten
+`develop`-SHA. Nach Runtime-PASS und Maintainer-Abnahme wird genau dieser SHA
+per Fast-Forward nach `main` promotet und von dort released.
+
+## Versionsstände
+
+| Stand | Integration | Frontend | Rolle |
+| --- | ---: | ---: | --- |
+| produktive Heimdall-Runtime beim ursprünglichen Audit | 0.5.31 | 0.5.31 | damaliger Live-Stand |
+| aktueller `develop` Kandidat | 0.5.32 | 0.5.32 | Abnahme/Canary |
+| `main` | 0.5.28 | 0.5.28 | letzter Stable-Branchstand |
+
+Die Versionsnummern der historischen Runtime waren zeitweise weiter als die
+Repository-Metadaten von `develop`; der neue Kandidat ist deshalb bewusst auf
+0.5.32 ausgerichtet.
 
 ## Funktionsmatrix
 
-| Funktion / Bereich | Runtime | `develop` | `main` | Bewertung / Migrationshinweis |
+| Funktion / Bereich | Runtime-Audit | aktuelles `develop` | `main` Stable | Bewertung / nächster Schritt |
 | --- | --- | --- | --- | --- |
-| Config Flow / Fahrzeugzuordnung | gleich | gleich | gleich | kein Konflikt bekannt |
-| Automatisch erzeugtes e-C3-Dashboard | gleich | gleich | gleich | Basis beibehalten |
-| Entity-/Device-Registry-Mapping | gleich | gleich | gleich | keine kosmetische ID-Migration |
-| Status-Entity mit `entity_mapping` / `control_entities` / `metric_entities` | gleich | gleich | gleich | zentrale portable Mapping-Schicht |
-| Server-Fahrtenhistorie | gleich | gleich | gleich | beibehalten |
-| Server-Ladehistorie | gleich | gleich | gleich | beibehalten |
-| GPS-Historie / Server-Trip-Positionen | gleich | gleich | gleich | beibehalten |
-| restart-sichere lokale Fahr-/Lademetriken | gleich | gleich | gleich | beibehalten |
-| Trip-History Card | gleich | gleich | gleich | kein Konflikt bekannt |
-| Charge-History Card | develop-nah | develop-Stand | ältere/abweichende Variante | Verhalten einzeln vergleichen |
-| Charge-Curve Card | develop-nah | develop-Stand | ältere/abweichende Variante | develop-Verhalten derzeit produktiv |
-| Charge-Curve Auswahl ohne explizite Übergabe | neuester Ladevorgang | neuester Ladevorgang | alter `sessionStorage` kann ältere Auswahl festhalten | develop-Verhalten als wahrscheinlicher Sollstand |
-| Charge-History → Charge-Curve Übergabe | URL-/Session-Handoff vorhanden | vorhanden | vorhanden, aber Auswahlverhalten abweichend | beim Merge Regressionstest erforderlich |
-| Langzeitstatistik Aggregation | Woche | Woche | Monat | fachlich entscheiden; produktiv derzeit Woche |
-| Statistik-Legende | ausgeblendet | ausgeblendet | sichtbar | produktiv derzeit ausgeblendet |
-| LIVE Hero Fahrzeugbild bei spätem `entity_picture` | instabil / intermittierend leer | instabil / intermittierend leer | reaktiver Patch vorhanden | **Must-keep aus `main` oder sauber neu implementieren**; siehe Issue #5 |
-| transparenter Fahrzeugmarker auf Positionskarte im Dark Mode | vorhanden | vorhanden | vorhanden | behalten; vom Hero-Bildfix entkoppeln |
-| reaktive LIVE-Bildlogik und Marker-Fix getrennt | nein | nein | ja | `main` ist hier architektonisch weiter |
+| Config Flow / Fahrzeugzuordnung | gleich | aktuell | älter/kompatibel | kein Konflikt bekannt |
+| Automatisch erzeugtes e-C3-Dashboard | gleich | aktuell | älter/kompatibel | Basis beibehalten |
+| Entity-/Device-Registry-Mapping | gleich | aktuell | älter/kompatibel | keine kosmetische ID-Migration |
+| `entity_mapping` / `control_entities` / `metric_entities` | vorhanden | vorhanden | vorhanden | zentrale portable Mapping-Schicht |
+| Server-Fahrtenhistorie | vorhanden | vorhanden | vorhanden | beibehalten |
+| Server-Ladehistorie | vorhanden | vorhanden | vorhanden | beibehalten |
+| GPS-Historie / Server-Trip-Positionen | vorhanden | vorhanden | vorhanden | beibehalten |
+| restart-sichere lokale Fahr-/Lademetriken | vorhanden | vorhanden | vorhanden | beibehalten |
+| Trip-History Card | vorhanden | aktuell | älter | kein eigenständiger Merge nötig |
+| Charge-History Card | develop-nah | aktueller Sollkandidat | älter/abweichend | `develop` weiter runtime-validieren |
+| Charge-Curve Standardauswahl | neuester Ladevorgang | neuester Ladevorgang | historisch abweichend | `develop`-Verhalten beibehalten |
+| Langzeitstatistik Aggregation | Woche | Woche | Monat | aktuelle Produktentscheidung später separat bestätigen |
+| Statistik-Legende | ausgeblendet | ausgeblendet | sichtbar | aktuelle Produktentscheidung später separat bestätigen |
+| LIVE Hero bei spätem `entity_picture` | intermittierend leer | **reaktiver Fix implementiert** | reaktiver Fix historisch vorhanden | Issue #5 jetzt Runtime-validieren |
+| transparenter Map-Marker Dark Mode | vorhanden | vorhanden | vorhanden | muss beim #5-Test regressionsfrei bleiben |
 | Vehicle-Info-Popup | vorhanden | vorhanden | vorhanden | beibehalten |
-| View `vehicle` / Live | vorhanden | vorhanden | vorhanden | beibehalten |
-| View `trips` | im Code vorhanden | im Code vorhanden | im Code vorhanden | Nutzung/UX später separat bewerten |
-| View `charging` | vorhanden | vorhanden | vorhanden | beibehalten |
-| View `statistics` | vorhanden | vorhanden | vorhanden | Aggregation/Legende entscheiden |
-| auswählbare Vehicle-Overview-Card für andere Dashboards | **nicht vorhanden** | **nicht vorhanden** | **nicht vorhanden** | separates späteres Feature, noch nicht implementieren |
-| automatische Navigation einer externen Overview-Card auf das eigene eC3-Dashboard | nicht vorhanden | nicht vorhanden | nicht vorhanden | separates Feature |
+| auswählbare Vehicle-Overview-Card | nicht vorhanden | nicht vorhanden | nicht vorhanden | separates späteres Feature |
 
-## Runtime vs. `develop`
+## LIVE-Fahrzeugbild – aktueller Stand
 
-Beim Audit waren die wesentlichen Backend- und Frontenddateien zwischen produktiver Runtime
-und `develop` inhaltlich weitgehend identisch. Dazu gehörten insbesondere:
+Der relevante `main`-Vorsprung wurde gezielt übernommen, ohne einen alten
+Branchstand über `develop` zu legen.
 
-- `__init__.py`
-- Config Flow
-- Coordinator
-- Dashboard-Erzeugung
-- `metrics.py`
-- `sensor.py`
-- `server_history.py`
-- Notifications
-- Buttons / Switches
-- zentrale Dashboard-JS-Datei
-- Trip-History Card
-- Charge-History / Charge-Curve
-- Übersetzungen
+`develop` enthält jetzt:
 
-Die produktive Runtime enthält gegenüber dem damaligen `develop` vor allem:
+- tracker-gebundenes Hero-Bild;
+- `triggers_update` auf den realen `vehicle_tracker`;
+- echtes `<img>` statt statisch eingefrorenem Background;
+- Nachziehen eines verspäteten `entity_picture`;
+- synchrone Installation des Strategy-Patches bereits bei
+  `customElements.define`, damit auch der erste Lovelace-Render erfasst wird;
+- separaten, weiterhin opt-in Map-Marker-Transparency-Fix.
 
-- Versionsstand 0.5.31,
-- einen leicht überarbeiteten `map-marker-fix.js`.
+Relevante Commits:
 
-Daraus folgt:
+- `0e44a41a059457ae6bd8618b4f66a39328aedbb1`
+- `0f7a098847e0110793bdadbc971451ac5ea6cf7b`
+- `f313c47b24bfb8211878b4679c15f7057af28f4c`
 
-> Die spätere Migration ist **kein vollständiges Runtime→develop-Recovery-Projekt**.
-> Der Großteil der portablen Runtime-Funktionalität ist bereits in `develop` vorhanden.
+Issue #5 bleibt offen, bis der exakte `develop`-Kandidat in Browser und HA-App
+Light/Dark erfolgreich abgenommen wurde.
 
-## Wichtigste Divergenz `develop` vs. `main`
+## Was der Historien-Reconcile bewusst nicht bedeutet
 
-### Aus `develop` / produktiver Runtime unbedingt berücksichtigen
+Die Zusammenführung der Git-Historie ist **keine** automatische Freigabe aller
+eC3-Backlogpunkte.
 
-1. **Charge-Curve Standardauswahl**
-   - ohne explizite URL-Auswahl soll der neueste Ladevorgang angezeigt werden;
-   - ein alter `sessionStorage`-Wert soll nicht dauerhaft auf eine alte Kurve pinnen.
+Insbesondere weiterhin nicht automatisch:
 
-2. **Langzeitstatistik**
-   - aktuell Wochenaggregation statt Monatsaggregation;
-   - Legende aktuell ausgeblendet.
-
-Diese Punkte sind produktiv erprobt und dürfen bei einer Konsolidierung nicht unbemerkt auf
-älteres Verhalten zurückfallen.
-
-### Aus `main` unbedingt berücksichtigen
-
-#### Reaktives LIVE-Fahrzeugbild
-
-`main` enthält zusätzlich zum eigentlichen Map-Marker-Fix eine Nachbearbeitung des Live-Heros:
-
-- `vehicle_tracker` wird in `triggers_update` eingebunden,
-- statisches Background-Styling wird entfernt,
-- das Fahrzeugbild wird über ein tracker-gebundenes `<img>` gerendert,
-- `entity_picture` wird bei jedem Render erneut gelesen,
-- verspätet eintreffendes `entity_picture` kann dadurch automatisch nachgezogen werden.
-
-Dieser Fix adressiert das aktuelle produktive Problem, dass der Live-Hero beim Öffnen oft leer
-bleibt und erst nach F5 wieder ein Fahrzeugbild zeigt.
-
-Referenz: Issue #5.
+- `stellantis_drive_metrics` entfernen;
+- Entity-/Unique-IDs migrieren;
+- Stores/Baselines migrieren;
+- Statistik-UX endgültig ändern;
+- Vehicle-Overview-Card bauen;
+- Issues #8–#14 pauschal umsetzen.
 
 ## Legacy: `stellantis_drive_metrics`
 
-Die Legacy-Komponente ist derzeit **noch nicht migrationssicher entfernbar**.
-
-Sie liefert im Wesentlichen zwei eigene Kennwerte:
+Die Legacy-Komponente ist weiterhin nicht migrationssicher entfernbar.
 
 | Funktion | `stellantis_drive_metrics` | e-C3 Dashboard |
 | --- | --- | --- |
-| Durchschnittsverbrauch letzte 500 km | eigene persistierte Fahrtliste aus lokalen Abschluss-Events | eigener `VehicleMetricsManager`, lokale/Server-Historie und kanonische Fahrten |
-| Strecke seit letztem Ladevorgang | Legacy-Charge-Baseline + Recorder-Recovery | eC3-eigene Ladebaseline + Recorder-/Server-Reconciliation |
-| Entity-/Unique-ID | feste Legacy-IDs | Config-Entry-basierte eC3-IDs |
-| Persistenz | eigener HA Store | eigener eC3 HA Store / Server-History-Kanonisierung |
+| Durchschnittsverbrauch letzte 500 km | eigene persistierte Fahrtliste | `VehicleMetricsManager` + kanonische Fahrten |
+| Strecke seit letztem Ladevorgang | Legacy-Charge-Baseline + Recorder-Recovery | eC3-Baseline + Recorder-/Server-Reconciliation |
+| Entity-/Unique-ID | feste Legacy-IDs | Config-Entry-basierte IDs |
+| Persistenz | eigener HA Store | eC3 Store / Server-History |
 
-Die Mathematik des 500-km-Fensters ist ähnlich, aber die zugrunde liegenden Fahrten und
-Baselines entstehen nicht identisch. Beim Audit wurden deshalb auch unterschiedliche Live-Werte
-beobachtet.
+Die Mathematik ist ähnlich, die zugrunde liegenden Fahrten und Baselines sind
+aber nicht zwangsläufig identisch.
 
 ### Paritätsgate vor Entfernung
 
-`stellantis_drive_metrics` erst entfernen, wenn:
+- [ ] alle Legacy-Funktionen einem eC3-Ziel zugeordnet
+- [ ] Live-Werte über repräsentativen Zeitraum verglichen
+- [ ] Unterschiede fachlich erklärt
+- [ ] Entity-/Unique-ID-Migration geklärt
+- [ ] Recorder-Historie / Dashboards / Automationen geprüft
+- [ ] Charge-Baseline migrationssicher
+- [ ] alle Legacy-Konsumenten gefunden
 
-- [ ] alle Legacy-Funktionen einem eC3-Ziel eindeutig zugeordnet sind,
-- [ ] Live-Werte über einen repräsentativen Zeitraum verglichen wurden,
-- [ ] Unterschiede fachlich erklärt sind,
-- [ ] Entity-/Unique-ID-Migration geklärt ist,
-- [ ] Recorder-Historie / Dashboards / Automationen nicht verloren gehen,
-- [ ] Charge-Baseline sicher übernommen oder bewusst neu gesetzt wird,
-- [ ] alle Konsumenten der Legacy-Entities gefunden wurden.
+## Nächste eC3-Reihenfolge
 
-## Empfohlene spätere Entscheidungsreihenfolge
-
-Die Migration sollte **nicht** als ein großer Merge erfolgen, sondern Punkt für Punkt:
-
-1. Branchbasis und Zielstrategie festlegen.
-2. LIVE-Hero-Bildfix aus Issue #5 lösen und testen.
-3. Charge-Curve-Auswahl als Sollverhalten festlegen.
-4. Langzeitstatistik: Woche vs. Monat + Legendenentscheidung.
-5. Views/UX (`trips`, `charging`, `statistics`) einzeln bestätigen.
-6. Runtime-/develop/main-Dateiunterschiede erneut nach jedem Schritt reduzieren.
-7. Legacy-`stellantis_drive_metrics` erst anschließend mit Paritätsgate migrieren.
-8. Erst auf konsolidierter Basis neue Features wie die Vehicle-Overview-Card entwickeln.
-
-## Nicht Ziel dieser Matrix
-
-Diese Datei ist **keine Implementierungsfreigabe**.
-
-Insbesondere jetzt noch nicht:
-
-- Branches blind mergen,
-- `stellantis_drive_metrics` löschen,
-- Entity-/Unique-IDs ändern,
-- Stores/Baselines migrieren,
-- neue Vehicle-Overview-Card implementieren.
-
-Die Matrix dient als dauerhafte Entscheidungsgrundlage für die schrittweise Konsolidierung.
+1. Issue #5 gegen den exakten `develop`-SHA runtime-validieren.
+2. Bei PASS den Kandidaten reviewen; noch kein automatischer Stable-Release ohne
+   Maintainer-Abnahme.
+3. Später die offenen Produktentscheidungen aus Issue #7 einzeln behandeln.
+4. Legacy erst nach bestandenem Paritätsgate entfernen.
+5. Neue Features wie Vehicle-Overview erst auf dieser sauberen Branchbasis
+   entwickeln.
