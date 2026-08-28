@@ -18,6 +18,14 @@ Use this button to open the repository directly in HACS. It must be added as an
 - A generated vehicle dashboard with live vehicle state, range, battery/SOC,
   charging state, preconditioning controls, position, battery health, trip and
   charge history, charging curves and long-term statistics.
+- The LIVE hero exposes native Home Assistant More Info for range and for the
+  currently displayed temperature/charging value while preserving the compact
+  reference-dashboard pill layout.
+- Vehicle and maintenance details share one popup: maintenance is shown first,
+  followed by vehicle data; the former standalone vehicle-information card is
+  no longer duplicated in the Vehicle view.
+- Administrative controls are kept out of the Vehicle view: refresh/battery
+  correction settings and ABRP controls live in the System view.
 - A reusable compact Home Assistant card,
   `custom:e-c3-dashboard-vehicle-overview-card`, for dashboards such as a home
   or mobility overview. With one configured e-C3 entry it is zero-config.
@@ -49,8 +57,9 @@ type: custom:e-c3-dashboard-vehicle-overview-card
 
 It shows the same core mobility information as the LIVE hero: vehicle picture,
 range, temperature or charging information, preconditioning, cable/driving
-state and the battery/SOC bar. Tapping the vehicle opens the generated e-C3
-`/vehicle` view.
+state and the battery/SOC bar. Range and the right-hand status pill open native
+Home Assistant More Info for the value currently shown. Tapping the vehicle
+opens the generated e-C3 `/vehicle` view.
 
 ![Compact e-C3 vehicle overview card](docs/assets/vehicle-overview-card.webp)
 
@@ -114,8 +123,10 @@ Discussions are described in the [community guide](docs/COMMUNITY.en.md).
 
 ### Generated dashboard
 
-The automatically generated dashboard groups the vehicle state and controls on
-one side and usage, charging and vehicle information on the other. Additional
+The automatically generated dashboard keeps the Vehicle view focused on live
+vehicle state, usage, charging, history and vehicle information. The combined
+vehicle/maintenance popup is opened from the LIVE hero, while integration
+settings and ABRP configuration are grouped in the System view. Additional
 views provide trips, charging curves, GPS history and statistics.
 
 ![Generated e-C3 dashboard](docs/assets/dashboard-overview.webp)
