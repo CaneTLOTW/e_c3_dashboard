@@ -121,7 +121,6 @@ node --check custom_components/e_c3_dashboard/static/charge-history-card.js
 node --check custom_components/e_c3_dashboard/static/map-marker-fix.js
 node --check custom_components/e_c3_dashboard/static/gps-history-core.js
 node --check custom_components/e_c3_dashboard/static/gps-history-fix.js
-node --check custom_components/e_c3_dashboard/static/vehicle-overview-card.js
 node --test tests/*.test.mjs
 python3 -m json.tool hacs.json
 python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
