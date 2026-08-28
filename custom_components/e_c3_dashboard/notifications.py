@@ -19,7 +19,11 @@ from .const import CONF_VEHICLE_SLUG, DOMAIN, OPTION_NOTIFICATION_RECIPIENTS
 from .i18n import language_for, text
 
 _LOGGER = logging.getLogger(__name__)
-_STORE_VERSION = 2
+# The notification-store schema remains backwards-compatible: new settings and
+# markers are populated with setdefault during initialization. Keep the Store
+# major version at 1 so existing 0.5.45 data loads without requiring a Home
+# Assistant Store migration callback.
+_STORE_VERSION = 1
 
 SWITCH_NOTIFICATIONS = "notifications"
 SWITCH_TRIP_REPORTS = "trip_reports"
