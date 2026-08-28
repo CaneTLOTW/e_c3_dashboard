@@ -6,6 +6,7 @@ const REQUIRED_ELEMENTS = [
   ["layout-card", "layout-card"],
 ];
 const DEPENDENCY_GRACE_MS = 10000;
+const STRATEGY_REGISTRATION_DEADLINE_MS = 3000;
 
 const waitForElement = async ([tag, name]) => {
   if (customElements.get(tag)) return { tag, name, ready: true };
@@ -65,18 +66,37 @@ const installTransparentMapMarkerCompatibility = () => {
 installTransparentMapMarkerCompatibility();
 
 /*
- * Start package modules immediately. Only the dashboard Strategy itself waits
- * for external HACS custom elements. Existing-but-still-loading cards therefore
- * no longer produce a false missing-dependency page during the first reload.
+ * Start package modules and external-card readiness immediately, but never
+ * block registration of the Home Assistant dashboard Strategy for the full
+ * dependency grace period. HA itself waits only a bounded time for
+ * ll-strategy-dashboard-e-c3-dashboard; previously our 10 s dependency wait
+ * could consume that entire window and produce a Strategy registration timeout.
+ *
+ * Internal custom elements may safely finish after the Strategy registers:
+ * unresolved custom elements are upgraded automatically when their modules
+ * define them. External dependencies still get the 10 s readiness observation;
+ * the Strategy's own dependency check remains the user-facing fallback.
  */
-const packageModules = Promise.all([
-  import("./trip-history-card.js?v=0.5.40"),
-  import("./charge-history-card.js?v=0.5.40"),
-  import("./gps-history-card.js?v=0.5.40"),
-  import("./vehicle-overview-card.js?v=0.5.40"),
+const packageModules = Promise.allSettled([
+  import("./trip-history-card.js?v=0.5.41"),
+  import("./charge-history-card.js?v=0.5.41"),
+  import("./gps-history-card.js?v=0.5.41"),
+  import("./vehicle-overview-card.js?v=0.5.41"),
 ]);
 const dependencyReadiness = Promise.all(REQUIRED_ELEMENTS.map(waitForElement));
+const readinessGate = Promise.all([packageModules, dependencyReadiness]);
+const registrationDeadline = new Promise((resolve) => {
+  setTimeout(resolve, STRATEGY_REGISTRATION_DEADLINE_MS);
+});
 
-await packageModules;
-window.__ec3DashboardDependencyReadiness = await dependencyReadiness;
-await import("./e_c3_dashboard.js?v=0.5.40");
+await Promise.race([readinessGate, registrationDeadline]);
+await import("./e_c3_dashboard.js?v=0.5.41");
+
+packageModules.then((results) => {
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.error(`e-C3 Dashboard package module ${index + 1} failed to load`, result.reason);
+    }
+  });
+});
+window.__ec3DashboardDependencyReadiness = dependencyReadiness;
