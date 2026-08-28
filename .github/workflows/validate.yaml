@@ -11,6 +11,39 @@ permissions:
   contents: read
 
 jobs:
+  static:
+    name: Source and frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Compile Python
+        run: python3 -m py_compile custom_components/e_c3_dashboard/*.py
+      - name: Check frontend JavaScript
+        run: |
+          node --check custom_components/e_c3_dashboard/static/frontend.js
+          node --check custom_components/e_c3_dashboard/static/i18n.js
+          node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js
+          node --check custom_components/e_c3_dashboard/static/vehicle-overview-card.js
+          node --check custom_components/e_c3_dashboard/static/gps-history-card.js
+          node --check custom_components/e_c3_dashboard/static/gps-history-core.js
+          node --check custom_components/e_c3_dashboard/static/trip-history-card.js
+          node --check custom_components/e_c3_dashboard/static/charge-history-card.js
+          node --check custom_components/e_c3_dashboard/static/charge-history-core.js
+      - name: Run Node regression tests
+        run: node --test tests/*.test.mjs
+      - name: Validate JSON
+        run: |
+          python3 -m json.tool hacs.json >/dev/null
+          python3 -m json.tool custom_components/e_c3_dashboard/manifest.json >/dev/null
+      - name: Check whitespace errors
+        run: git diff --check HEAD^
+
   hacs:
     name: HACS validation
     runs-on: ubuntu-latest
