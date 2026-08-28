@@ -13,21 +13,28 @@ const constants = read("const.py");
 
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
-  assert.match(constants, /FRONTEND_VERSION = "0\.5\.41"/);
+  assert.match(constants, /FRONTEND_VERSION = "0\.5\.42"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.41"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.41"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.42"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.42"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
 
-test("dependency preflight cannot consume Home Assistant's strategy registration timeout", () => {
+test("dashboard Strategy registers before any dependency or package-card wait", () => {
+  const strategyImport = 'await import("./e_c3_dashboard.js?v=0.5.42");';
+  const packageStart = "const packageModules = Promise.allSettled([";
+  const dependencyStart = "const dependencyReadiness = Promise.all(REQUIRED_ELEMENTS.map(waitForElement));";
+
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
-  assert.match(frontend, /STRATEGY_REGISTRATION_DEADLINE_MS = 3000/);
-  assert.match(frontend, /Promise\.race\(\[readinessGate, registrationDeadline\]\)/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.41"\)/);
-  assert.doesNotMatch(frontend, /window\.__ec3DashboardDependencyReadiness = await dependencyReadiness/);
+  assert.ok(frontend.includes(strategyImport));
+  assert.ok(frontend.indexOf(strategyImport) < frontend.indexOf(packageStart));
+  assert.ok(frontend.indexOf(strategyImport) < frontend.indexOf(dependencyStart));
+  assert.match(frontend, /window\.__ec3DashboardDependencyReadiness = dependencyReadiness/);
+  assert.doesNotMatch(frontend, /STRATEGY_REGISTRATION_DEADLINE_MS/);
+  assert.doesNotMatch(frontend, /readinessGate/);
+  assert.doesNotMatch(frontend, /registrationDeadline/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
