@@ -54,10 +54,70 @@ export function dateWindow(value, now = new Date()) {
   };
 }
 
+function asDate(value) {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return new Date(value.getTime());
+  }
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+export function dateRangeWindow(startValue, endValue, now = new Date()) {
+  const current = asDate(now) || new Date();
+  const start = asDate(startValue);
+  const suppliedEnd = asDate(endValue);
+  if (!start || start.getTime() >= current.getTime()) {
+    return dateWindow(localDateKey(current), current);
+  }
+
+  let end = suppliedEnd || current;
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(start);
+    end.setDate(end.getDate() + 1);
+  }
+
+  const clampedEndMs = Math.min(end.getTime(), current.getTime());
+  const effectiveEndMs = clampedEndMs > start.getTime()
+    ? clampedEndMs
+    : Math.min(start.getTime() + 1, current.getTime());
+
+  return {
+    key: `${start.toISOString()}..${end.toISOString()}`,
+    isToday:
+      localDateKey(start) === localDateKey(current) &&
+      effectiveEndMs >= current.getTime(),
+    startMs: start.getTime(),
+    endMs: effectiveEndMs,
+    startIso: start.toISOString(),
+    endIso: new Date(effectiveEndMs).toISOString(),
+    historyEnd: end.getTime() >= current.getTime()
+      ? "now"
+      : new Date(effectiveEndMs).toISOString(),
+  };
+}
+
 function asTime(value) {
   if (typeof value !== "string" || !value.trim()) return null;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function earliestGeoJsonTime(geojson) {
+  if (!geojson || geojson.type !== "FeatureCollection" || !Array.isArray(geojson.features)) {
+    return null;
+  }
+  let earliest = null;
+  for (const feature of geojson.features) {
+    const properties = feature?.properties;
+    if (!properties || typeof properties !== "object") continue;
+    for (const value of [properties.start_time, properties.end_time]) {
+      const timestamp = asTime(value);
+      if (timestamp === null) continue;
+      if (earliest === null || timestamp < earliest) earliest = timestamp;
+    }
+  }
+  return earliest;
 }
 
 export function featureOverlapsWindow(feature, window) {
