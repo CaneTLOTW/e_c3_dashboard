@@ -27,29 +27,30 @@ DEFAULT_OPTIONS = {
     OPTION_GPS: True,
     OPTION_WAKEUP: True,
     OPTION_NOTIFICATIONS: False,
-    # Recipients are selected in the options flow. They remain disabled until
-    # explicitly enabled on the generated dashboard.
     OPTION_NOTIFICATION_RECIPIENTS: [],
-    # Dashboard query/display horizon only. Recorder retention remains under
-    # the user's global Home Assistant configuration.
     OPTION_HISTORY_HOURS: 2160,
 }
 
-FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.5.34"
+# Home Assistant knows exactly one package-owned Lovelace resource. All other
+# package modules are internal ES modules loaded by this entry point.
+FRONTEND_URL = "/e_c3_dashboard/frontend.js"
+FRONTEND_VERSION = "0.5.37"
 STATIC_VERSION = FRONTEND_VERSION
-FRONTEND_RESOURCE_URLS = (
+FRONTEND_RESOURCE_URLS = (FRONTEND_URL,)
+
+# Historical package-owned Resource entries that must disappear from Lovelace
+# storage when the consolidated frontend is installed. Static routes can still
+# exist for internal module imports; only the HA resource registration goes.
+LEGACY_FRONTEND_RESOURCE_URLS = (
+    "/e_c3_dashboard/e_c3_dashboard.js",
     "/e_c3_dashboard/map-marker-fix.js",
     "/e_c3_dashboard/gps-history-fix.js",
     "/e_c3_dashboard/trip-history-card.js",
     "/e_c3_dashboard/charge-history-card.js",
-    FRONTEND_URL,
+    "/e_c3_dashboard/live-vehicle-picture-fix.js",
+    "/e_c3_dashboard/vehicle-overview-card.js",
 )
 
-# A URL check is only a setup preflight: a browser is the authority on whether
-# a module actually loaded and registered its custom element. Keep the names
-# and URL fragments together so the config flow and browser strategy report
-# the same required cards.
 REQUIRED_DASHBOARD_CARDS = (
     ("Bubble Card", "bubble-card", "bubble-card"),
     ("Button Card", "button-card", "button-card"),
