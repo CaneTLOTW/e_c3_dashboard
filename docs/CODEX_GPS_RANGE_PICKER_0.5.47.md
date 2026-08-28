@@ -19,44 +19,66 @@ It also keeps an explicit **All** action for the complete available GPS archive.
 - Accepted `main`: `ba1f59650fd670b613c5073f4b8f99d9a10c9fdc` / 0.5.45.
 - Parent `develop` before this GPS delta:
   `2f00e3442c0fc8e19e7cb8414856a163c3ade7b5` / 0.5.46.
-- Important: 0.5.46 contains the notification rework from
-  `CaneTLOTW/e_c3_dashboard#23`, but its runtime acceptance is still blocked.
-  During the first controlled restart HA became unreachable; Codex restored the
-  previous eC3 runtime package and intentionally did not issue further blind
-  restarts.
+- 0.5.46 contains the notification rework from
+  `CaneTLOTW/e_c3_dashboard#23`, but Codex could not complete its runtime
+  acceptance: after the first controlled restart Home Assistant stopped
+  responding and Codex restored the previous package rather than issuing blind
+  restart loops.
 
 Do not describe 0.5.46 or 0.5.47 as runtime-validated until the exact SHA is
 actually running and the checks below have passed.
 
+## Important 0.5.46 startup correction included in 0.5.47
+
+The restart blocker exposed one concrete compatibility defect in the 0.5.46
+source that must be removed before another runtime attempt.
+
+0.5.45 used notification Store major version **1**. 0.5.46 changed
+`_STORE_VERSION` to **2**, although its new notification settings/markers are
+backwards-compatible and are already populated with `setdefault()` during
+initialization. Home Assistant's `Store` requires a migration callback when the
+major version changes; without one an existing v1 store cannot be loaded.
+
+0.5.47 therefore deliberately keeps `_STORE_VERSION = 1` and adds a regression
+test. This is a source-level correction based on Home Assistant's Store
+contract. It is a plausible contributor to the failed 0.5.46 config-entry
+startup, but it is **not** sufficient evidence to claim it caused the complete
+8123 outage. Codex must still capture Core/Supervisor evidence if the runtime
+fails again.
+
+Do not delete or manually rewrite the user's notification Store. The existing
+v1 file should load and gain missing keys through the normal initialization
+path.
+
 ## Why the native picker is restored this way
 
-The previous eC3 GPS implementation replaced the old range selector with a
-package-owned single-day `<input type="date">`. That fixed the full-archive
-overlay bug, but regressed multi-day selection and changed the UI.
-
-The desired control is Home Assistant's own Lovelace card:
+The old working KFZ dashboard used exactly:
 
 ```yaml
 type: energy-date-selection
 ```
 
-The eC3 date wrapper now instantiates that exact native card and assigns a
-dedicated `collection_key` beginning with `energy_`, isolated per eC3 config
-entry. The package does not reimplement Home Assistant's day/week/month/custom
-range picker.
+The interim eC3 GPS implementation replaced that Home Assistant control with a
+package-owned single-day `<input type="date">`. That fixed the full-archive
+overlay bug, but regressed multi-day selection and changed the UI.
+
+The eC3 date wrapper now instantiates the same native HA
+`energy-date-selection` card again and assigns a dedicated `collection_key`
+beginning with `energy_`, isolated per eC3 config entry. The package does **not**
+reimplement Home Assistant's day/week/month/custom-range picker.
 
 Do **not** re-enable `ha-map-card`'s `history_date_selection: true` bridge.
-There is an open upstream regression for HA 2026.4+ where that bridge no longer
+There is an upstream regression for HA 2026.4+ where that bridge no longer
 follows the date picker (`nathan-gs/ha-map-card#185`). The eC3 wrapper therefore
 reads the same Home Assistant energy collection directly and applies its
 `start`/`end` interval itself.
 
-This gives the user the native HA day/week/month/custom-range UX while keeping
-the package independent of the broken map-card bridge.
+This restores the familiar native HA period selector while avoiding the broken
+map-card date bridge.
 
 ## Canonical implementation
 
-Changed files are intentionally narrow:
+Changed files for the GPS feature are intentionally narrow:
 
 - `custom_components/e_c3_dashboard/static/gps-history-card.js`
 - `custom_components/e_c3_dashboard/static/gps-history-core.js`
@@ -67,12 +89,17 @@ Changed files are intentionally narrow:
 - `tests/frontend-architecture.test.mjs`
 - `tests/dashboard-naming.test.mjs`
 
+The inherited 0.5.46 startup compatibility correction additionally touches:
+
+- `custom_components/e_c3_dashboard/notifications.py`
+- `tests/notification-storage.test.mjs`
+
 No change is intended in:
 
 - the Strategy's vehicle/Hero rendering;
 - `vehicle-overview-card.js`;
 - loader/bootstrap logic other than cache-version strings;
-- notification logic from 0.5.46;
+- notification behavior/threshold logic beyond Store compatibility;
 - GPS backend/store contents;
 - canonical trip history.
 
@@ -89,15 +116,15 @@ For every selected HA period:
 
 ### All-history action
 
-The small **All** action beside the native selector does not introduce a
-separate map mode. It simply sets the same native HA period collection to:
+The small **All** action beside the native selector does not introduce a second
+map mode. It sets the same native HA period collection to:
 
 - start: local midnight of the earliest timestamp in the canonical server GPS
   GeoJSON;
 - end: current day.
 
 The standard HA selector should therefore display a custom range after **All**
-is selected. Recorder naturally contributes only the history it still retains;
+is selected. Recorder naturally contributes only history it still retains;
 server history contributes the complete available canonical GPS archive.
 
 ## Repository validation
@@ -119,31 +146,51 @@ Also confirm GitHub Validate is fully green for the exact candidate SHA.
 
 ## Runtime sequence — account for the 0.5.46 restart blocker
 
-1. **First establish HA health before touching the package.**
+1. **Establish HA health before touching the package.**
    - Port 8123/UI reachable.
    - Supervisor/Core status sensible.
    - Record the currently served eC3 runtime version/SHA if recoverable.
-2. If the CLI/API path is working, run `ha core check` before any restart.
-3. Take/retain an eC3 package-only rollback copy before sync.
-4. Synchronize only `custom_components/e_c3_dashboard` from the exact candidate.
-5. Verify the Lovelace package resource is the candidate cache version.
-6. Use one controlled reload/restart only if required by the backend platform
+2. Inspect the existing package notification Store metadata **read-only** if
+   practical. A v1 store is expected and must not be deleted.
+3. If the CLI/API path is working, run `ha core check` before any restart.
+4. Take/retain an eC3 package-only rollback copy before sync.
+5. Synchronize only `custom_components/e_c3_dashboard` from the exact candidate.
+6. Verify the Lovelace package resource is `/e_c3_dashboard/frontend.js?v=0.5.47`.
+7. Use one controlled reload/restart only if required by the backend platform
    delta inherited from 0.5.46.
-7. If HA again becomes unavailable:
+8. If HA again becomes unavailable:
    - do not issue repeated blind restarts;
    - capture sanitized Core/Supervisor evidence first where possible;
+   - explicitly check for eC3 config-entry setup/Store/platform exceptions;
    - restore only the eC3 package from the known rollback copy;
    - report `BLOCKED_RUNTIME` and STOP.
 
-If 0.5.46 can be runtime-validated separately before deploying 0.5.47, do so.
-That isolates the notification/backend delta from the GPS frontend delta.
+Because 0.5.47 includes the Store compatibility correction, it is acceptable to
+test the combined exact candidate directly. In the result, however, distinguish
+backend/notification setup from GPS frontend acceptance so a failure can still
+be localized.
+
+## Notification/backend smoke acceptance inherited from #23
+
+Before judging GPS, first prove that the 0.5.46 backend delta now starts safely:
+
+1. Home Assistant comes back and remains reachable.
+2. e-C3 config entry reaches loaded/ready state; no false "Einrichtung
+   erforderlich" page after entities settle.
+3. Existing notification switches/state survive the upgrade.
+4. New package-owned number/time controls exist.
+5. Existing v1 notification Store loads without migration exception.
+6. No push or wake-up is triggered merely by deployment/restart.
+
+Do not attempt to manufacture a real warning condition just for this GPS
+acceptance run.
 
 ## GPS acceptance
 
 Browser plus HA app where practical:
 
 1. GPS view shows the **native Home Assistant period/date-range selector**, not
-   the old eC3 single-day browser `<input type="date">`.
+   the interim eC3 single-day browser `<input type="date">`.
 2. Day selection works.
 3. A free multi-day range (for example 2–3 days) works.
 4. Native presets such as week/month work if offered by the installed HA
@@ -162,7 +209,9 @@ data into the repository or Issue.
 
 ## Result format
 
-Post to `CaneTLOTW/e_c3_dashboard#16`:
+Post backend/notification findings to `CaneTLOTW/e_c3_dashboard#23` and GPS
+acceptance to `CaneTLOTW/e_c3_dashboard#16`. The same exact candidate SHA must
+be named in both.
 
 ```md
 ## Codex → ChatGPT Ergebnis
@@ -173,9 +222,11 @@ Post to `CaneTLOTW/e_c3_dashboard#16`:
 ### Runtime
 - exact SHA / version actually served
 - HA health/restart result
+- e-C3 config-entry result
 
 ### Validated
 - repository checks
+- notification Store/platform smoke test
 - native date-range selector
 - day/range/All behavior
 - Recorder/server range synchronization
