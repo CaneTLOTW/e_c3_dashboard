@@ -26,8 +26,9 @@ class NotificationSettingNumber(NumberEntity):
 
     def __init__(self, coordinator, entry, key: str) -> None:
         self.coordinator, self.entry, self.key = coordinator, entry, key
-        name, icon, minimum, maximum, step = SETTING_META[key]
-        self._attr_name, self._attr_icon = name, icon
+        _name, icon, minimum, maximum, step = SETTING_META[key]
+        self._attr_translation_key = key
+        self._attr_icon = icon
         self._attr_native_min_value, self._attr_native_max_value = minimum, maximum
         self._attr_native_step = step
         self._attr_native_unit_of_measurement = "min" if "minutes" in key else ("h" if "hours" in key else ("%" if "soc" in key or "battery" in key else "km"))
@@ -39,6 +40,14 @@ class NotificationSettingNumber(NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         await self.coordinator.notifications.async_set_setting(self.key, float(value))
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "integration_domain": DOMAIN,
+            "entry_id": self.entry.entry_id,
+            "notification_setting_key": self.key,
+        }
 
     @property
     def device_info(self) -> DeviceInfo:
