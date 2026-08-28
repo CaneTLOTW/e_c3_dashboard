@@ -20,16 +20,59 @@ const waitForElement = async ([tag, name]) => {
 };
 
 /*
- * Start package modules immediately.  Only the dashboard Strategy itself is
- * held until external HACS custom elements had a fair chance to register.
- * This removes the old reload race where an installed card was reported as
- * missing merely because its module was still loading.
+ * Narrow third-party compatibility shim: ha-map-card owns the marker shadow
+ * DOM, so dashboard CSS cannot make only our picture marker transparent.
+ * This is intentionally the only runtime prototype hook in the package and is
+ * scoped by --ec3-transparent-picture-marker:1. It never touches the LIVE hero
+ * or dashboard Strategy.
+ */
+const installTransparentMapMarkerCompatibility = () => {
+  const tag = "map-card-entity-marker";
+  const property = "--ec3-transparent-picture-marker";
+  const flag = Symbol.for("e_c3_dashboard.transparent_picture_marker");
+  const apply = (host) => {
+    if (host?.style?.getPropertyValue(property)?.trim() !== "1") return;
+    const marker = host.shadowRoot?.querySelector(".marker.picture");
+    if (!marker) return;
+    marker.style.setProperty("background", "transparent", "important");
+    marker.style.setProperty("background-color", "transparent", "important");
+  };
+
+  customElements.whenDefined(tag).then(() => {
+    const MarkerClass = customElements.get(tag);
+    if (!MarkerClass || MarkerClass.prototype[flag]) return;
+
+    const connected = MarkerClass.prototype.connectedCallback;
+    MarkerClass.prototype.connectedCallback = function (...args) {
+      const result = connected?.apply(this, args);
+      queueMicrotask(() => apply(this));
+      return result;
+    };
+
+    const updated = MarkerClass.prototype.updated;
+    MarkerClass.prototype.updated = function (...args) {
+      const result = updated?.apply(this, args);
+      apply(this);
+      queueMicrotask(() => apply(this));
+      return result;
+    };
+
+    Object.defineProperty(MarkerClass.prototype, flag, { value: true });
+    document.querySelectorAll(tag).forEach(apply);
+  });
+};
+
+installTransparentMapMarkerCompatibility();
+
+/*
+ * Start package modules immediately. Only the dashboard Strategy itself waits
+ * for external HACS custom elements. Existing-but-still-loading cards therefore
+ * no longer produce a false missing-dependency page during the first reload.
  */
 const packageModules = Promise.all([
   import("./trip-history-card.js?v=0.5.37"),
   import("./charge-history-card.js?v=0.5.37"),
-  import("./gps-history-fix.js?v=0.5.34"),
-  import("./map-marker-fix.js?v=0.5.34"),
+  import("./gps-history-card.js?v=0.5.37"),
   import("./vehicle-overview-card.js?v=0.5.37"),
 ]);
 const dependencyReadiness = Promise.all(REQUIRED_ELEMENTS.map(waitForElement));
