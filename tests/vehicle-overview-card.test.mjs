@@ -19,6 +19,23 @@ test("vehicle overview ports the existing button-card layout", () => {
   assert.match(source, /kfzBatteryDrivePulse/);
 });
 
+test("range and right status use nested native button-card more-info pills", () => {
+  assert.match(source, /range: \{\s*card: \{[\s\S]*type: "custom:button-card"/);
+  assert.match(source, /entity: autonomy/);
+  assert.match(source, /icon: "mdi:map-marker-distance"/);
+  assert.match(source, /tap_action: \{ action: "more-info" \}/);
+  assert.match(source, /right_status: \{\s*card: \{/);
+  assert.match(source, /entity: rightStatusEntity/);
+  assert.match(source, /const rightStatusEntity/);
+  assert.match(source, /entity\?\.entity_id/);
+});
+
+test("hero creates a local stacking context without changing picture lifecycle", () => {
+  assert.match(source, /isolation: "isolate"/);
+  assert.match(source, /\{ "z-index": 0 \}/);
+  assert.match(source, /vehiclePicture \? `url/);
+});
+
 test("vehicle overview resolves every household value through the config-entry mapping", () => {
   for (const key of [
     "battery",

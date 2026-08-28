@@ -88,6 +88,12 @@ function buildConfig(hass, config, statusState) {
   const tripEnergy = metricEntity(hass, attributes, "current_trip_energy");
   const vehicleInfo = metricEntity(hass, attributes, "vehicle_info");
   const navigationPath = liveVariant ? undefined : dashboardPath(attributes, config.navigation_path);
+  const chargingState = charging ? hass.states?.[charging]?.state === "on" : false;
+  const rightStatusEntity = chargingState && chargingEnd && hass.states?.[chargingEnd]
+    ? chargingEnd
+    : chargingState
+      ? charging
+      : temperature;
 
   const trackedEntities = [
     battery,
@@ -122,6 +128,8 @@ function buildConfig(hass, config, statusState) {
     styles: {
       card: [
         { position: "relative" },
+        { isolation: "isolate" },
+        { "z-index": 0 },
         { height: "270px" },
         { overflow: "hidden" },
         { "border-radius": "12px" },
@@ -135,15 +143,9 @@ function buildConfig(hass, config, statusState) {
       custom_fields: {
         range: [
           { position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 10 },
-          { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
-          { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
-          { "white-space": "nowrap" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" },
         ],
         right_status: [
           { position: "absolute" }, { top: "12px" }, { right: showInfo ? "50px" : "12px" }, { "z-index": 10 },
-          { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
-          { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
-          { "text-align": "right" }, { "white-space": "nowrap" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" },
         ],
         info: [
           { position: "absolute" }, { top: "10px" }, { right: "10px" }, { "z-index": 21 },
@@ -180,34 +182,62 @@ function buildConfig(hass, config, statusState) {
       },
     },
     custom_fields: {
-      range: `[[[
-        const e = states[${literal(autonomy)}];
-        if (!e || ['unknown','unavailable'].includes(e.state) || !Number.isFinite(Number(e.state))) {
-          return '<ha-icon icon="mdi:map-marker-distance" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> -- km';
-        }
-        return '<ha-icon icon="mdi:map-marker-distance" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> ' + Math.round(Number(e.state)) + ' km';
-      ]]]`,
-      right_status: `[[[
-        const isCharging = states[${literal(charging)}]?.state === 'on';
-        if (isCharging) {
-          const end = states[${literal(chargingEnd)}];
-          const raw = String(end?.state ?? '').trim();
-          let endText = '';
-          if (raw && !['unknown','unavailable','none'].includes(raw.toLowerCase())) {
-            const parsed = new Date(raw);
-            endText = Number.isNaN(parsed.getTime())
-              ? (/^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : raw)
-              : String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0');
-          }
-          if (endText) return '<ha-icon icon="mdi:clock-end" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> bis ' + endText;
-          return '<ha-icon icon="mdi:battery-charging" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> Lädt';
-        }
-        const temp = states[${literal(temperature)}];
-        if (!temp || ['unknown','unavailable'].includes(temp.state) || !Number.isFinite(Number(temp.state))) {
-          return '<ha-icon icon="mdi:thermometer" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> -- °C';
-        }
-        return '<ha-icon icon="mdi:thermometer" style="width:16px;height:16px;vertical-align:-3px;"></ha-icon> ' + temp.state + ' ' + (temp.attributes?.unit_of_measurement || '°C');
-      ]]]`,
+      range: {
+        card: {
+          type: "custom:button-card",
+          entity: autonomy,
+          icon: "mdi:map-marker-distance",
+          show_name: false,
+          show_state: true,
+          tap_action: { action: "more-info" },
+          hold_action: { action: "more-info" },
+          state_display: `[[[ return entity && Number.isFinite(Number(entity.state)) ? Math.round(Number(entity.state)) + ' km' : '-- km'; ]]]`,
+          styles: {
+            card: [
+              { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
+              { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
+              { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" }, { border: "none" }, { "box-shadow": "none" },
+            ],
+            grid: [{ "grid-template-areas": "'i s'" }, { "grid-template-columns": "16px auto" }, { gap: "4px" }],
+            icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }],
+            state: [{ "font-size": "12px" }, { color: "white" }],
+          },
+        },
+      },
+      right_status: {
+        card: {
+          type: "custom:button-card",
+          entity: rightStatusEntity,
+          show_name: true,
+          show_state: false,
+          show_icon: true,
+          icon: `[[[ return ${chargingState ? "entity?.entity_id === " + literal(chargingEnd) : "false"} ? 'mdi:clock-end' : ${chargingState ? "'mdi:battery-charging'" : "'mdi:thermometer'"}; ]]]`,
+          name: `[[[
+            const raw = String(entity?.state ?? '').trim();
+            if (${chargingState ? "true" : "false"}) {
+              if (raw && !['unknown','unavailable','none'].includes(raw.toLowerCase())) {
+                const parsed = new Date(raw);
+                const end = Number.isNaN(parsed.getTime()) ? (/^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : raw) : String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0');
+                return 'bis ' + end;
+              }
+              return 'Lädt';
+            }
+            return entity && Number.isFinite(Number(raw)) ? raw + ' ' + (entity.attributes?.unit_of_measurement || '°C') : '-- °C';
+          ]]]`,
+          tap_action: { action: "more-info" },
+          hold_action: { action: "more-info" },
+          styles: {
+            card: [
+              { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
+              { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
+              { "text-align": "right" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" }, { border: "none" }, { "box-shadow": "none" },
+            ],
+            grid: [{ "grid-template-areas": "'i n'" }, { "grid-template-columns": "16px auto" }, { gap: "4px" }],
+            icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }],
+            name: [{ "font-size": "12px" }, { color: "white" }],
+          },
+        },
+      },
       info: showInfo ? {
         card: {
           type: "custom:button-card",
