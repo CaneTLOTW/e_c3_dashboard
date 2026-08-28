@@ -343,24 +343,6 @@ class Ec3DashboardStrategy extends HTMLElement {
       ? `${vehiclePicture}${vehiclePicture.includes("?") ? "&" : "?"}v=3`
       : undefined;
 
-    const heroChipStyles = {
-      card: [
-        { height: "26px" }, { "min-height": "26px" }, { padding: "0 9px" }, { margin: 0 },
-        { border: "none" }, { "border-radius": "14px" }, { "box-shadow": "none" },
-        { background: "rgba(20,20,20,0.62)" }, { color: "white" }, { cursor: "pointer" },
-        { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" },
-      ],
-      grid: [
-        { "grid-template-areas": "'i n'" }, { "grid-template-columns": "16px auto" },
-        { "column-gap": "4px" }, { "align-items": "center" }, { "justify-content": "center" },
-      ],
-      icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }, { margin: 0 }, { padding: 0 }],
-      name: [
-        { margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 },
-        { "line-height": "16px" }, { "white-space": "nowrap" }, { color: "white" },
-      ],
-    };
-
     const vehicleInfoEntity = metric("vehicle_info");
     const vehicleInfoPopupCard = vehicleInfoEntity ? {
       type: "custom:bubble-card",
@@ -395,160 +377,17 @@ class Ec3DashboardStrategy extends HTMLElement {
       ],
     } : null;
 
-    const vehicleInfoButton = vehicleInfoEntity ? {
-      card: {
-        type: "custom:button-card",
-        entity: vehicleInfoEntity,
-        show_name: false,
-        show_state: false,
-        show_icon: true,
-        icon: "mdi:information-outline",
-        tap_action: { action: "navigate", navigation_path: "#e-c3-vehicle-info" },
-        hold_action: { action: "navigate", navigation_path: "#e-c3-vehicle-info" },
-        styles: {
-          card: [
-            { width: "30px" }, { height: "30px" }, { "min-height": "30px" }, { padding: 0 },
-            { margin: 0 }, { "border-radius": "50%" }, { border: "none" },
-            { background: "rgba(20,20,20,0.72)" }, { color: "white" },
-            { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" },
-          ],
-          icon: [{ width: "18px" }, { height: "18px" }, { color: "white" }],
-        },
-      },
-    } : null;
-
     /*
-     * The LIVE picture is part of the canonical hero configuration. The old
-     * map-marker compatibility module no longer post-processes this card.
-     * button-card reevaluates this style whenever the tracker changes, so a
-     * late entity_picture becomes visible without rebuilding the Strategy/F5.
+     * LIVE and the reusable start-page card intentionally share one component.
+     * The wrapper owns entity-picture lifecycle/rebuild handling, so entering
+     * this view through normal Home Assistant navigation behaves exactly like
+     * the already validated standalone overview card.
      */
     const hero = tracker && entity("battery") ? {
-      type: "custom:button-card",
-      entity: entity("battery"),
-      triggers_update: [tracker],
-      show_name: false,
-      show_state: false,
-      show_icon: false,
-      tap_action: { action: "none" },
+      type: "custom:e-c3-dashboard-vehicle-overview-card",
+      entry_id: attributes.entry_id,
+      variant: "live",
       grid_options: { columns: "full", rows: 4.5 },
-      styles: {
-        card: [
-          { position: "relative" }, { height: "270px" }, { overflow: "hidden" },
-          { "border-radius": "12px" }, { padding: 0 }, { background: "transparent !important" },
-          { "background-color": "transparent !important" }, { "--ha-card-background": "transparent" },
-          { "--card-background-color": "transparent" }, { "box-shadow": "none !important" },
-          { "background-image": `[[[
-            const picture = states[${JSON.stringify(tracker)}]?.attributes?.entity_picture;
-            return picture ? 'url(' + JSON.stringify(String(picture)) + ')' : 'none';
-          ]]]` },
-          { "background-repeat": "no-repeat" }, { "background-size": "100% auto" },
-          { "background-position": "center 54%" },
-        ],
-        custom_fields: {
-          range: [{ position: "absolute" }, { top: "12px" }, { left: "12px" }, { "z-index": 20 }],
-          right_status: [{ position: "absolute" }, { top: "12px" }, { right: "50px" }, { "z-index": 20 }],
-          info: [{ position: "absolute" }, { top: "10px" }, { right: "10px" }, { "z-index": 21 }],
-          climate: [
-            { position: "absolute" }, { top: "48px" }, { left: "12px" }, { "z-index": 10 },
-            { width: "28px" }, { height: "28px" }, { "border-radius": "50%" }, { color: "white" },
-            { "align-items": "center" }, { "justify-content": "center" },
-            { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" },
-            { background: `[[[ const t=states["${entity("temperature")}"]; return !t || ['unknown','unavailable'].includes(t.state) || !Number.isFinite(Number(t.state)) ? 'rgba(90,90,90,0.88)' : Number(t.state)>20 ? 'rgba(33,150,243,0.88)' : 'rgba(244,67,54,0.88)'; ]]]` },
-            { display: `[[[ return states["${entity("preconditioning")}"]?.state === 'on' ? 'flex' : 'none'; ]]]` },
-          ],
-          cable: [
-            { position: "absolute" }, { top: "48px" }, { right: "12px" }, { "z-index": 10 },
-            { width: "28px" }, { height: "28px" }, { "border-radius": "50%" },
-            { background: "rgba(76,175,80,0.88)" }, { color: "white" }, { "align-items": "center" },
-            { "justify-content": "center" }, { "box-shadow": "0 1px 4px rgba(0,0,0,0.22)" },
-            { display: `[[[ return states["${entity("battery_plugged")}"]?.state === 'on' ? 'flex' : 'none'; ]]]` },
-          ],
-          driving: [
-            { position: "absolute" }, { top: "115px" }, { left: "140px" }, { transform: "translateX(-50%)" },
-            { "z-index": 10 }, { width: "30px" }, { height: "30px" }, { "min-width": "30px" },
-            { "min-height": "30px" }, { padding: 0 }, { margin: 0 }, { "box-sizing": "border-box" },
-            { "border-radius": "50%" }, { background: "rgba(76,175,80,0.92)" }, { color: "white" },
-            { "align-items": "center" }, { "justify-content": "center" }, { "line-height": 0 },
-            { "box-shadow": "0 1px 4px rgba(0,0,0,0.28)" },
-            { display: `[[[ return states["${entity("engine")}"]?.state === 'on' ? 'flex' : 'none'; ]]]` },
-          ],
-          battery: [{ position: "absolute" }, { left: "12px" }, { right: "12px" }, { bottom: "10px" }, { width: "auto" }, { "z-index": 10 }],
-        },
-      },
-      custom_fields: {
-        range: {
-          card: {
-            type: "custom:button-card",
-            entity: entity("autonomy"),
-            show_icon: true,
-            show_name: true,
-            show_state: false,
-            icon: "mdi:map-marker-distance",
-            tap_action: { action: "more-info" },
-            hold_action: { action: "more-info" },
-            name: `[[[ const e=states["${entity("autonomy")}"]; return e && !['unknown','unavailable'].includes(e.state) && Number.isFinite(Number(e.state)) ? Math.round(Number(e.state)) + ' km' : '-- km'; ]]]`,
-            styles: heroChipStyles,
-          },
-        },
-        right_status: {
-          card: {
-            type: "custom:button-card",
-            entity: entity("temperature"),
-            show_icon: true,
-            show_name: true,
-            show_state: false,
-            icon: `[[[ const charging=states["${entity("battery_charging")}"]?.state==='on'; const end=states["${entity("battery_charging_end")}"]; return charging && end && !['unknown','unavailable','none',''].includes(end.state) ? 'mdi:clock-end' : charging ? 'mdi:battery-charging' : 'mdi:thermometer'; ]]]`,
-            name: `[[[
-              const charging=states["${entity("battery_charging")}"]?.state==='on';
-              const end=states["${entity("battery_charging_end")}"];
-              const formatClock=(value)=>{ const raw=String(value??'').trim(); if(!raw || ['unknown','unavailable','none'].includes(raw.toLowerCase())) return ''; const parsed=new Date(raw); if(Number.isNaN(parsed.getTime())) return /^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5,'0') : ''; return String(parsed.getHours()).padStart(2,'0')+':'+String(parsed.getMinutes()).padStart(2,'0'); };
-              if(charging){ const endText=formatClock(end?.state); return endText ? '${language(hass) === "de" ? "bis" : "until"} '+endText : '${language(hass) === "de" ? "Lädt" : "Charging"}'; }
-              const temp=states["${entity("temperature")}"]; return temp && !['unknown','unavailable'].includes(temp.state) && Number.isFinite(Number(temp.state)) ? temp.state+' '+(temp.attributes?.unit_of_measurement||'°C') : '-- °C';
-            ]]]`,
-            tap_action: { action: "more-info" },
-            hold_action: { action: "more-info" },
-            styles: heroChipStyles,
-          },
-        },
-        info: vehicleInfoButton,
-        climate: `[[[ const temp=states["${entity("temperature")}"]; const icon=temp && !['unknown','unavailable'].includes(temp.state) && Number(temp.state)<=20 ? 'mdi:radiator' : 'mdi:air-conditioner'; return '<ha-icon icon="'+icon+'" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>'; ]]]`,
-        cable: '<ha-icon icon="mdi:ev-plug-type2" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>',
-        driving: '<ha-icon icon="mdi:lightning-bolt" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>',
-        battery: {
-          card: {
-            type: "custom:button-card",
-            entity: entity("battery"),
-            show_name: true,
-            show_state: true,
-            show_icon: false,
-            tap_action: { action: "more-info" },
-            name: `[[[
-              const charging=states["${entity("battery_charging")}"]?.state==='on';
-              const driving=states["${entity("engine")}"]?.state==='on';
-              const power=states["${currentChargePower}"];
-              const energy=states["${metric("current_trip_energy")}"];
-              if(charging) return Number.isFinite(Number(power?.state)) ? '${language(hass) === "de" ? "Wird geladen" : "Charging"} · '+Number(power.state).toFixed(1).replace('.',',')+' kW' : '${language(hass) === "de" ? "Wird geladen" : "Charging"}';
-              if(driving) return Number.isFinite(Number(energy?.state)) ? '${language(hass) === "de" ? "In Fahrt" : "Driving"} · '+Number(energy.state).toFixed(1).replace('.',',')+' kWh' : '${language(hass) === "de" ? "In Fahrt" : "Driving"}';
-              return '${strings.battery}';
-            ]]]`,
-            state_display: "[[[ return ['unknown','unavailable'].includes(entity.state) || !Number.isFinite(Number(entity.state)) ? '-- %' : Math.round(Number(entity.state)) + ' %'; ]]]",
-            styles: {
-              grid: [{ "grid-template-areas": "'n s'" }, { "grid-template-columns": "1fr auto" }, { "align-items": "center" }, { height: "100%" }],
-              card: [
-                { height: "20px" }, { "min-height": "20px" }, { padding: "0 12px" }, { "border-radius": "10px" },
-                { border: "none" }, { "box-shadow": "none" }, { color: "white" },
-                { "text-shadow": "0 1px 2px rgba(0,0,0,0.65)" },
-                { background: `[[[ const value=Math.min(100,Math.max(0,Number(entity.state)||0)); const charging=states["${entity("battery_charging")}"]?.state==='on'; return 'linear-gradient(90deg,'+(charging?'rgba(76,175,80,0.95)':'rgba(33,150,243,0.95)')+' '+value+'%,rgba(20,20,20,0.62) '+value+'%)'; ]]]` },
-                { animation: `[[[ const charging=states["${entity("battery_charging")}"]?.state==='on'; const driving=states["${entity("engine")}"]?.state==='on'; return charging ? 'kfzBatteryChargePulse 1.5s ease-in-out infinite' : driving ? 'kfzBatteryDrivePulse 1.7s ease-in-out infinite' : 'none'; ]]]` },
-              ],
-              name: [{ "justify-self": "start" }, { "align-self": "center" }, { height: "20px" }, { "line-height": "20px" }, { margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 }, { "white-space": "nowrap" }],
-              state: [{ "justify-self": "end" }, { "align-self": "center" }, { height: "20px" }, { "line-height": "20px" }, { margin: 0 }, { padding: 0 }, { "font-size": "12px" }, { "font-weight": 600 }, { "white-space": "nowrap" }],
-            },
-            extra_styles: "@keyframes kfzBatteryChargePulse { 0%,100% { filter:brightness(1); box-shadow:0 0 0 0 rgba(76,175,80,.15); } 50% { filter:brightness(1.16); box-shadow:0 0 16px 4px rgba(76,175,80,.70); } } @keyframes kfzBatteryDrivePulse { 0%,100% { filter:brightness(1); box-shadow:0 0 0 0 rgba(33,150,243,.12); } 50% { filter:brightness(1.12); box-shadow:0 0 14px 3px rgba(33,150,243,.55); } }",
-          },
-        },
-      },
     } : null;
 
     const overviewSections = [
