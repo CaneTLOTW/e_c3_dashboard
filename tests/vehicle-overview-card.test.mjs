@@ -27,7 +27,11 @@ test("range and right status use nested native button-card more-info pills", () 
   assert.match(source, /right_status: \{\s*card: \{/);
   assert.match(source, /entity: rightStatusEntity/);
   assert.match(source, /const rightStatusEntity/);
-  assert.match(source, /entity\?\.entity_id/);
+  assert.match(source, /states\[.*rightStatusEntity/);
+  assert.match(source, /states\[.*autonomy/);
+  assert.match(source, /height: "26px"/);
+  assert.match(source, /"min-height": "26px"/);
+  assert.match(source, /padding: "0 9px"/);
 });
 
 test("hero creates a local stacking context without changing picture lifecycle", () => {

@@ -187,20 +187,22 @@ function buildConfig(hass, config, statusState) {
           type: "custom:button-card",
           entity: autonomy,
           icon: "mdi:map-marker-distance",
-          show_name: false,
-          show_state: true,
+          show_name: true,
+          show_state: false,
           tap_action: { action: "more-info" },
           hold_action: { action: "more-info" },
-          state_display: `[[[ return entity && Number.isFinite(Number(entity.state)) ? Math.round(Number(entity.state)) + ' km' : '-- km'; ]]]`,
+          name: `[[[ const value = states[${literal(autonomy)}]; return value && Number.isFinite(Number(value.state)) ? Math.round(Number(value.state)) + ' km' : '-- km'; ]]]`,
           styles: {
             card: [
-              { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
+              { height: "26px" }, { "min-height": "26px" }, { padding: "0 9px" }, { margin: 0 },
+              { "border-radius": "14px" }, { border: "none" }, { background: "rgba(20,20,20,0.62)" },
               { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
+              { cursor: "pointer" },
               { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" }, { border: "none" }, { "box-shadow": "none" },
             ],
-            grid: [{ "grid-template-areas": "'i s'" }, { "grid-template-columns": "16px auto" }, { gap: "4px" }],
+            grid: [{ "grid-template-areas": "'i n'" }, { "grid-template-columns": "16px auto" }, { "column-gap": "4px" }, { "align-items": "center" }, { "justify-content": "center" }],
             icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }],
-            state: [{ "font-size": "12px" }, { color: "white" }],
+            name: [{ "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" }, { color: "white" }, { "white-space": "nowrap" }, { padding: 0 }, { margin: 0 }],
           },
         },
       },
@@ -211,9 +213,10 @@ function buildConfig(hass, config, statusState) {
           show_name: true,
           show_state: false,
           show_icon: true,
-          icon: `[[[ return ${chargingState ? "entity?.entity_id === " + literal(chargingEnd) : "false"} ? 'mdi:clock-end' : ${chargingState ? "'mdi:battery-charging'" : "'mdi:thermometer'"}; ]]]`,
+          icon: `[[[ return ${chargingState && chargingEnd ? `states[${literal(chargingEnd)}] && states[${literal(chargingEnd)}].entity_id === ${literal(chargingEnd)}` : "false"} ? 'mdi:clock-end' : ${chargingState ? "'mdi:battery-charging'" : "'mdi:thermometer'"}; ]]]`,
           name: `[[[
-            const raw = String(entity?.state ?? '').trim();
+            const value = states[${literal(rightStatusEntity)}];
+            const raw = String(value?.state ?? '').trim();
             if (${chargingState ? "true" : "false"}) {
               if (raw && !['unknown','unavailable','none'].includes(raw.toLowerCase())) {
                 const parsed = new Date(raw);
@@ -222,19 +225,21 @@ function buildConfig(hass, config, statusState) {
               }
               return 'Lädt';
             }
-            return entity && Number.isFinite(Number(raw)) ? raw + ' ' + (entity.attributes?.unit_of_measurement || '°C') : '-- °C';
+            return value && Number.isFinite(Number(raw)) ? raw + ' ' + (value.attributes?.unit_of_measurement || '°C') : '-- °C';
           ]]]`,
           tap_action: { action: "more-info" },
           hold_action: { action: "more-info" },
           styles: {
             card: [
-              { padding: "5px 9px" }, { "border-radius": "14px" }, { background: "rgba(20,20,20,0.62)" },
+              { height: "26px" }, { "min-height": "26px" }, { padding: "0 9px" }, { margin: 0 },
+              { "border-radius": "14px" }, { border: "none" }, { background: "rgba(20,20,20,0.62)" },
               { color: "white" }, { "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" },
+              { cursor: "pointer" },
               { "text-align": "right" }, { "text-shadow": "0 1px 2px rgba(0,0,0,0.5)" }, { border: "none" }, { "box-shadow": "none" },
             ],
-            grid: [{ "grid-template-areas": "'i n'" }, { "grid-template-columns": "16px auto" }, { gap: "4px" }],
+            grid: [{ "grid-template-areas": "'i n'" }, { "grid-template-columns": "16px auto" }, { "column-gap": "4px" }, { "align-items": "center" }, { "justify-content": "center" }],
             icon: [{ width: "16px" }, { height: "16px" }, { color: "white" }],
-            name: [{ "font-size": "12px" }, { color: "white" }],
+            name: [{ "font-size": "12px" }, { "font-weight": 600 }, { "line-height": "16px" }, { color: "white" }, { "white-space": "nowrap" }, { padding: 0 }, { margin: 0 }],
           },
         },
       },
