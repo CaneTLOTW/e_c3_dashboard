@@ -3,16 +3,32 @@
 This file is a compact operating guide for AI-assisted and automated changes.
 It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Branch workflow
+## Branch and deployment workflow
 
-- Develop all features, fixes, documentation, and dependency updates on the
-  `develop` branch. Do not commit directly to `main`.
-- Test `develop` in a designated Home Assistant development installation using
-  the HACS branch version. It replaces the same integration domain and is not
-  a parallel stable installation.
-- Merge a reviewed and validated pull request from `develop` into `main` only
-  when it is ready for users. Create the corresponding GitHub release from
-  `main`; HACS users track releases, not `develop`.
+- Develop **all** features, fixes, documentation, tests, dependency changes and
+  candidate version bumps on `develop`. Do not commit feature/fix work directly
+  to `main`.
+- The designated Home Assistant household instance is the acceptance/canary
+  runtime for this project and may intentionally run an **exact `develop` SHA**.
+  This is a live acceptance deployment, not a public/stable release.
+- Every Codex deployment must record the exact `develop` SHA it deploys and
+  report PASS/FAIL against that same SHA in the relevant GitHub Issue.
+- `main` represents the last accepted/publishable stable state. Before a stable
+  promotion, `main` must be an ancestor of the validated `develop` SHA.
+- After user/maintainer acceptance, promote the **exact validated `develop` SHA**
+  to `main` by fast-forward only. Do not squash, rebase or cherry-pick the
+  accepted change set during promotion.
+- Create the stable tag/release from that exact `main` SHA. Do not add a
+  main-only version bump after acceptance; any final version adjustment must be
+  committed and validated on `develop` first.
+- Never maintain the same fix independently on both long-lived branches. A
+  direct-main hotfix lane is not permitted; emergency fixes still go through
+  `develop`, the smallest safe runtime validation, and then fast-forward
+  promotion.
+- If GitHub reports `main` and `develop` as diverged, stop the next release and
+  reconcile the histories in a maintenance Issue before continuing.
+- Full rationale and the runtime/result contract are in
+  [`docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md`](docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md).
 
 ## Issue-based task and agent handoff workflow
 
@@ -60,7 +76,7 @@ It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
 - Add German and English together. Do not place language conditionals in
   calculations or notification logic.
 
-## Validation before a pull request or release
+## Validation before runtime acceptance or release
 
 Run at least:
 
@@ -70,11 +86,15 @@ node --check custom_components/e_c3_dashboard/static/i18n.js
 node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js
 node --check custom_components/e_c3_dashboard/static/trip-history-card.js
 node --check custom_components/e_c3_dashboard/static/charge-history-card.js
+node --check custom_components/e_c3_dashboard/static/map-marker-fix.js
+node --test tests/*.test.mjs
 python3 -m json.tool hacs.json
 python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
 git diff --check
 ```
 
-Test a fresh config entry and its automatically created dashboard on a
-non-production instance before changing dashboard onboarding. Keep HACS, Home
+For runtime acceptance, deploy the exact candidate `develop` SHA to the
+assigned Home Assistant instance and record that SHA in the Issue result. Test
+a fresh config entry when onboarding/config-flow behavior changed and test the
+automatically created dashboard after frontend changes. Keep HACS, Home
 Assistant Core and Stellantis Vehicles compatibility explicit in the docs.
