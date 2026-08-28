@@ -97,8 +97,7 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
     static_paths = [
         "frontend.js",
         "e_c3_dashboard.js",
-        "map-marker-fix.js",
-        "gps-history-fix.js",
+        "gps-history-card.js",
         "gps-history-core.js",
         "vehicle-overview-card.js",
         "trip-history-card.js",
