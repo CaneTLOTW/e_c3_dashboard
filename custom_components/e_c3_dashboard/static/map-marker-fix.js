@@ -143,11 +143,23 @@
       "background-size",
       "background-position",
     ]);
-    const result = cardStyles.filter((style) =>
-      !style ||
-      typeof style !== "object" ||
-      !Object.keys(style).some((property) => removedProperties.has(property))
-    );
+
+    // Preserve layout properties that happen to live in the same style object
+    // as the old CSS background. The 0.5.32 implementation filtered the whole
+    // object whenever it contained background-image, which also discarded
+    // position/height/overflow and could collapse the injected reactive image.
+    const result = cardStyles
+      .map((style) => {
+        if (!style || typeof style !== "object" || Array.isArray(style)) {
+          return style;
+        }
+        return Object.fromEntries(
+          Object.entries(style).filter(([property]) => !removedProperties.has(property))
+        );
+      })
+      .filter((style) =>
+        !style || typeof style !== "object" || Array.isArray(style) || Object.keys(style).length > 0
+      );
 
     if (!result.some((style) => style?.["background-color"] !== undefined)) {
       result.push({ "background-color": "transparent !important" });
