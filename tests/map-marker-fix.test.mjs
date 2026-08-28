@@ -61,8 +61,22 @@ test("patches the dashboard strategy before its first generate call", async () =
     triggers_update: ["sensor.other"],
     custom_fields: { range: {}, battery: {} },
     styles: {
+      // Match the real hero: layout and background properties share one style
+      // object. Removing the whole object would collapse the reactive picture.
       card: [
-        { "background-image": "url(/old-static-picture.png)" },
+        {
+          position: "relative",
+          height: "270px",
+          overflow: "hidden",
+          "border-radius": "12px",
+          padding: 0,
+          background: "transparent !important",
+          "background-color": "transparent !important",
+          "background-image": "url(/old-static-picture.png)",
+          "background-repeat": "no-repeat",
+          "background-size": "100% auto",
+          "background-position": "center 54%",
+        },
         { color: "white" },
       ],
       custom_fields: { driving: [] },
@@ -105,6 +119,17 @@ test("patches the dashboard strategy before its first generate call", async () =
       (style) => style && style["background-image"] !== undefined,
     ),
     false,
+  );
+  assert.equal(
+    patchedHero.styles.card.some(
+      (style) => style?.position === "relative" && style?.height === "270px",
+    ),
+    true,
+    "hero layout must survive removal of the static vehicle background",
+  );
+  assert.equal(
+    patchedHero.styles.card.some((style) => style?.overflow === "hidden"),
+    true,
   );
 
   const pictureCard = patchedHero.custom_fields.vehicle_image.card;
