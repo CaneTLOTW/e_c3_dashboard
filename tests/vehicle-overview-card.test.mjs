@@ -56,3 +56,20 @@ test("late tracker picture rebuilds the wrapper instead of freezing the URL", ()
   assert.match(source, /nextSignature !== this\._signature/);
   assert.match(source, /this\._rebuild\(\)/);
 });
+
+test("single vehicle stays zero-config while multiple vehicles require an entry selection", () => {
+  assert.match(source, /statusCandidates\(this\._hass, this\._config\.entry_id\)/);
+  assert.match(source, /candidates\.length === 1 \? candidates\[0\] : undefined/);
+  assert.match(source, /mehrere Fahrzeuge gefunden/);
+  assert.match(source, /Bitte im Karteneditor ein Fahrzeug auswählen/);
+});
+
+test("card editor persists the selected config entry instead of a VIN", () => {
+  assert.match(source, /static getConfigElement\(\)/);
+  assert.match(source, /document\.createElement\(EDITOR_TAG\)/);
+  assert.match(source, /next\.entry_id = entryId/);
+  assert.match(source, /delete next\.entry_id/);
+  assert.match(source, /config-changed/);
+  assert.match(source, /Fahrzeug auswählen/);
+  assert.doesNotMatch(source, /config\.vin/i);
+});
