@@ -134,9 +134,16 @@ async def async_setup_entry(
     server_history = ServerHistoryManager(
         hass, entry, coordinator.data["entity_mapping"], metrics
     )
-    await server_history.async_initialize()
     coordinator.server_history = server_history
     metrics.server_history = server_history
+
+    # Server/maintenance history is optional enrichment.  It can involve a slow
+    # upstream HTTP request through Stellantis Vehicles and must therefore never
+    # hold the config-entry/bootstrap path open.  Start it in the background;
+    # the history entities read the manager state and are refreshed when the
+    # background initialization completes.
+    server_history_task = hass.async_create_task(server_history.async_initialize())
+    entry.async_on_unload(server_history_task.cancel)
 
     notifications = VehicleNotificationManager(
         hass, entry, coordinator.data["entity_mapping"], metrics
@@ -146,12 +153,19 @@ async def async_setup_entry(
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    # ``async_forward_entry_setups`` has completed only after every platform
-    # has accepted its entities.  Give Home Assistant one drain cycle before
-    # publishing the status mapping so Number/Time controls are present on the
-    # first normal strategy/dashboard build as well.
-    await hass.async_block_till_done()
+
+    # Never use ``hass.async_block_till_done()`` from config-entry setup.  That
+    # waits for unrelated global Home Assistant tasks and can turn a slow
+    # background integration into a bootstrap-stage timeout.  Publish once now
+    # and once again shortly afterwards so Number/Time registry entries are
+    # visible to the dashboard strategy without blocking startup.
     await notifications.async_refresh_entities()
+
+    async def _refresh_control_mapping(_now: Any) -> None:
+        await notifications.async_refresh_entities()
+
+    entry.async_on_unload(async_call_later(hass, 1, _refresh_control_mapping))
+
     await async_ensure_dashboard(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
