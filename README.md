@@ -14,17 +14,48 @@ Use this button to open the repository directly in HACS. It must be added as an
 ## What it provides
 
 - A Home Assistant setup flow that discovers a connected Stellantis vehicle.
-- A Community Dashboard strategy: no VIN, entity IDs, or dashboard YAML must be copied.
-- A UI that requires Bubble Card, Button Card, ha-map-card and layout-card.
-- A scoped compatibility shim for the e-C3 vehicle picture marker in ha-map-card:
-  transparent PNGs remain transparent in browser/HA dark mode without changing
-  other map-card markers.
+- A package-owned Community Dashboard strategy: no VIN, entity IDs, or dashboard YAML must be copied.
+- A generated vehicle dashboard with live vehicle state, range, battery/SOC,
+  charging state, preconditioning controls, position, battery health, trip and
+  charge history, charging curves and long-term statistics.
+- A reusable compact Home Assistant card,
+  `custom:e-c3-dashboard-vehicle-overview-card`, for dashboards such as a home
+  or mobility overview. With one configured e-C3 entry it is zero-config.
+- The generated LIVE vehicle hero and the reusable overview card share the same
+  vehicle-overview implementation, including the live tracker `entity_picture`.
 - Portable local metrics for trips, charging, GPS history, wake-up and optional notifications.
   On first start, the distance since charge is reconciled from compatible
   Stellantis Recorder history when it is still available.
+- GPS history that combines Home Assistant Recorder points with canonical
+  server-side trip geometry while keeping the current vehicle marker visible.
+- Multi-vehicle support: one config entry creates one dashboard, visible
+  dashboard names can be customized, and the compact card can be bound to a
+  specific `entry_id` when more than one vehicle is configured.
+- A UI that requires Bubble Card, Button Card, ha-map-card and layout-card.
+- A scoped compatibility shim for the e-C3 vehicle picture marker in ha-map-card:
+  transparent vehicle images remain transparent in browser/HA dark mode without
+  changing unrelated map markers.
 - German and English user interfaces: native HA translations for setup/options,
   a shared frontend catalog for dashboard cards, and a backend catalog for
   notifications and Logbook messages.
+
+## Compact vehicle overview card
+
+For a single configured vehicle, the portable card only needs:
+
+```yaml
+type: custom:e-c3-dashboard-vehicle-overview-card
+```
+
+It shows the same core mobility information as the LIVE hero: vehicle picture,
+range, temperature or charging information, preconditioning, cable/driving
+state and the battery/SOC bar. Tapping the vehicle opens the generated e-C3
+`/vehicle` view.
+
+![Compact e-C3 vehicle overview card](docs/assets/vehicle-overview-card.webp)
+
+See [the vehicle overview card guide](docs/VEHICLE_OVERVIEW_CARD.md) for optional
+`entry_id`, navigation and heading configuration.
 
 ## Required HACS dependencies
 
@@ -71,9 +102,9 @@ Documentation is maintained in English. See [the architecture concept](docs/CONC
 and the [entity catalog with data-quality notes](docs/ENTITY_CATALOG.md). Notification
 and wake-up semantics are described in
 [the notification guide](docs/NOTIFICATIONS_AND_WAKEUP.en.md). The current
-ë-C3 remote-action audit and the difference between a visible button and a
+e-C3 remote-action audit and the difference between a visible button and a
 confirmed vehicle capability are documented in
-[the ë-C3 capability matrix](docs/STELLANTIS_EC3_CAPABILITY_MATRIX.en.md).
+[the e-C3 capability matrix](docs/STELLANTIS_EC3_CAPABILITY_MATRIX.en.md).
 For support, contribution and automation guidance, see
 [SUPPORT.md](SUPPORT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and
 [AGENTS.md](AGENTS.md). Community rules and the difference between Issues and
@@ -81,10 +112,25 @@ Discussions are described in the [community guide](docs/COMMUNITY.en.md).
 
 ## Look & Feel
 
-<img width="1452" height="2645" alt="grafik" src="https://github.com/user-attachments/assets/c0752ee1-389d-41fc-89b0-26446d8cb563" />
-<img width="518" height="333" alt="grafik" src="https://github.com/user-attachments/assets/98e7c1bd-5afc-4f03-af88-b41071f7576c" />
-<img width="517" height="642" alt="grafik" src="https://github.com/user-attachments/assets/2bc309f9-c313-488e-b67c-55a35955bac2" />
+### Generated dashboard
 
+The automatically generated dashboard groups the vehicle state and controls on
+one side and usage, charging and vehicle information on the other. Additional
+views provide trips, charging curves, GPS history and statistics.
+
+![Generated e-C3 dashboard](docs/assets/dashboard-overview.webp)
+
+### Charging history and curves
+
+Completed AC/DC charging sessions can be selected from the charging-history
+view. The curve is reconstructed from the available SOC/time history and is
+explicitly presented as battery-side derived data rather than a meter-grade
+wallbox measurement.
+
+![Historical e-C3 charging curves](docs/assets/charging-history-curves.webp)
+
+The screenshots show example runtime data. Vehicle values are dynamic and are
+not part of the integration configuration.
 
 ## Development
 
@@ -92,9 +138,11 @@ The runtime integration is located in `custom_components/e_c3_dashboard/`.
 It is deliberately independent of Stellantis API internals: it only reads
 Home Assistant entities created by the upstream integration.
 
-The package-owned frontend resources also include `map-marker-fix.js`. It is
-loaded automatically and patches only map markers explicitly marked by the
-e-C3 strategy. No additional HACS card or manual card-mod rule is required.
+Home Assistant registers exactly one package-owned Lovelace resource:
+`/e_c3_dashboard/frontend.js`. Package cards and compatibility helpers are
+loaded as internal ES modules from that entry point. GPS and map-marker behavior
+therefore do not require separate e-C3 Lovelace resources or a Strategy
+post-patch chain.
 
 ## Privacy and trademark notice
 
