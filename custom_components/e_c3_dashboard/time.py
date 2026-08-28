@@ -13,7 +13,7 @@ from .const import DOMAIN
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [NotificationQuietTime(coordinator, entry, key, name, icon) for key, name, icon in (("quiet_start", "Quiet hours start", "mdi:weather-night"), ("quiet_end", "Quiet hours end", "mdi:weather-sunny"))]
+    entities = [NotificationQuietTime(coordinator, entry, key, icon) for key, icon in (("quiet_start", "mdi:weather-night"), ("quiet_end", "mdi:weather-sunny"))]
     for entity in entities:
         coordinator.notifications.register_entity(entity)
     async_add_entities(entities)
@@ -24,9 +24,10 @@ class NotificationQuietTime(TimeEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, coordinator, entry, key: str, name: str, icon: str) -> None:
+    def __init__(self, coordinator, entry, key: str, icon: str) -> None:
         self.coordinator, self.entry, self.key = coordinator, entry, key
-        self._attr_name, self._attr_icon = name, icon
+        self._attr_translation_key = key
+        self._attr_icon = icon
         self._attr_unique_id = f"{entry.entry_id}_notification_setting_{key}"
 
     @property
@@ -38,6 +39,14 @@ class NotificationQuietTime(TimeEntity):
 
     async def async_set_value(self, value: time) -> None:
         await self.coordinator.notifications.async_set_setting(self.key, value.isoformat())
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "integration_domain": DOMAIN,
+            "entry_id": self.entry.entry_id,
+            "notification_setting_key": self.key,
+        }
 
     @property
     def device_info(self) -> DeviceInfo:
