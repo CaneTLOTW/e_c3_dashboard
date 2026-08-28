@@ -90,6 +90,11 @@ and uses [Semantic Versioning](https://semver.org/).
   applies `background` and `background-color: transparent !important` directly
   to the `ha-map-card` shadow-DOM picture marker. Only e-C3 markers opt in;
   other `ha-map-card` markers are untouched.
+- Fixed the LIVE hero vehicle picture being empty until a browser reload when
+  the upstream tracker exposes `entity_picture` only after the Lovelace
+  strategy has already rendered. The hero is now tracker-bound and updates
+  reactively, including on the initial strategy-registration race, while the
+  map-marker transparency workaround remains independent.
 - Removed the duplicate Trips view. Trip history remains available in the
   Vehicle view, where it is already part of the latest-activity section.
 - The charge-selection query parameter is now removed automatically when the
