@@ -16,9 +16,9 @@ async def async_setup_entry(
 ) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
-        Ec3ActionButton(coordinator, entry, "manual_wakeup", "Wake vehicle now", "mdi:car-key"),
-        Ec3ActionButton(coordinator, entry, "test_notification", "Test notification", "mdi:message-alert-outline"),
-        Ec3ActionButton(coordinator, entry, "sync_server_history", "Sync server history", "mdi:database-sync"),
+        Ec3ActionButton(coordinator, entry, "manual_wakeup", "mdi:car-key"),
+        Ec3ActionButton(coordinator, entry, "test_notification", "mdi:message-alert-outline"),
+        Ec3ActionButton(coordinator, entry, "sync_server_history", "mdi:database-sync"),
     ])
     await coordinator.notifications.async_refresh_entities()
 
@@ -27,11 +27,11 @@ class Ec3ActionButton(ButtonEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    def __init__(self, coordinator, entry: ConfigEntry, key: str, name: str, icon: str) -> None:
+    def __init__(self, coordinator, entry: ConfigEntry, key: str, icon: str) -> None:
         self.coordinator = coordinator
         self.entry = entry
         self.key = key
-        self._attr_name = name
+        self._attr_translation_key = key
         self._attr_icon = icon
         self._attr_unique_id = f"{entry.entry_id}_{key}"
 
