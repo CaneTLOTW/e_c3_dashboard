@@ -36,6 +36,7 @@ test("vehicle overview resolves every household value through the config-entry m
   }
   assert.match(source, /metricEntity\(hass, attributes, "current_charge_power"\)/);
   assert.match(source, /metricEntity\(hass, attributes, "current_trip_energy"\)/);
+  assert.match(source, /metricEntity\(hass, attributes, "vehicle_info"\)/);
   assert.match(source, /attributes\.vehicle_tracker/);
   assert.match(source, /attributes\.vehicle_slug/);
 });
@@ -55,6 +56,15 @@ test("late tracker picture rebuilds the wrapper instead of freezing the URL", ()
   assert.match(source, /picture \|\| ""/);
   assert.match(source, /nextSignature !== this\._signature/);
   assert.match(source, /this\._rebuild\(\)/);
+});
+
+test("live variant reuses the same hero while removing heading and self-navigation", () => {
+  assert.match(source, /const liveVariant = config\.variant === "live"/);
+  assert.match(source, /const showHeading = !liveVariant/);
+  assert.match(source, /const navigationPath = liveVariant \? undefined/);
+  assert.match(source, /if \(!showHeading\) return heroCard/);
+  assert.match(source, /showInfo = liveVariant && Boolean\(vehicleInfo\)/);
+  assert.match(source, /navigation_path: "#e-c3-vehicle-info"/);
 });
 
 test("single vehicle stays zero-config while multiple vehicles require an entry selection", () => {
