@@ -94,6 +94,16 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
                 str(static_dir / "map-marker-fix.js"),
                 cache_headers=False,
             ),
+            StaticPathConfig(
+                "/e_c3_dashboard/gps-history-fix.js",
+                str(static_dir / "gps-history-fix.js"),
+                cache_headers=False,
+            ),
+            StaticPathConfig(
+                "/e_c3_dashboard/gps-history-core.js",
+                str(static_dir / "gps-history-core.js"),
+                cache_headers=False,
+            ),
             StaticPathConfig(FRONTEND_URL, str(frontend_file), cache_headers=False),
             StaticPathConfig(
                 "/e_c3_dashboard/trip-history-card.js",
