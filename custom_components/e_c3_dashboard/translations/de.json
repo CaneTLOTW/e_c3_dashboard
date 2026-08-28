@@ -34,6 +34,7 @@
       "init": {
         "title": "Dashboard-Module",
         "data": {
+          "dashboard_name": "Dashboard-Anzeigename (leer = automatisch)",
           "trips": "Fahrtenhistorie",
           "charging": "Ladehistorie und Ladekurven",
           "gps": "GPS-Historie",
