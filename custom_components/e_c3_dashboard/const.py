@@ -35,15 +35,22 @@ DEFAULT_OPTIONS = {
     OPTION_HISTORY_HOURS: 2160,
 }
 
+# Home Assistant registers exactly one package-owned Lovelace resource. The
+# entry module owns load order for all internal cards/components.
 FRONTEND_URL = "/e_c3_dashboard/e_c3_dashboard.js"
-FRONTEND_VERSION = "0.5.34"
+FRONTEND_VERSION = "0.5.37"
 STATIC_VERSION = FRONTEND_VERSION
-FRONTEND_RESOURCE_URLS = (
+FRONTEND_RESOURCE_URLS = (FRONTEND_URL,)
+
+# Historical e-C3 resources from <=0.5.34. They are removed automatically from
+# Lovelace storage during the 0.5.37 migration. Static internal modules may
+# still be served by the integration, but they are never separate HA resources.
+LEGACY_FRONTEND_RESOURCE_URLS = (
     "/e_c3_dashboard/map-marker-fix.js",
     "/e_c3_dashboard/gps-history-fix.js",
     "/e_c3_dashboard/trip-history-card.js",
     "/e_c3_dashboard/charge-history-card.js",
-    FRONTEND_URL,
+    "/e_c3_dashboard/live-vehicle-picture-fix.js",
 )
 
 # A URL check is only a setup preflight: a browser is the authority on whether
