@@ -10,12 +10,13 @@ const strategy = read("static/e_c3_dashboard.js");
 const overview = read("static/vehicle-overview-card.js");
 const gps = read("static/gps-history-card.js");
 const constants = read("const.py");
+const init = read("__init__.py");
 
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.47"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.47"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.48"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.48"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -24,7 +25,7 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.47"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.48"\)/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
@@ -89,4 +90,26 @@ test("only the documented third-party map shadow-DOM compatibility hook remains"
 test("obsolete post-patch source files are gone", () => {
   assert.equal(fs.existsSync(new URL("static/map-marker-fix.js", root)), false);
   assert.equal(fs.existsSync(new URL("static/gps-history-fix.js", root)), false);
+});
+
+test("notification controls publish after every forwarded platform and render readably", () => {
+  const platforms = init.indexOf("await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)");
+  const drained = init.indexOf("await hass.async_block_till_done()", platforms);
+  const refreshed = init.indexOf("await notifications.async_refresh_entities()", drained);
+  assert.ok(platforms >= 0 && drained > platforms && refreshed > drained);
+  assert.match(init, /Store\(hass, 1, f"\{DOMAIN\}_\{slug\}_notifications"\)\.async_remove\(\)/);
+  for (const key of [
+    "range_warning_km", "range_reset_km", "home_soc_warning", "home_soc_reset",
+    "service_battery_warning", "service_battery_reset", "home_delay_minutes",
+    "stale_home_hours", "stale_away_hours", "probe_wait_minutes",
+    "charge_start_delay_minutes", "quiet_start", "quiet_end",
+  ]) {
+    assert.match(strategy, new RegExp(`\\["${key}", strings\\.`));
+  }
+  assert.match(strategy, /notificationWarningThresholds/);
+  assert.match(strategy, /notificationTimingAvailability/);
+  assert.match(strategy, /notificationQuietHours/);
+  assert.match(strategy, /lastNotificationType/);
+  assert.match(strategy, /heartbeatSource/);
+  assert.doesNotMatch(strategy, /\{\{ state_attr\('\$\{statusEntity\}', 'notification_diagnostics'\) \}\}/);
 });

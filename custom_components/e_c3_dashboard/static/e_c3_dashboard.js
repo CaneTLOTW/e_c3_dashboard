@@ -631,9 +631,55 @@ class Ec3DashboardStrategy extends HTMLElement {
       const recipientControls = Object.entries(controls)
         .filter(([key]) => key.startsWith("recipient_"))
         .map(([key, entityId]) => ({ key, entityId }));
-      const notificationSettings = Object.entries(controls)
-        .filter(([key]) => key.startsWith("notification_setting_"))
-        .map(([, entityId]) => entityId);
+      const notificationSetting = (key) => control(`notification_setting_${key}`);
+      const notificationSettingsCard = (title, entries) => {
+        const entities = entries
+          .map(([key, name, icon]) => {
+            const entityId = notificationSetting(key);
+            return entityId ? { entity: entityId, name, icon } : null;
+          })
+          .filter(Boolean);
+        return entities.length ? {
+          type: "entities",
+          title,
+          entities,
+          show_header_toggle: false,
+          grid_options: { columns: "full" },
+        } : null;
+      };
+      const warningThresholds = notificationSettingsCard(strings.notificationWarningThresholds, [
+        ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"],
+        ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"],
+        ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"],
+        ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"],
+        ["service_battery_warning", strings.battery12Warning, "mdi:car-battery"],
+        ["service_battery_reset", strings.battery12Reset, "mdi:car-battery"],
+      ]);
+      const timingAvailability = notificationSettingsCard(strings.notificationTimingAvailability, [
+        ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"],
+        ["stale_home_hours", strings.staleAtHome, "mdi:home-clock-outline"],
+        ["stale_away_hours", strings.staleAway, "mdi:car-clock"],
+        ["probe_wait_minutes", strings.probeWait, "mdi:timer-sand"],
+        ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"],
+      ]);
+      const quietHours = notificationSettingsCard(strings.notificationQuietHours, [
+        ["quiet_start", strings.quietStart, "mdi:weather-night"],
+        ["quiet_end", strings.quietEnd, "mdi:weather-sunny"],
+      ]);
+      const notificationDiagnostics = `### ${strings.notificationDiagnostics || "Notification diagnostics"}
+
+{% set d = state_attr('${statusEntity}', 'notification_diagnostics') or {} %}
+{% set last = d.get('last_notification') or {} %}
+**${strings.lastNotificationType}:** {{ last.get('type') or '—' }}<br>
+**${strings.lastNotificationTime}:** {{ last.get('time') or '—' }}<br>
+**${strings.lastNotificationMessage}:** {{ last.get('message') or '—' }}
+
+**${strings.heartbeatSource}:** {{ d.get('heartbeat_source') or '—' }}<br>
+**${strings.heartbeatTime}:** {{ d.get('heartbeat') or '—' }}<br>
+**${strings.outageStatus}:** {{ '${strings.outageActive}' if d.get('outage_since') else '—' }}<br>
+**${strings.outageSince}:** {{ d.get('outage_since') or '—' }}<br>
+**${strings.probeStatus}:** {{ '${strings.probePending}' if d.get('probe_at') else '—' }}<br>
+**${strings.probeTime}:** {{ d.get('probe_at') or '—' }}`;
       views.push({
         title: strings.notifications,
         path: "notifications",
@@ -651,8 +697,11 @@ class Ec3DashboardStrategy extends HTMLElement {
             { type: "heading", heading: strings.notificationRecipients, icon: "mdi:send-outline", heading_style: "subtitle" },
             recipientControls.length ? recipientControls.map(({ key, entityId }) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entityId, name: key.replace(/^recipient_/, "").replaceAll("_", " "), icon: "mdi:account-bell-outline", force_icon: true, show_state: true, card_layout: "large", grid_options: { columns: 6 } })) : markdown(strings.noRecipients),
             controlButton("test_notification", strings.testNotification, "mdi:message-alert-outline"),
-            notificationSettings.length ? { type: "entities", title: strings.notificationSettings || "Notification settings", entities: notificationSettings, show_header_toggle: false, grid_options: { columns: "full" } } : null,
-            { type: "markdown", content: `### ${strings.notificationDiagnostics || "Notification diagnostics"}\n\n{{ state_attr('${statusEntity}', 'notification_diagnostics') }}`, entity_id: [statusEntity] },
+            { type: "heading", heading: strings.notificationSettings || "Notification settings", icon: "mdi:tune-variant", heading_style: "subtitle" },
+            warningThresholds || markdown(strings.notificationSettingsUnavailable),
+            timingAvailability,
+            quietHours,
+            { type: "markdown", content: notificationDiagnostics, entity_id: [statusEntity] },
           ].flat()),
         }],
       });

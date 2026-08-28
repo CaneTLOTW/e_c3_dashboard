@@ -4,7 +4,7 @@ import {
   earliestGeoJsonTime,
   filterGeoJsonByWindow,
   localDateKey,
-} from "./gps-history-core.js?v=0.5.47";
+} from "./gps-history-core.js?v=0.5.48";
 
 const DATE_CARD_TAG = "e-c3-dashboard-gps-date-card";
 const MAP_CARD_TAG = "e-c3-dashboard-gps-map-card";

@@ -146,6 +146,12 @@ async def async_setup_entry(
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # ``async_forward_entry_setups`` has completed only after every platform
+    # has accepted its entities.  Give Home Assistant one drain cycle before
+    # publishing the status mapping so Number/Time controls are present on the
+    # first normal strategy/dashboard build as well.
+    await hass.async_block_till_done()
+    await notifications.async_refresh_entities()
     await async_ensure_dashboard(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
@@ -172,7 +178,7 @@ async def async_remove_entry(
     await Store(hass, 1, f"{DOMAIN}_{slug}_metrics").async_remove()
     await Store(hass, 1, f"{DOMAIN}_{slug}_server_history").async_remove()
     await Store(hass, 1, f"{DOMAIN}_{slug}_charge_curves").async_remove()
-    await Store(hass, 2, f"{DOMAIN}_{slug}_notifications").async_remove()
+    await Store(hass, 1, f"{DOMAIN}_{slug}_notifications").async_remove()
     await async_remove_dashboard_marker(hass, entry.entry_id)
 
 
