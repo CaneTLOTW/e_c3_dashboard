@@ -11,8 +11,16 @@ It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
 - The designated Home Assistant household instance is the acceptance/canary
   runtime for this project and may intentionally run an **exact `develop` SHA**.
   This is a live acceptance deployment, not a public/stable release.
+- Every active runtime Issue must distinguish three states explicitly:
+  - **Candidate** = exact `develop` SHA/version prepared in GitHub;
+  - **Runtime** = exact SHA/version actually copied to and served by Home Assistant;
+  - **Validated** = exact runtime SHA/version that passed the required live/user checks.
+  Never describe a Candidate as deployed or validated merely because it exists on `develop`.
 - Every Codex deployment must record the exact `develop` SHA it deploys and
   report PASS/FAIL against that same SHA in the relevant GitHub Issue.
+- If new commits land on `develop` after a deployment, the existing Runtime
+  remains the previously deployed SHA until an explicit new deployment occurs.
+  A later `develop` HEAD never silently changes the running Home Assistant copy.
 - `main` represents the last accepted/publishable stable state. Before a stable
   promotion, `main` must be an ancestor of the validated `develop` SHA.
 - After user/maintainer acceptance, promote the **exact validated `develop` SHA**
@@ -87,6 +95,8 @@ node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js
 node --check custom_components/e_c3_dashboard/static/trip-history-card.js
 node --check custom_components/e_c3_dashboard/static/charge-history-card.js
 node --check custom_components/e_c3_dashboard/static/map-marker-fix.js
+node --check custom_components/e_c3_dashboard/static/gps-history-core.js
+node --check custom_components/e_c3_dashboard/static/gps-history-fix.js
 node --test tests/*.test.mjs
 python3 -m json.tool hacs.json
 python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
