@@ -92,11 +92,13 @@ test("obsolete post-patch source files are gone", () => {
   assert.equal(fs.existsSync(new URL("static/gps-history-fix.js", root)), false);
 });
 
-test("notification controls publish after every forwarded platform and render readably", () => {
+test("notification controls publish after forwarded platforms without blocking bootstrap and render readably", () => {
   const platforms = init.indexOf("await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)");
-  const drained = init.indexOf("await hass.async_block_till_done()", platforms);
-  const refreshed = init.indexOf("await notifications.async_refresh_entities()", drained);
-  assert.ok(platforms >= 0 && drained > platforms && refreshed > drained);
+  const refreshed = init.indexOf("await notifications.async_refresh_entities()", platforms);
+  const delayed = init.indexOf("async_call_later(hass, 1, _refresh_control_mapping)", refreshed);
+  assert.ok(platforms >= 0 && refreshed > platforms && delayed > refreshed);
+  assert.doesNotMatch(init, /await hass\.async_block_till_done\(\)/);
+  assert.match(init, /hass\.async_create_task\(server_history\.async_initialize\(\)\)/);
   assert.match(init, /Store\(hass, 1, f"\{DOMAIN\}_\{slug\}_notifications"\)\.async_remove\(\)/);
   for (const key of [
     "range_warning_km", "range_reset_km", "home_soc_warning", "home_soc_reset",
