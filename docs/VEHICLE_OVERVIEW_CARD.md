@@ -18,13 +18,15 @@ Bei genau einem konfigurierten e-C3-Fahrzeug reicht das aus. Die Karte erzeugt i
 
 - Heading `Mobilität`
 - 270-px-Fahrzeug-Hero
-- Reichweite oben links
-- Ladeende/Ladestatus bzw. Temperatur oben rechts
+- anklickbare Reichweite oben links
+- anklickbares Ladeende/Ladestatus bzw. Temperatur oben rechts
 - Vorklimatisierungsbutton
 - Ladekabel-Indikator
 - Fahrindikator
 - transparente Navigation über der Fahrzeugfläche
 - Batterie-Fortschrittsleiste mit Lade-/Fahrtstatus und Pulsanimation
+
+Die beiden Status-Pills folgen dem bewährten Referenz-Dashboard: feste 26-px-Höhe, kompakte Icon/Text-Anordnung und natives Home-Assistant-`more-info`.
 
 ## Optionale Konfiguration
 
@@ -74,20 +76,31 @@ Damit teilen sich Startseitenkarte und LIVE-Ansicht insbesondere:
 
 Map-Marker und Fahrzeug-Hero bleiben technisch getrennte Pfade; der transparente Kartenmarker darf das LIVE-Bild nicht nachpatchen.
 
-## Navigation
-
-Die alte Route `/dashboard-kfz/ec3` wird nicht verwendet. Standardmäßig wird aus `vehicle_slug` der vom Package erzeugte Dashboardpfad gebildet:
-
-```text
-/e-c3-<slug>/vehicle
-```
-
-## Bedienung
+## Navigation und Bedienung
 
 - Tap auf die mittlere Fahrzeugfläche: e-C3 Dashboard `/vehicle`
+- Tap/Hold auf Reichweite: natives More Info der gemappten Autonomy-/Range-Entity
+- Tap/Hold auf den rechten Status: natives More Info der tatsächlich angezeigten Entity; im Normalzustand Temperatur, beim Laden Ladeende bzw. Ladestatus
 - Tap Vorklimatisierung: `button.press` auf gemapptes `preconditioning_start`
 - Hold Vorklimatisierung: `button.press` auf gemapptes `preconditioning_stop`
 - Tap Batteriezeile: More Info des gemappten Batteriesensors
+
+Ist die Vorklimatisierung aktiv, wird ihr Button anhand der gemappten Fahrzeugtemperatur eingefärbt: bis einschließlich 20 °C rot als Heizindikator, über 20 °C blau als Kühlindikator. Bei inaktiver Vorklimatisierung bleibt der Button neutral/dunkel.
+
+Im LIVE-Variant öffnet der Info-Button den gemeinsamen Dialog **Fahrzeug- und Wartungsdaten**. Wartungsdaten stehen dort zuerst, Fahrzeugdaten darunter. Eine zusätzliche, doppelte Fahrzeuginformationskarte im Vehicle-View gibt es nicht mehr.
+
+Der Hero besitzt einen lokalen Stacking Context. Dadurch werden Reichweiten-/Temperatur-Pills, A/C-Button und Batteriezeile bei geöffnetem Bubble-Card-Popup vollständig vom Popup-Backdrop überlagert statt vor dem Dialog stehen zu bleiben.
+
+## System statt Vehicle
+
+Administratives gehört nicht in den LIVE-Fahrzeugbereich. Deshalb liegen folgende Controls im generierten **System**-View:
+
+- Aktualisierungsintervall
+- Korrektur Batteriewerte
+- ABRP Live-Daten
+- ABRP Token
+
+Der Vehicle-View bleibt damit auf Fahrzeugzustand, Nutzung, Laden, Historie und Fahrzeug-/Wartungsinformationen fokussiert.
 
 ## Packaging
 
@@ -102,8 +115,10 @@ Vor Promotion eines neuen Runtime-Candidates prüfen:
 3. Darstellung entspricht der bisherigen Startseitenkarte.
 4. Fahrzeugbild erscheint ohne F5, auch wenn `entity_picture` verspätet kommt.
 5. Reichweite/Temperatur/Ladestatus/Kabel/Fahrt/Batterie reagieren live.
-6. Vorklimatisierung Tap/Hold funktioniert.
-7. Navigation landet im package-owned e-C3 Dashboard `/vehicle`.
-8. LIVE-/Vehicle-Ansicht verwendet dieselbe kanonische Overview-Card und keinen zweiten Hero-Bildpfad.
-9. Keine VIN/festen Fahrzeug-Entity-IDs oder Legacy-KFZ-Route im Quellcode.
-10. Karte bleibt Bestandteil des einen eC3-Frontend-Pakets und führt keinen neuen Nachpatchpfad ein.
+6. Reichweite und rechter Status öffnen More Info der korrekten gemappten Entity.
+7. Vorklimatisierung Tap/Hold funktioniert und die aktive Heiz-/Kühlfarbe folgt der 20-°C-Regel.
+8. Navigation landet im package-owned e-C3 Dashboard `/vehicle`.
+9. LIVE-/Vehicle-Ansicht verwendet dieselbe kanonische Overview-Card und keinen zweiten Hero-Bildpfad.
+10. Fahrzeug-/Wartungspopup überlagert den kompletten Hero korrekt; Wartung steht vor Fahrzeugdaten.
+11. Keine VIN/festen Fahrzeug-Entity-IDs oder Legacy-KFZ-Route im Quellcode.
+12. Karte bleibt Bestandteil des einen eC3-Frontend-Pakets und führt keinen neuen Nachpatchpfad ein.
