@@ -21,7 +21,9 @@ GitHub Issue
   -> Codex deploys that exact Candidate to the designated HA acceptance instance
   -> Runtime = exact SHA/version actually served by Home Assistant
   -> browser/app/runtime validation
-  -> Validated = exact Runtime SHA/version that passed the required checks
+  -> if a diagnostic patch proved the fix: integrate it into canonical source
+  -> build a new Candidate and repeat affected tests
+  -> Validated = exact integrated Runtime SHA/version that passed the required checks
   -> Codex reports results in the Issue
   -> ChatGPT reviews findings and prepares follow-up changes on develop if needed
   -> user/maintainer acceptance
@@ -53,10 +55,40 @@ Rules:
 5. A failed Runtime remains useful evidence but must never be described as the
    current Candidate once a replacement Candidate exists.
 6. Only an exact `Validated` SHA may be promoted to `main`.
+7. A diagnostic runtime patch cannot be `Validated` as the final product. The
+   proven behavior must first be integrated into canonical source and the
+   resulting new Candidate must be redeployed and retested.
 
 This distinction is mandatory in Issue handoffs and prevents the common
 ambiguity where a fix exists on `develop` but has not yet reached the live
 acceptance instance.
+
+## Patch-to-source integration gate
+
+Temporary patches are sometimes useful during diagnosis, especially for
+frontend race conditions, third-party Shadow DOM behavior or a one-off runtime
+experiment. They are not an acceptable permanent architecture by default.
+
+Before an Issue can be accepted or promoted:
+
+1. identify what the diagnostic patch actually proved;
+2. move that behavior into the canonical module/source path that owns it;
+3. remove the temporary post-generation/runtime patch path;
+4. bump the frontend candidate version when browser caching is affected;
+5. rerun repository tests;
+6. deploy the new integrated Candidate;
+7. repeat the relevant HA/browser/app/user acceptance checks.
+
+For package frontend architecture, prefer exactly one registered e-C3 Lovelace
+entry resource. The entry may import package-owned ES modules, but Home
+Assistant should not have to race multiple e-C3 resource registrations or rely
+on their incidental execution order.
+
+A narrowly scoped compatibility shim for a third-party component is the only
+exception. Such a shim must be necessary because the third-party public API/CSS
+contract cannot express the behavior, must opt in only e-C3-owned instances,
+must live in canonical source, and must have explicit regression coverage. It
+must not become a container for unrelated LIVE/dashboard feature patches.
 
 ## Invariants
 
