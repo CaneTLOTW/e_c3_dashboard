@@ -45,5 +45,39 @@
         }
       }
     }
+  },
+  "entity": {
+    "number": {
+      "range_warning_km": {"name": "Reichweitenwarnung"},
+      "range_reset_km": {"name": "Reichweitenwarnung zurücksetzen"},
+      "home_soc_warning": {"name": "Ladezustand zuhause – Warnung"},
+      "home_soc_reset": {"name": "Ladezustand zuhause – Reset"},
+      "home_delay_minutes": {"name": "Verzögerung Ladeempfehlung zuhause"},
+      "service_battery_warning": {"name": "12-V-Batterie – Warnung"},
+      "service_battery_reset": {"name": "12-V-Batterie – Reset"},
+      "stale_home_hours": {"name": "Erreichbarkeits-Timeout zuhause"},
+      "stale_away_hours": {"name": "Erreichbarkeits-Timeout unterwegs"},
+      "probe_wait_minutes": {"name": "Wartezeit nach Erreichbarkeitsprobe"},
+      "charge_start_delay_minutes": {"name": "Verzögerung Ladebeginn-Meldung"}
+    },
+    "time": {
+      "quiet_start": {"name": "Ruhezeit Beginn"},
+      "quiet_end": {"name": "Ruhezeit Ende"}
+    },
+    "switch": {
+      "notifications": {"name": "Benachrichtigungen"},
+      "trip_reports": {"name": "Fahrtberichte"},
+      "charge_reports": {"name": "Ladeberichte"},
+      "alerts": {"name": "Fahrzeugwarnungen"},
+      "wakeup_hourly": {"name": "Stündlicher Wake-up"},
+      "wakeup_charging": {"name": "Wake-up beim Laden"},
+      "wakeup_probe": {"name": "Erreichbarkeitsprobe mit Wake-up"},
+      "notify_recipient": {"name": "Notify-Empfänger: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Fahrzeug jetzt aufwecken"},
+      "test_notification": {"name": "Testbenachrichtigung"},
+      "sync_server_history": {"name": "Server-Historie synchronisieren"}
+    }
   }
 }
