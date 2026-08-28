@@ -1,4 +1,4 @@
-"""Safe, one-time creation of the package-owned Lovelace dashboard."""
+"""Safe creation and metadata sync of package-owned Lovelace dashboards."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from .const import (
     AUTO_DASHBOARD_STRATEGY,
     DOMAIN,
     LEGACY_AUTO_DASHBOARD_STRATEGY,
+    OPTION_DASHBOARD_NAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,6 +30,24 @@ def _store(hass, entry_id: str) -> Store[dict[str, Any]]:
         AUTO_DASHBOARD_STORAGE_VERSION,
         f"{DOMAIN}_{entry_id}_dashboard",
     )
+
+
+def dashboard_title_for_entry(hass, entry) -> str:
+    """Return the visible title without exposing vehicle identity unnecessarily.
+
+    One configured vehicle needs no disambiguation and therefore uses the
+    neutral ``e-C3`` title. With multiple entries, the upstream/entry title is
+    used only as the automatic differentiator. A user-provided option always
+    wins and can replace either default completely.
+    """
+    configured = str(entry.options.get(OPTION_DASHBOARD_NAME, "")).strip()
+    if configured:
+        return configured
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if len(entries) <= 1:
+        return "e-C3"
+    fallback = str(entry.title or "").strip() or entry.entry_id[-6:]
+    return f"e-C3 · {fallback}"
 
 
 async def async_remove_dashboard_marker(hass, entry_id: str) -> None:
@@ -57,20 +76,13 @@ async def _async_has_matching_strategy(hass, entry_id: str) -> bool:
         selected_entry = strategy.get("entry_id")
         if selected_entry == entry_id:
             return True
-        # A dashboard created by the former manual flow had no entry ID. It
-        # necessarily belongs to the sole package entry in that configuration.
         if selected_entry is None and package_entry_count == 1:
             return True
     return False
 
 
 async def _async_repair_legacy_generated_dashboard(hass, entry, marker: dict[str, Any]) -> None:
-    """Correct only the package-created 0.4.8 strategy configuration.
-
-    Version 0.4.8 omitted the required ``custom:`` prefix. The marker records
-    the exact dashboard created by this package, so this migration cannot touch
-    a user-created dashboard.
-    """
+    """Correct only the package-created legacy strategy configuration."""
     url_path = marker.get("url_path")
     lovelace = hass.data.get(LOVELACE_DATA)
     if not isinstance(url_path, str) or lovelace is None:
@@ -96,19 +108,72 @@ async def _async_repair_legacy_generated_dashboard(hass, entry, marker: dict[str
     _LOGGER.info("Repaired the e-C3 Dashboard strategy at /%s", url_path)
 
 
-async def async_ensure_dashboard(hass, entry) -> None:
-    """Create one new dashboard after setup, without altering user dashboards.
+async def _async_sync_generated_dashboard_metadata(
+    hass, entry, marker: dict[str, Any]
+) -> None:
+    """Update only metadata of a dashboard proven to be package-created.
 
-    Home Assistant has no public integration API for creating a storage
-    dashboard. This mirrors the core's own storage-dashboard creation path:
-    create the dashboard record, save only the strategy config and register its
-    Lovelace panel for the current runtime. It intentionally does not update,
-    recreate or remove an existing dashboard.
+    The marker contains the exact URL path created by this integration. A
+    marker with only ``reason=existing_strategy`` deliberately has no URL path
+    and is never touched, because that dashboard may be user-managed.
     """
+    url_path = marker.get("url_path")
+    lovelace = hass.data.get(LOVELACE_DATA)
+    if not isinstance(url_path, str) or lovelace is None:
+        return
+
+    dashboard_config = lovelace.dashboards.get(url_path)
+    if dashboard_config is None or not isinstance(dashboard_config.config, dict):
+        return
+
+    desired_title = dashboard_title_for_entry(hass, entry)
+    current = dashboard_config.config
+    if current.get("title") == desired_title:
+        return
+
+    dashboards = lovelace_dashboard.DashboardsCollection(hass)
+    await dashboards.async_load()
+    item = next(
+        (candidate for candidate in dashboards.async_items() if candidate.get("url_path") == url_path),
+        None,
+    )
+    if item is None:
+        return
+
+    updated = await dashboards.async_update_item(item["id"], {"title": desired_title})
+
+    # This local collection instance is intentionally not wired to Lovelace's
+    # setup listener. Mirror the core listener's runtime side effects so the
+    # sidebar title changes immediately, without changing url_path/config data.
+    dashboard_config.config = updated
+    frontend.async_register_built_in_panel(
+        hass,
+        "lovelace",
+        frontend_url_path=url_path,
+        require_admin=updated["require_admin"],
+        show_in_sidebar=updated["show_in_sidebar"],
+        sidebar_title=updated["title"],
+        sidebar_icon=updated.get("icon", "mdi:lovelace"),
+        config={"mode": MODE_STORAGE},
+        update=True,
+    )
+    _LOGGER.info("Updated e-C3 Dashboard title at /%s to %s", url_path, desired_title)
+
+
+async def async_sync_generated_dashboard_metadata(hass) -> None:
+    """Synchronize visible titles for all package-created vehicle dashboards."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        marker = await _store(hass, entry.entry_id).async_load() or {}
+        await _async_sync_generated_dashboard_metadata(hass, entry, marker)
+
+
+async def async_ensure_dashboard(hass, entry) -> None:
+    """Create one package dashboard per config entry and keep its title current."""
     marker_store = _store(hass, entry.entry_id)
     marker = await marker_store.async_load() or {}
     if marker.get("handled"):
         await _async_repair_legacy_generated_dashboard(hass, entry, marker)
+        await async_sync_generated_dashboard_metadata(hass)
         return
 
     lovelace = hass.data.get(LOVELACE_DATA)
@@ -118,13 +183,13 @@ async def async_ensure_dashboard(hass, entry) -> None:
 
     if await _async_has_matching_strategy(hass, entry.entry_id):
         await marker_store.async_save({"handled": True, "reason": "existing_strategy"})
+        await async_sync_generated_dashboard_metadata(hass)
         return
 
     vehicle_slug = entry.data["vehicle_slug"]
     url_path = slugify(f"e-c3-{vehicle_slug}", separator="-")
-    title = f"e-C3 · {entry.title}"
+    title = dashboard_title_for_entry(hass, entry)
 
-    # Never claim an existing URL path, even when it is not an e-C3 dashboard.
     if url_path in lovelace.dashboards:
         _LOGGER.warning(
             "Cannot create e-C3 Dashboard at /%s because that dashboard already exists",
@@ -171,11 +236,9 @@ async def async_ensure_dashboard(hass, entry) -> None:
             config={"mode": MODE_STORAGE},
         )
     except (HomeAssistantError, ValueError):
-        # The dashboard record remains visible in the normal dashboard manager
-        # if a later panel registration fails. Do not retry automatically: this
-        # avoids replacing a user decision after a manual removal or rename.
         _LOGGER.exception("Could not register the e-C3 Dashboard panel")
         return
 
     await marker_store.async_save({"handled": True, "url_path": url_path})
+    await async_sync_generated_dashboard_metadata(hass)
     _LOGGER.info("Created e-C3 Dashboard at /%s for %s", url_path, entry.title)
