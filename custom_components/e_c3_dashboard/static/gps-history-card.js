@@ -4,7 +4,7 @@ import {
   localDateKey,
   normalizeDateKey,
   shiftDateKey,
-} from "./gps-history-core.js?v=0.5.37";
+} from "./gps-history-core.js?v=0.5.46";
 
 const DATE_CARD_TAG = "e-c3-dashboard-gps-date-card";
 const MAP_CARD_TAG = "e-c3-dashboard-gps-map-card";

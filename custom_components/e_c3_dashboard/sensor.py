@@ -212,7 +212,7 @@ class Ec3DashboardStatusSensor(
             for registry_entry in er.async_entries_for_config_entry(
                 er.async_get(self.coordinator.hass), self._entry.entry_id
             )
-            if registry_entry.domain in {"switch", "button"}
+            if registry_entry.domain in {"switch", "button", "number", "time"}
             and registry_entry.platform == DOMAIN
         }
         return {
@@ -235,6 +235,7 @@ class Ec3DashboardStatusSensor(
             "notification_status": self.coordinator.notifications.data.get(
                 "last_notification"
             ),
+            "notification_diagnostics": self.coordinator.notifications.diagnostic(),
             "wakeup_status": {
                 "last_wakeup": self.coordinator.notifications.data.get("last_wakeup"),
                 "today": self.coordinator.notifications.data.get("wakeup_count_today", 0),

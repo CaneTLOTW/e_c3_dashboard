@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.5.37";
+import { languageFor, textFor } from "./i18n.js?v=0.5.46";
 
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
@@ -631,6 +631,9 @@ class Ec3DashboardStrategy extends HTMLElement {
       const recipientControls = Object.entries(controls)
         .filter(([key]) => key.startsWith("recipient_"))
         .map(([key, entityId]) => ({ key, entityId }));
+      const notificationSettings = Object.entries(controls)
+        .filter(([key]) => key.startsWith("notification_setting_"))
+        .map(([, entityId]) => entityId);
       views.push({
         title: strings.notifications,
         path: "notifications",
@@ -648,6 +651,8 @@ class Ec3DashboardStrategy extends HTMLElement {
             { type: "heading", heading: strings.notificationRecipients, icon: "mdi:send-outline", heading_style: "subtitle" },
             recipientControls.length ? recipientControls.map(({ key, entityId }) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entityId, name: key.replace(/^recipient_/, "").replaceAll("_", " "), icon: "mdi:account-bell-outline", force_icon: true, show_state: true, card_layout: "large", grid_options: { columns: 6 } })) : markdown(strings.noRecipients),
             controlButton("test_notification", strings.testNotification, "mdi:message-alert-outline"),
+            notificationSettings.length ? { type: "entities", title: strings.notificationSettings || "Notification settings", entities: notificationSettings, show_header_toggle: false, grid_options: { columns: "full" } } : null,
+            { type: "markdown", content: `### ${strings.notificationDiagnostics || "Notification diagnostics"}\n\n{{ state_attr('${statusEntity}', 'notification_diagnostics') }}`, entity_id: [statusEntity] },
           ].flat()),
         }],
       });

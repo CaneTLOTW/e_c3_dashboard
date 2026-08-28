@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.const import Platform
 
 DOMAIN = "e_c3_dashboard"
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.BUTTON]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.BUTTON, Platform.NUMBER, Platform.TIME]
 
 UPSTREAM_DOMAIN = "stellantis_vehicles"
 MIN_UPSTREAM_VERSION = "2026.7.2"
@@ -36,7 +36,7 @@ DEFAULT_OPTIONS = {
 # Home Assistant knows exactly one package-owned Lovelace resource. All other
 # package modules are internal ES modules loaded by this entry point.
 FRONTEND_URL = "/e_c3_dashboard/frontend.js"
-FRONTEND_VERSION = "0.5.45"
+FRONTEND_VERSION = "0.5.46"
 STATIC_VERSION = FRONTEND_VERSION
 FRONTEND_RESOURCE_URLS = (FRONTEND_URL,)
 

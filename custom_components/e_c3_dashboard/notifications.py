@@ -19,7 +19,7 @@ from .const import CONF_VEHICLE_SLUG, DOMAIN, OPTION_NOTIFICATION_RECIPIENTS
 from .i18n import language_for, text
 
 _LOGGER = logging.getLogger(__name__)
-_STORE_VERSION = 1
+_STORE_VERSION = 2
 
 SWITCH_NOTIFICATIONS = "notifications"
 SWITCH_TRIP_REPORTS = "trip_reports"
@@ -51,6 +51,30 @@ _STALE_AWAY = timedelta(hours=2)
 _PROBE_WAIT = timedelta(minutes=15)
 _CHARGE_START_DELAY = timedelta(minutes=10)
 
+SETTING_DEFAULTS = {
+    "range_warning_km": 25.0, "range_reset_km": 30.0,
+    "home_soc_warning": 30.0, "home_soc_reset": 35.0,
+    "home_delay_minutes": 20.0, "service_battery_warning": 50.0,
+    "service_battery_reset": 55.0, "stale_home_hours": 3.0,
+    "stale_away_hours": 2.0, "probe_wait_minutes": 15.0,
+    "charge_start_delay_minutes": 10.0,
+    "quiet_start": "22:00:00", "quiet_end": "07:00:00",
+}
+
+SETTING_META = {
+    "range_warning_km": ("Range warning", "mdi:map-marker-distance", 1, 200, 1),
+    "range_reset_km": ("Range reset", "mdi:map-marker-check", 1, 200, 1),
+    "home_soc_warning": ("Home SOC warning", "mdi:battery-alert", 1, 100, 1),
+    "home_soc_reset": ("Home SOC reset", "mdi:battery-check", 1, 100, 1),
+    "home_delay_minutes": ("Home warning delay", "mdi:timer-outline", 1, 1440, 1),
+    "service_battery_warning": ("12 V warning", "mdi:car-battery", 1, 100, 1),
+    "service_battery_reset": ("12 V reset", "mdi:car-battery", 1, 100, 1),
+    "stale_home_hours": ("Stale at home", "mdi:home-clock-outline", .25, 48, .25),
+    "stale_away_hours": ("Stale away", "mdi:car-clock", .25, 48, .25),
+    "probe_wait_minutes": ("Probe wait", "mdi:timer-sand", 1, 180, 1),
+    "charge_start_delay_minutes": ("Charge start delay", "mdi:timer-play-outline", 0, 180, 1),
+}
+
 
 class VehicleNotificationManager:
     """Own optional notification state without creating user helpers.
@@ -75,6 +99,7 @@ class VehicleNotificationManager:
             "last_wakeup": None,
             "wakeup_count_today": 0,
             "wakeup_counter_date": None,
+            "settings": dict(SETTING_DEFAULTS),
         }
         self._entities: list[Any] = []
         self._unsub: list[callable] = []
@@ -86,6 +111,9 @@ class VehicleNotificationManager:
             self.data.update(stored)
         self.data.setdefault("switches", {})
         self.data.setdefault("markers", {})
+        settings = self.data.setdefault("settings", {})
+        for key, default in SETTING_DEFAULTS.items():
+            settings.setdefault(key, default)
         for key in BASE_SWITCHES:
             self.data["switches"].setdefault(key, False)
         for recipient in self.recipients:
@@ -128,6 +156,44 @@ class VehicleNotificationManager:
 
     def register_entity(self, entity: Any) -> None:
         self._entities.append(entity)
+
+    def setting(self, key: str) -> Any:
+        return self.data.get("settings", {}).get(key, SETTING_DEFAULTS[key])
+
+    async def async_set_setting(self, key: str, value: Any) -> None:
+        if key not in SETTING_DEFAULTS:
+            raise ValueError(f"Unknown notification setting: {key}")
+        if key in SETTING_META:
+            _, _, minimum, maximum, _ = SETTING_META[key]
+            value = float(value)
+            if not minimum <= value <= maximum:
+                raise ValueError(f"Notification setting {key} is out of range")
+            pairs = {
+                "range_warning_km": "range_reset_km",
+                "home_soc_warning": "home_soc_reset",
+                "service_battery_warning": "service_battery_reset",
+            }
+            if key in pairs and value >= float(self.setting(pairs[key])):
+                raise ValueError(f"{key} must remain below its reset threshold")
+            reverse = {reset: warning for warning, reset in pairs.items()}
+            if key in reverse and value <= float(self.setting(reverse[key])):
+                raise ValueError(f"{key} must remain above its warning threshold")
+        elif key.startswith("quiet_"):
+            from datetime import time as time_type
+            value = time_type.fromisoformat(str(value)).isoformat()
+        self.data.setdefault("settings", {})[key] = value
+        await self._save()
+
+    def diagnostic(self) -> dict[str, Any]:
+        markers = self.data.get("markers", {})
+        last = self.data.get("last_notification") or {}
+        return {"settings": dict(self.data.get("settings", {})),
+                "heartbeat": markers.get("last_heartbeat"),
+                "heartbeat_source": markers.get("heartbeat_source"),
+                "outage_since": markers.get("outage_since"),
+                "outage_reported": bool(markers.get("outage_reported")),
+                "probe_at": markers.get("probe_at"),
+                "last_notification": {key: last.get(key) for key in ("type", "title", "message", "time")}}
 
     async def async_refresh_entities(self) -> None:
         """Publish newly registered controls to the dashboard status sensor."""
@@ -235,7 +301,7 @@ class VehicleNotificationManager:
         if value is None:
             return
         marker = "range_reported"
-        if value < _RANGE_WARNING_KM and not self.data["markers"].get(marker):
+        if value < self.setting("range_warning_km") and not self.data["markers"].get(marker):
             sent = await self._async_notify(
                 text(self.hass, "range_low_title"),
                 text(
@@ -250,7 +316,7 @@ class VehicleNotificationManager:
             if sent:
                 self.data["markers"][marker] = True
                 await self._save()
-        elif value > _RANGE_RESET_KM and self.data["markers"].get(marker):
+        elif value > self.setting("range_reset_km") and self.data["markers"].get(marker):
             self.data["markers"][marker] = False
             await self._save()
 
@@ -261,7 +327,7 @@ class VehicleNotificationManager:
             and self._is_off("engine")
             and self._is_off("battery_charging")
             and soc is not None
-            and soc < _HOME_SOC_WARNING
+            and soc < self.setting("home_soc_warning")
         )
         candidate = self._parse_time(self.data["markers"].get("home_low_soc_since"))
         if needed and candidate is None:
@@ -271,14 +337,14 @@ class VehicleNotificationManager:
         if not needed:
             changed = bool(candidate) or self.data["markers"].get("home_charge_reported")
             self.data["markers"].pop("home_low_soc_since", None)
-            if soc is not None and soc > _HOME_SOC_RESET:
+            if soc is not None and soc > self.setting("home_soc_reset"):
                 self.data["markers"]["home_charge_reported"] = False
             if changed:
                 await self._save()
             return
         if (
             candidate
-            and dt_util.utcnow() - candidate >= _HOME_DELAY
+            and dt_util.utcnow() - candidate >= timedelta(minutes=float(self.setting("home_delay_minutes")))
             and not self.data["markers"].get("home_charge_reported")
         ):
             sent = await self._async_notify(
@@ -301,7 +367,7 @@ class VehicleNotificationManager:
         if value is None:
             return
         marker = "service_battery_reported"
-        if value < _SERVICE_BATTERY_WARNING and not self.data["markers"].get(marker):
+        if value < self.setting("service_battery_warning") and not self.data["markers"].get(marker):
             sent = await self._async_notify(
                 text(self.hass, "service_battery_low_title"),
                 text(
@@ -315,23 +381,26 @@ class VehicleNotificationManager:
             if sent:
                 self.data["markers"][marker] = True
                 await self._save()
-        elif value > _SERVICE_BATTERY_RESET and self.data["markers"].get(marker):
+        elif value > self.setting("service_battery_reset") and self.data["markers"].get(marker):
             self.data["markers"][marker] = False
             await self._save()
 
     async def _evaluate_availability(self) -> None:
         now = dt_util.utcnow()
-        fresh = self._latest_upstream_update()
+        fresh, source = self._heartbeat()
         if fresh is not None:
             self.data["markers"]["last_fresh_data"] = fresh.isoformat()
+            self.data["markers"]["last_heartbeat"] = fresh.isoformat()
+            self.data["markers"]["heartbeat_source"] = source
         last = self._parse_time(self.data["markers"].get("last_fresh_data"))
         if last is None:
             return
         stale_for = now - last
-        limit = _STALE_HOME if self._is_home() and self._is_off("engine") else _STALE_AWAY
+        limit = timedelta(hours=float(self.setting("stale_home_hours"))) if self._is_home() and self._is_off("engine") else timedelta(hours=float(self.setting("stale_away_hours")))
         outage = self._parse_time(self.data["markers"].get("outage_since"))
-        if stale_for < timedelta(minutes=30):
-            if outage:
+        if outage and fresh is not None:
+            outage_heartbeat = self._parse_time(self.data["markers"].get("outage_heartbeat"))
+            if outage_heartbeat is None or fresh > outage_heartbeat:
                 if self.data["markers"].get("outage_reported"):
                     await self._async_notify(
                         text(self.hass, "availability_restored_title"),
@@ -345,7 +414,7 @@ class VehicleNotificationManager:
                         "availability_restored",
                         SWITCH_ALERTS,
                     )
-                for key in ("outage_since", "outage_reported", "probe_at"):
+                for key in ("outage_since", "outage_reported", "probe_at", "outage_heartbeat"):
                     self.data["markers"].pop(key, None)
                 await self._save()
             return
@@ -353,6 +422,7 @@ class VehicleNotificationManager:
             return
         if outage is None:
             self.data["markers"]["outage_since"] = now.isoformat()
+            self.data["markers"]["outage_heartbeat"] = last.isoformat()
             outage = now
             if self.is_enabled(SWITCH_WAKEUP_PROBE):
                 await self._async_wakeup(
@@ -364,7 +434,7 @@ class VehicleNotificationManager:
         probe_at = self._parse_time(self.data["markers"].get("probe_at"))
         if not self.data["markers"].get("outage_reported") and (
             not self.is_enabled(SWITCH_WAKEUP_PROBE)
-            or (probe_at is not None and now - probe_at >= _PROBE_WAIT)
+            or (probe_at is not None and now - probe_at >= timedelta(minutes=float(self.setting("probe_wait_minutes"))))
         ):
             sent = await self._async_notify(
                 text(self.hass, "availability_outage_title"),
@@ -388,18 +458,25 @@ class VehicleNotificationManager:
         start = self._parse_time(active.get("start_time"))
         if (
             start is None
-            or dt_util.utcnow() - start < _CHARGE_START_DELAY
+            or dt_util.utcnow() - start < timedelta(minutes=float(self.setting("charge_start_delay_minutes")))
             or self.data["markers"].get("charge_start_reported")
         ):
             return
         soc = self._state_number("battery")
         capacity = self._as_float(active.get("capacity_kwh")) or 43.4
-        power = self._as_float(self.metrics.current_charge_power())
-        target = 80.0
-        remaining = ((target - soc) * capacity / 100 / power) if soc is not None and power and target > soc else None
+        power = self._recent_charge_power(active)
+        target = self._charge_target()
+        upstream_end = self._upstream_charge_end()
+        direct_finish = upstream_end is not None and upstream_end > dt_util.utcnow()
+        if direct_finish:
+            finish = upstream_end
+            remaining = (finish - dt_util.utcnow()).total_seconds() / 3600
+        else:
+            remaining = ((target - soc) * capacity / 100 / power) if soc is not None and power and target > soc else None
         if remaining is None or remaining <= 0:
             return
-        finish = dt_util.utcnow() + timedelta(hours=remaining)
+        if not direct_finish:
+            finish = dt_util.utcnow() + timedelta(hours=remaining)
         end = self._format_charge_end(finish)
         sent = await self._async_notify(
             text(self.hass, "charge_started_title"),
@@ -464,6 +541,10 @@ class VehicleNotificationManager:
     async def _async_notify(
         self, title: str, message: str, notification_type: str, required_category: str | None
     ) -> bool:
+        if notification_type == "availability_outage" and self._in_quiet_hours():
+            self.data["markers"]["quiet_notification_pending"] = True
+            await self._save()
+            return False
         if not self.is_enabled(SWITCH_NOTIFICATIONS):
             return False
         if required_category and not self.is_enabled(required_category):
@@ -495,6 +576,22 @@ class VehicleNotificationManager:
         }
         await self._save()
         return True
+
+    def _in_quiet_hours(self) -> bool:
+        now = dt_util.as_local(dt_util.utcnow()).time()
+        start = self._time_value(self.setting("quiet_start"))
+        end = self._time_value(self.setting("quiet_end"))
+        if start is None or end is None or start == end:
+            return False
+        return now >= start or now < end if start > end else start <= now < end
+
+    @staticmethod
+    def _time_value(value: Any):
+        try:
+            from datetime import time as time_type
+            return time_type.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            return None
 
     async def _reset_daily_wakeup_counter(self) -> None:
         today = dt_util.as_local(dt_util.utcnow()).date().isoformat()
@@ -529,23 +626,45 @@ class VehicleNotificationManager:
         state = self.hass.states.get(tracker) if tracker else None
         return bool(state and (state.state == "home" or "zone.home" in (state.attributes.get("in_zones") or [])))
 
-    def _latest_upstream_update(self):
-        latest = None
-        for entity_id in self.mapping.values():
-            state = self.hass.states.get(entity_id)
-            if state is None:
+    def _heartbeat(self):
+        """Use a proven changing payload, rather than a static mapped entity."""
+        for key in ("temperature", "vehicle"):
+            entity_id = self._entity(key)
+            state = self.hass.states.get(entity_id) if entity_id else None
+            if state is None or state.state in {"unknown", "unavailable"}:
                 continue
-            value = (
-                state.attributes.get("last_updated")
-                or state.attributes.get("Last updated")
-                or state.attributes.get("Zuletzt aktualisiert")
-            )
-            stamp = self._parse_time(value)
-            if stamp is None:
-                continue
-            if latest is None or stamp > latest:
-                latest = stamp
-        return latest
+            source_value = state.attributes.get("Last updated") or state.attributes.get("last_updated")
+            stamp = self._parse_time(source_value) or self._parse_time(state.last_updated)
+            if stamp is not None:
+                return stamp, "source_attribute" if source_value else "ha_last_updated"
+        return None, None
+
+    def _charge_target(self) -> float:
+        switch = self._entity("battery_charging_limit_switch")
+        if switch and self.hass.states.is_state(switch, "on"):
+            value = self._state_number("battery_charging_limit_number")
+            if value is not None and 0 < value <= 100:
+                return value
+        return 100.0
+
+    def _upstream_charge_end(self):
+        entity_id = self._entity("battery_charging_end")
+        state = self.hass.states.get(entity_id) if entity_id else None
+        if state is None or state.state in {"unknown", "unavailable", "none", ""}:
+            return None
+        return self._parse_time(state.state)
+
+    def _recent_charge_power(self, active: dict[str, Any]) -> float | None:
+        samples = active.get("samples") or active.get("power_samples") or []
+        values = []
+        for sample in samples[-2:] if isinstance(samples, list) else []:
+            value = self._as_float(sample.get("derived_power_kw") if isinstance(sample, dict) else sample)
+            if value and value > 0:
+                values.append(value)
+        if values:
+            return sum(values) / len(values)
+        value = self._as_float(self.metrics.current_charge_power())
+        return value if value and value > 0 else None
 
     @staticmethod
     def _parse_time(value: Any):
