@@ -38,6 +38,30 @@ It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
 - Full rationale and the runtime/result contract are in
   [`docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md`](docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md).
 
+## Temporary patches versus accepted source
+
+- A temporary runtime/frontend patch is allowed only as a short-lived diagnostic
+  experiment when it is materially faster or safer than changing the canonical
+  implementation before the cause is understood.
+- A successful test patch is **evidence, not the finished implementation**.
+  Before user acceptance, stable promotion or release, fold the proven behavior
+  into the canonical source/module that owns the feature, remove the temporary
+  patch path, bump the candidate version when frontend caching is affected, and
+  repeat the relevant repository plus runtime/browser/app tests.
+- Do not accumulate post-generation Strategy wrappers, `customElements.define`
+  interception, runtime monkey patches or multiple separately registered
+  Lovelace resources merely because they worked during diagnosis.
+- Prefer one package-owned frontend entry resource. Internal ES modules are
+  encouraged for maintainability, but their load order and readiness are owned
+  by that entry module rather than by independent Home Assistant resources.
+- An unavoidable compatibility shim against a third-party component is allowed
+  only when the required behavior cannot be expressed through its supported
+  API/CSS contract. It must be narrowly opt-in, live in the canonical source,
+  be documented with the upstream reason, have regression coverage, and never
+  be mixed with unrelated feature logic.
+- An Issue cannot become `Validated` while its accepted behavior still depends
+  on a disposable diagnostic patch that has not been integrated and retested.
+
 ## Issue-based task and agent handoff workflow
 
 - The GitHub Issue in `CaneTLOTW/e_c3_dashboard` is the canonical operative work item for bugs, features, migrations, investigations and follow-ups that are not completed immediately.
@@ -97,6 +121,7 @@ node --check custom_components/e_c3_dashboard/static/charge-history-card.js
 node --check custom_components/e_c3_dashboard/static/map-marker-fix.js
 node --check custom_components/e_c3_dashboard/static/gps-history-core.js
 node --check custom_components/e_c3_dashboard/static/gps-history-fix.js
+node --check custom_components/e_c3_dashboard/static/vehicle-overview-card.js
 node --test tests/*.test.mjs
 python3 -m json.tool hacs.json
 python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
