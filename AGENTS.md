@@ -13,11 +13,20 @@ It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
   This is a live acceptance deployment, not a public/stable release.
 - Every active runtime Issue must distinguish three states explicitly:
   - **Candidate** = exact `develop` SHA/version prepared in GitHub;
-  - **Runtime** = exact SHA/version actually copied to and served by Home Assistant;
+  - **Runtime** = exact SHA/version deployed into the active Home Assistant instance;
   - **Validated** = exact runtime SHA/version that passed the required live/user checks.
   Never describe a Candidate as deployed or validated merely because it exists on `develop`.
 - Every Codex deployment must record the exact `develop` SHA it deploys and
   report PASS/FAIL against that same SHA in the relevant GitHub Issue.
+- Home Assistant restart handling follows the normal deployment flow: when a
+  Python/platform change requires a Core restart, request one restart, allow a
+  normal startup interval, then continue with the next task-specific functional
+  check. The restart request itself may lose its connection while Core stops.
+- Runtime validation is **task-driven**. The next real integration/dashboard
+  action is the normal proof that Home Assistant is usable for the task.
+  Transport, management or health endpoints are diagnostic tools when a
+  functional step actually fails or when connectivity is itself the subject of
+  the task; they are not a separate prerequisite for ordinary e-C3 acceptance.
 - If new commits land on `develop` after a deployment, the existing Runtime
   remains the previously deployed SHA until an explicit new deployment occurs.
   A later `develop` HEAD never silently changes the running Home Assistant copy.
