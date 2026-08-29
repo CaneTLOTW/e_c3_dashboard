@@ -21,10 +21,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 class NotificationSettingNumber(NumberEntity):
-    # Translated settings should be presented as their own concise names; the
-    # package device remains available for grouping, but its vehicle/VIN-like
-    # name must not be prepended to every control.
-    _attr_has_entity_name = False
+    # Translation keys own the visible setting names. Keep entity-name semantics
+    # enabled; otherwise Home Assistant may collapse the label to the device name.
+    _attr_has_entity_name = True
     _attr_should_poll = False
 
     def __init__(self, coordinator, entry, key: str) -> None:
