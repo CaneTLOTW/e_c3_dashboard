@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.5.10";
+import { localeFor, textFor } from "./i18n.js?v=0.5.49";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -45,6 +45,7 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         .trip-row:focus { outline: 2px solid var(--primary-color); outline-offset: -2px; }
         .trip-details td { padding: 0 0 10px 0; border-top: 0; white-space: normal; }
         .trip-details-content { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 8px 10px; border-left: 3px solid var(--primary-color); background: color-mix(in srgb, var(--primary-color) 7%, transparent); }
+        .quality-warning { flex: 1 0 100%; color: var(--warning-color, var(--primary-text-color)); font-weight: 600; }
         .muted { color: var(--secondary-text-color); }
         .error { color: var(--error-color); }
         .filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0 0 12px; font-size: var(--ha-font-size-s); }
@@ -155,6 +156,8 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                         energy_kwh: trip.energy_kwh,
                         energy_per_100_km: trip.energy_per_100_km,
                         avg_speed: trip.average_speed,
+                        valid_for_statistics: trip.valid_for_statistics,
+                        quality_flags: trip.quality_flags,
                     },
                 })).reverse();
                 this._setAllTrips(normalizedTrips);
@@ -361,6 +364,10 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         this._expandedTripKey = this._expandedTripKey === key ? undefined : key;
     }
 
+    _isInvalidTrip(trip) {
+        return trip.attributes?.valid_for_statistics === false;
+    }
+
     _formatMileage(value) {
         const numeric = Number.parseFloat(String(value ?? "").replace(",", "."));
         return Number.isFinite(numeric)
@@ -382,14 +389,16 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         return `${hours}:${String(minutes).padStart(2, "0")} h`;
     }
 
-    _formatDistance(value) {
-        const numeric = Number.parseFloat(String(value ?? "").replace(",", "."));
+    _formatDistance(trip) {
+        if (this._isInvalidTrip(trip)) return "—";
+        const numeric = Number.parseFloat(String(trip.state ?? "").replace(",", "."));
         return Number.isFinite(numeric)
             ? `${numeric.toLocaleString(this._locale(), { maximumFractionDigits: 1 })} km`
             : "—";
     }
 
     _formatSpeed(trip) {
+        if (this._isInvalidTrip(trip)) return "—";
         const numeric = Number.parseFloat(String(trip.attributes?.average_speed ?? trip.attributes?.avg_speed ?? "").replace(",", "."));
         return Number.isFinite(numeric)
             ? `${numeric.toLocaleString(this._locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km/h`
@@ -442,16 +451,18 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                             <tbody>${trips.map((trip, index) => {
                                 const key = this._tripKey(trip, index);
                                 const expanded = this._expandedTripKey === key;
+                                const invalid = this._isInvalidTrip(trip);
                                 return html`<tr class="trip-row" tabindex="0" role="button" aria-expanded=${expanded} @click=${() => this._toggleTrip(key)} @keydown=${(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); this._toggleTrip(key); } }}>
                                 <td>${this._formatDate(trip.last_updated ?? trip.last_changed)}</td>
                                 <td>${this._formatDuration(trip)}</td>
-                                <td>${this._formatDistance(trip.state)}</td>
+                                <td>${this._formatDistance(trip)}</td>
                                 <td>${this._formatSpeed(trip)}</td>
-                                ${hasEnergy ? html`<td>${this._value(trip.attributes?.energy_kwh)}</td><td>${this._value(trip.attributes?.energy_per_100_km)}</td>` : nothing}
-                                ${hasMaxSpeed ? html`<td>${this._value(trip.attributes?.max_speed)}</td>` : nothing}
+                                ${hasEnergy ? html`<td>${this._value(trip.attributes?.energy_kwh)}</td><td>${invalid ? "—" : this._value(trip.attributes?.energy_per_100_km)}</td>` : nothing}
+                                ${hasMaxSpeed ? html`<td>${invalid ? "—" : this._value(trip.attributes?.max_speed)}</td>` : nothing}
                             </tr>${expanded ? html`<tr class="trip-details">
                                 <td colspan=${columnCount}>
                                     <div class="trip-details-content">
+                                        ${invalid ? html`<span class="quality-warning">${text.invalidServerTrip}</span>` : nothing}
                                         <span><strong>${text.startMileage}:</strong> ${this._formatMileage(trip.attributes?.start_mileage)}</span>
                                         <span><strong>${text.endMileage}:</strong> ${this._formatMileage(this._endMileage(trip))}</span>
                                         <span><strong>SOC Start:</strong> ${this._value(trip.attributes?.soc_start)} %</span>

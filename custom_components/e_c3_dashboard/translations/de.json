@@ -47,6 +47,18 @@
     }
   },
   "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Server-Fahrtenhistorie"},
+      "server_gps_history": {"name": "Server-GPS-Historie"},
+      "server_charge_history": {"name": "Server-Ladehistorie"},
+      "vehicle_info": {"name": "Fahrzeuginformationen"},
+      "trailing_consumption_500km": {"name": "Ø Verbrauch (500 km)"},
+      "distance_since_charge": {"name": "Seit letzter Ladung"},
+      "current_trip_energy": {"name": "Aktuelle Fahrtenergie"},
+      "current_charge_power": {"name": "Aktuelle Ladeleistung"},
+      "last_trip_result": {"name": "Letzte lokale Fahrt"},
+      "last_charge_result": {"name": "Letzter lokaler Ladevorgang"}
+    },
     "number": {
       "range_warning_km": {"name": "Reichweitenwarnung"},
       "range_reset_km": {"name": "Reichweitenwarnung zurücksetzen"},

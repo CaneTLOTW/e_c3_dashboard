@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.5.46";
+import { languageFor, textFor } from "./i18n.js?v=0.5.49";
 
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
@@ -147,6 +147,7 @@ class Ec3DashboardStrategy extends HTMLElement {
     const chargeSelectionKey = `e_c3_dashboard_charge_selection_${attributes.entry_id}`;
     const gpsDateStorageKey = `e_c3_dashboard:gps_date:${attributes.entry_id || "default"}`;
     const mapped = attributes.entity_mapping || {};
+    const mappedEntityCount = Object.keys(mapped).length;
     const controls = attributes.control_entities || {};
     const metric = (key) => attributes.metric_entities?.[key] || getMetricEntity(hass, attributes.entry_id, key);
     const serverHistoryEntity = (key) => attributes.server_history_entities?.[key];
@@ -536,8 +537,8 @@ class Ec3DashboardStrategy extends HTMLElement {
 
     if (modules.gps && tracker) {
       const gpsPositionDetails = language(hass) === "de"
-        ? `{% set tracker = '${tracker}' %}\n{% set lat = state_attr(tracker, 'latitude') %}\n{% set lon = state_attr(tracker, 'longitude') %}\n{% set acc = state_attr(tracker, 'gps_accuracy') %}\n{% set updated = states[tracker].last_updated %}\n{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}\n{% if age < 60 %}{% set age_text = 'gerade eben' %}{% elif age < 3600 %}{% set age_text = 'vor ' ~ ((age / 60) | int) ~ ' Min.' %}{% elif age < 86400 %}{% set age_text = 'vor ' ~ ((age / 3600) | int) ~ ' Std.' %}{% else %}{% set age_text = 'vor ' ~ ((age / 86400) | int) ~ ' Tg.' %}{% endif %}\n### 📍 Koordinaten\n{% if lat is not none and lon is not none %}\n**Breitengrad:** {{ lat | round(6) }}  \n**Längengrad:** {{ lon | round(6) }}\n{% if acc is not none %}\n**GPS-Genauigkeit:** ± {{ acc }} m  \n{% endif %}\n**Positionsupdate:** {{ age_text }}\n{% else %}\nKeine GPS-Koordinaten verfügbar.\n{% endif %}`
-        : `{% set tracker = '${tracker}' %}\n{% set lat = state_attr(tracker, 'latitude') %}\n{% set lon = state_attr(tracker, 'longitude') %}\n{% set acc = state_attr(tracker, 'gps_accuracy') %}\n{% set updated = states[tracker].last_updated %}\n{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}\n{% if age < 60 %}{% set age_text = 'just now' %}{% elif age < 3600 %}{% set age_text = ((age / 60) | int) ~ ' min ago' %}{% elif age < 86400 %}{% set age_text = ((age / 3600) | int) ~ ' hr ago' %}{% else %}{% set age_text = ((age / 86400) | int) ~ ' days ago' %}{% endif %}\n### 📍 Coordinates\n{% if lat is not none and lon is not none %}\n**Latitude:** {{ lat | round(6) }}  \n**Longitude:** {{ lon | round(6) }}\n{% if acc is not none %}\n**GPS accuracy:** ± {{ acc }} m  \n{% endif %}\n**Position update:** {{ age_text }}\n{% else %}\nNo GPS coordinates available.\n{% endif %}`;
+        ? `{% set tracker = '${tracker}' %}\n{% set lat = state_attr(tracker, 'latitude') %}\n{% set lon = state_attr(tracker, 'longitude') %}\n{% set updated = states[tracker].last_updated %}\n{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}\n{% if age < 60 %}{% set age_text = 'gerade eben' %}{% elif age < 3600 %}{% set age_text = 'vor ' ~ ((age / 60) | int) ~ ' Min.' %}{% elif age < 86400 %}{% set age_text = 'vor ' ~ ((age / 3600) | int) ~ ' Std.' %}{% else %}{% set age_text = 'vor ' ~ ((age / 86400) | int) ~ ' Tg.' %}{% endif %}\n### 📍 Koordinaten\n{% if lat is not none and lon is not none %}\n**Breitengrad:** {{ lat | round(6) }}  \n**Längengrad:** {{ lon | round(6) }}\n**Positionsupdate:** {{ age_text }}\n{% else %}\nKeine GPS-Koordinaten verfügbar.\n{% endif %}`
+        : `{% set tracker = '${tracker}' %}\n{% set lat = state_attr(tracker, 'latitude') %}\n{% set lon = state_attr(tracker, 'longitude') %}\n{% set updated = states[tracker].last_updated %}\n{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}\n{% if age < 60 %}{% set age_text = 'just now' %}{% elif age < 3600 %}{% set age_text = ((age / 60) | int) ~ ' min ago' %}{% elif age < 86400 %}{% set age_text = ((age / 3600) | int) ~ ' hr ago' %}{% else %}{% set age_text = ((age / 86400) | int) ~ ' days ago' %}{% endif %}\n### 📍 Coordinates\n{% if lat is not none and lon is not none %}\n**Latitude:** {{ lat | round(6) }}  \n**Longitude:** {{ lon | round(6) }}\n**Position update:** {{ age_text }}\n{% else %}\nNo GPS coordinates available.\n{% endif %}`;
 
       const gpsBaseMap = {
         type: "custom:map-card",
@@ -617,9 +618,27 @@ class Ec3DashboardStrategy extends HTMLElement {
           type: "grid",
           cards: [
             { type: "heading", heading: strings.wakeup, icon: "mdi:power-sleep", heading_style: "title" },
-            controlButton("manual_wakeup", strings.manualWakeup, "mdi:car-key") || { type: "button", entity: entity("wakeup"), name: strings.manualWakeup, icon: "mdi:car-key", show_state: false, grid_options: { columns: "full" } },
-            controlSwitch("wakeup_hourly", strings.hourlyWakeup, "mdi:car-clock"),
-            controlSwitch("wakeup_probe", strings.availabilityProbe, "mdi:access-point-check"),
+            control("manual_wakeup") ? {
+              type: "custom:bubble-card",
+              card_type: "button",
+              button_type: "state",
+              entity: control("manual_wakeup"),
+              name: strings.manualWakeup,
+              icon: "mdi:car-key",
+              show_state: false,
+              force_icon: true,
+              card_layout: "large",
+              button_action: {
+                tap_action: {
+                  action: "perform-action",
+                  perform_action: "button.press",
+                  target: { entity_id: control("manual_wakeup") },
+                },
+              },
+              grid_options: { columns: "full" },
+            } : { type: "button", entity: entity("wakeup"), name: strings.manualWakeup, icon: "mdi:car-key", show_state: false, grid_options: { columns: "full" } },
+            controlSwitch("wakeup_hourly", strings.hourlyWakeup, "mdi:car-clock", "full"),
+            controlSwitch("wakeup_probe", strings.availabilityProbe, "mdi:access-point-check", "full"),
             controlSwitch("wakeup_charging", strings.chargeWakeup, "mdi:battery-sync-outline", "full"),
             bubble("remote_commands", strings.remote, "mdi:car-wireless"),
           ].filter(Boolean),
@@ -670,11 +689,12 @@ class Ec3DashboardStrategy extends HTMLElement {
 
 {% set d = state_attr('${statusEntity}', 'notification_diagnostics') or {} %}
 {% set last = d.get('last_notification') or {} %}
+{% set heartbeat_source = d.get('heartbeat_source') %}
 **${strings.lastNotificationType}:** {{ last.get('type') or '—' }}<br>
 **${strings.lastNotificationTime}:** {{ last.get('time') or '—' }}<br>
 **${strings.lastNotificationMessage}:** {{ last.get('message') or '—' }}
 
-**${strings.heartbeatSource}:** {{ d.get('heartbeat_source') or '—' }}<br>
+**${strings.heartbeatSource}:** {{ '${strings.heartbeatSourceUpstream}' if heartbeat_source == 'source_attribute' else '${strings.heartbeatSourceHa}' if heartbeat_source == 'ha_last_updated' else heartbeat_source or '—' }}<br>
 **${strings.heartbeatTime}:** {{ d.get('heartbeat') or '—' }}<br>
 **${strings.outageStatus}:** {{ '${strings.outageActive}' if d.get('outage_since') else '—' }}<br>
 **${strings.outageSince}:** {{ d.get('outage_since') or '—' }}<br>
@@ -691,17 +711,19 @@ class Ec3DashboardStrategy extends HTMLElement {
           cards: present([
             { type: "heading", heading: strings.notifications, icon: "mdi:bell-check-outline", heading_style: "title" },
             controlSwitch("notifications", strings.notifications, "mdi:bell-ring-outline", "full"),
-            controlSwitch("alerts", strings.vehicleAlerts, "mdi:alert-outline"),
-            controlSwitch("trip_reports", strings.tripReports, "mdi:car-info"),
-            controlSwitch("charge_reports", strings.chargeReports, "mdi:ev-station"),
+            controlSwitch("alerts", strings.vehicleAlerts, "mdi:alert-outline", "full"),
+            controlSwitch("trip_reports", strings.tripReports, "mdi:car-info", "full"),
+            controlSwitch("charge_reports", strings.chargeReports, "mdi:ev-station", "full"),
             { type: "heading", heading: strings.notificationRecipients, icon: "mdi:send-outline", heading_style: "subtitle" },
-            recipientControls.length ? recipientControls.map(({ key, entityId }) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entityId, name: key.replace(/^recipient_/, "").replaceAll("_", " "), icon: "mdi:account-bell-outline", force_icon: true, show_state: true, card_layout: "large", grid_options: { columns: 6 } })) : markdown(strings.noRecipients),
+            { ...markdown(strings.recipientsHint), grid_options: { columns: "full" } },
+            recipientControls.length ? recipientControls.map(({ key, entityId }) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entityId, name: key.replace(/^recipient_/, "").replace(/^notify_/, "").replace(/^mobile_app_/, "").replaceAll("_", " "), icon: "mdi:account-bell-outline", force_icon: true, show_state: true, card_layout: "large", grid_options: { columns: "full" } })) : markdown(strings.noRecipients),
+            { type: "button", name: strings.manageRecipients, icon: "mdi:account-multiple-plus-outline", show_state: false, tap_action: { action: "navigate", navigation_path: `/config/integrations/integration/${STATUS_DOMAIN}` }, grid_options: { columns: "full" } },
             controlButton("test_notification", strings.testNotification, "mdi:message-alert-outline"),
             { type: "heading", heading: strings.notificationSettings || "Notification settings", icon: "mdi:tune-variant", heading_style: "subtitle" },
             warningThresholds || markdown(strings.notificationSettingsUnavailable),
             timingAvailability,
             quietHours,
-            { type: "markdown", content: notificationDiagnostics, entity_id: [statusEntity] },
+            { type: "markdown", content: notificationDiagnostics, entity_id: [statusEntity], grid_options: { columns: "full" } },
           ].flat()),
         }],
       });
@@ -724,8 +746,8 @@ class Ec3DashboardStrategy extends HTMLElement {
       max_columns: 2,
       sections: [{ type: "grid", cards: [
         { type: "heading", heading: strings.system, icon: "mdi:car-cog", heading_style: "title" },
-        { type: "entities", title: strings.status, entities: [statusEntity], grid_options: { columns: "full" } },
-        markdown(`**${strings.mappedEntities}:** ${Object.keys(mapped).length}`),
+        bubble(null, strings.status, "mdi:car-cog", [], "full", statusEntity),
+        { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: statusEntity, name: strings.mappedEntities, icon: "mdi:transit-connection-variant", show_state: true, force_icon: true, card_layout: "large", grid_options: { columns: "full" }, styles: `\${(() => { const target=card.querySelector('.bubble-state'); if (target) target.innerText='${mappedEntityCount}'; })()}` },
         separator(strings.settings, "mdi:cog-outline"),
         entity("refresh_interval") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("refresh_interval"), name: language(hass) === "de" ? "Aktualisierungsintervall" : "Refresh interval", icon: "mdi:update", show_state: true, force_icon: true, button_action: { tap_action: { action: "more-info" }, hold_action: { action: "more-info" } } } : null,
         entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: language(hass) === "de" ? "Korrektur Batteriewerte" : "Correct battery values", icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
@@ -735,6 +757,11 @@ class Ec3DashboardStrategy extends HTMLElement {
       ] }],
     });
 
+    // Home Assistant renders this array left-to-right. Keep Vehicle on the
+    // left and Help on the far right, matching the requested right-to-left
+    // reading order: Help → System → Notifications → … → Vehicle.
+    const viewOrder = ["vehicle", "charging", "statistics", "trips", "gps", "wakeup", "notifications", "system", "help"];
+    views.sort((left, right) => viewOrder.indexOf(left.path) - viewOrder.indexOf(right.path));
     return { title: strings.name, icon: "mdi:car-electric", views };
   }
 }

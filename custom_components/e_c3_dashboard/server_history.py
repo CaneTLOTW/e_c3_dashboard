@@ -37,6 +37,9 @@ _STORE_VERSION = 1
 _CURVE_STORE_VERSION = 1
 _FALLBACK_CAPACITY_KWH = 43.4
 _MIN_TRIP_DISTANCE_KM = 1.0
+_MAX_TRIP_DISTANCE_KM = 1000.0
+_MAX_TRIP_DURATION_SECONDS = 24 * 60 * 60
+_MAX_TRIP_SPEED_KMH = 300.0
 _MATCH_TOLERANCE = timedelta(minutes=10)
 
 
@@ -129,6 +132,39 @@ def _is_real_trip(trip: dict[str, Any]) -> bool:
     return distance is not None and distance > 0
 
 
+def _trip_quality(
+    distance: float | None,
+    duration_seconds: int | None,
+    start_mileage: float | None,
+    end_mileage: float | None,
+    average_speed_kmh: float | None,
+) -> tuple[bool, list[str]]:
+    """Return conservative quality flags for statistics, not raw display.
+
+    A questionable row remains visible in the history, but cannot distort
+    rolling consumption.  A source-unit error is repaired for display when a
+    plausible distance/duration fallback exists; an impossible fallback is
+    marked invalid instead of being rendered as a huge speed.
+    """
+    flags: list[str] = []
+    if distance is None or distance <= 0:
+        flags.append("missing_or_non_positive_distance")
+    elif distance > _MAX_TRIP_DISTANCE_KM:
+        flags.append("distance_outlier")
+    if duration_seconds is not None and duration_seconds > _MAX_TRIP_DURATION_SECONDS:
+        flags.append("duration_outlier")
+    if (
+        start_mileage is not None
+        and end_mileage is not None
+        and distance is not None
+        and abs((end_mileage - start_mileage) - distance) > 2.0
+    ):
+        flags.append("odometer_distance_mismatch")
+    if average_speed_kmh is not None and average_speed_kmh > _MAX_TRIP_SPEED_KMH:
+        flags.append("speed_outlier")
+    return not flags, flags
+
+
 def _trip_sort_key(trip: dict[str, Any]) -> str:
     return str(trip.get("start_time") or trip.get("startedAt") or trip.get("id") or "")
 
@@ -184,7 +220,29 @@ def normalize_trip(raw: dict[str, Any], capacity_kwh: Any = None) -> dict[str, A
         if distance is not None and duration and duration > 0
         else None
     )
-    average_speed_kmh = api_speed_kmh if api_speed_kmh is not None and 0 <= api_speed_kmh <= 300 else fallback_speed_kmh
+    speed_from_api = api_speed_kmh is not None and 0 <= api_speed_kmh <= _MAX_TRIP_SPEED_KMH
+    fallback_speed_valid = (
+        fallback_speed_kmh is not None
+        and 0 <= fallback_speed_kmh <= _MAX_TRIP_SPEED_KMH
+    )
+    average_speed_kmh = api_speed_kmh if speed_from_api else (
+        fallback_speed_kmh if fallback_speed_valid else None
+    )
+    valid_for_statistics, quality_flags = _trip_quality(
+        distance,
+        duration,
+        start_mileage,
+        end_mileage,
+        average_speed_kmh,
+    )
+    if api_speed_kmh is not None and not speed_from_api:
+        quality_flags.append("source_speed_outlier_fallback_used")
+    if fallback_speed_kmh is not None and not fallback_speed_valid:
+        quality_flags.append("derived_speed_outlier")
+        valid_for_statistics = False
+    if start_mileage == 0 and (end_mileage or 0) > 0:
+        quality_flags.append("zero_start_odometer_sentinel")
+        valid_for_statistics = False
 
     return {
         "id": raw.get("id"),
@@ -221,6 +279,10 @@ def normalize_trip(raw: dict[str, Any], capacity_kwh: Any = None) -> dict[str, A
         "consumption_estimated": energy_estimated,
         "average_speed_kmh": round(average_speed_kmh, 1) if average_speed_kmh is not None else None,
         "average_speed": round(average_speed_kmh, 1) if average_speed_kmh is not None else None,
+        "raw_average_speed_kmh": round(api_speed_kmh, 1) if api_speed_kmh is not None else None,
+        "speed_source": "stellantis_mps" if speed_from_api else "distance_duration_fallback",
+        "valid_for_statistics": valid_for_statistics,
+        "quality_flags": quality_flags,
         "raw_start_position": raw.get("startPosition"),
         "raw_stop_position": raw.get("stopPosition"),
         "display_start_position": raw.get("startPosition"),

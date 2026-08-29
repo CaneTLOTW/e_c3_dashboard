@@ -527,7 +527,12 @@ class VehicleMetricsManager:
         distance = 0.0
         energy = 0.0
         count = 0
-        for trip in reversed(self.data.get("trips", [])):
+        # Use the canonical server history when it is available.  The local
+        # Store is a live-session fallback only; mixing it into this metric
+        # caused stale/duplicate rows to affect the 500-km result.
+        for trip in reversed(self.canonical_trips()):
+            if trip.get("valid_for_statistics") is False:
+                continue
             trip_distance = self._as_float(trip.get("distance_km"))
             trip_energy = self._as_float(trip.get("energy_kwh"))
             if trip_distance is None or trip_energy is None or trip_distance <= 0:

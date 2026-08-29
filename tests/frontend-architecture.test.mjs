@@ -15,8 +15,8 @@ const init = read("__init__.py");
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.48"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.48"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.49"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.49"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -25,7 +25,7 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.48"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.49"\)/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
@@ -113,5 +113,18 @@ test("notification controls publish after forwarded platforms without blocking b
   assert.match(strategy, /notificationQuietHours/);
   assert.match(strategy, /lastNotificationType/);
   assert.match(strategy, /heartbeatSource/);
+  assert.match(strategy, /manageRecipients/);
+  assert.match(strategy, /navigation_path: `\/config\/integrations\/integration\/\$\{STATUS_DOMAIN\}`/);
+  assert.match(strategy, /controlSwitch\("alerts"[^\n]+"full"\)/);
+  assert.match(strategy, /controlSwitch\("trip_reports"[^\n]+"full"\)/);
+  assert.match(strategy, /controlSwitch\("charge_reports"[^\n]+"full"\)/);
   assert.doesNotMatch(strategy, /\{\{ state_attr\('\$\{statusEntity\}', 'notification_diagnostics'\) \}\}/);
+});
+
+test("wake-up action stays a real button press and views keep Vehicle left / Help right", () => {
+  assert.match(strategy, /perform_action: "button\.press"/);
+  assert.match(strategy, /target: \{ entity_id: control\("manual_wakeup"\) \}/);
+  assert.match(strategy, /const viewOrder = \["vehicle", "charging", "statistics", "trips", "gps", "wakeup", "notifications", "system", "help"\]/);
+  assert.match(strategy, /const mappedEntityCount = Object\.keys\(mapped\)\.length/);
+  assert.match(strategy, /target\.innerText='\$\{mappedEntityCount\}'/);
 });

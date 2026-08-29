@@ -47,6 +47,18 @@
     }
   },
   "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Server trip history"},
+      "server_gps_history": {"name": "Server GPS history"},
+      "server_charge_history": {"name": "Server charge history"},
+      "vehicle_info": {"name": "Vehicle information"},
+      "trailing_consumption_500km": {"name": "Average consumption (500 km)"},
+      "distance_since_charge": {"name": "Distance since last charge"},
+      "current_trip_energy": {"name": "Current trip energy"},
+      "current_charge_power": {"name": "Current charge power"},
+      "last_trip_result": {"name": "Last local trip result"},
+      "last_charge_result": {"name": "Last local charge result"}
+    },
     "number": {
       "range_warning_km": {"name": "Low range warning"},
       "range_reset_km": {"name": "Low range reset"},

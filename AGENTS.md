@@ -79,7 +79,17 @@ It complements, rather than replaces, [CONTRIBUTING.md](CONTRIBUTING.md).
 - Before creating a new Issue, search open and recently closed Issues for the same feature/problem and reuse the existing thread when appropriate.
 - ChatGPT should prepare repository analysis, architecture, code, tests, documentation, mockups/artifacts and an executable runbook as far as possible before handing work to Codex.
 - Codex is primarily the executor for work that needs the real Home Assistant runtime: deployment, real entity/config-entry resolution, reload/restart, runtime tests and collection of sanitized evidence.
-- Codex may perform additional analysis/design when live runtime evidence invalidates the prepared assumptions or the task explicitly requires local investigation. Document the finding and resulting decision in the Issue and commit durable conclusions.
+- The default Codex lane is therefore **execution of the prepared handoff**, not
+  broad feature design, refactoring or replacement implementation. If runtime
+  evidence contradicts the prepared assumptions, report the evidence first.
+- While executing, Codex may fix a **small, obvious and local defect** that is
+  necessary to complete the requested acceptance (for example a typo, missing
+  import, cache-version string, one-line mapping or narrow guard). Such a fix is
+  made on `develop`, stays within the handed-off architecture/scope, gets the
+  focused tests rerun, and is reported explicitly with file, change and reason.
+- If the required correction is larger, changes the feature contract or
+  architecture, or would broaden the requested scope, Codex must stop and hand
+  the finding back to ChatGPT instead of implementing a new solution on its own.
 - Use Issue comments headed `## ChatGPT → Codex Handoff`, `## Codex → ChatGPT Ergebnis`, and `## ChatGPT Review / Next Step` for handoffs and iterative review.
 - Handoff comments should reference the exact branch/commit, authoritative runbook or files, remaining runtime steps, acceptance criteria and areas that must not be changed.
 - Codex result comments should include final commit/branch, runtime PASS/FAIL, relevant findings, generated reports/exports, blockers and remaining local changes.

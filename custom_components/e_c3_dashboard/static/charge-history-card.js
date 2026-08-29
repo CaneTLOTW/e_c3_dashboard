@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, chargeSessionId, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.5.10";
-import { localeFor, textFor } from "./i18n.js?v=0.5.10";
+import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, chargeSessionId, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.5.49";
+import { localeFor, textFor } from "./i18n.js?v=0.5.49";
 
 const SELECTION_QUERY_PARAM = "e_c3_charge";
 
@@ -676,8 +676,8 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
             );
             const mergedSessions = mergeChargeSessions(sessions, localSessions);
             // Completed observed sessions are retained in the canonical Store
-            // with their raw samples.  Add them to the browser as a fallback
-            // after Recorder retention has expired.  Reconstructed server
+            // with their raw samples. Add them to the browser as a fallback
+            // after Recorder retention has expired. Reconstructed server
             // parking windows deliberately never appear here: they have no
             // real charging timeline and therefore no curve.
             const serverState = this._config.server_entity ? this._hass.states[this._config.server_entity] : null;

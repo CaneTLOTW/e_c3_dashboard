@@ -29,21 +29,26 @@ from .const import (
 def _compact_curve_samples(samples: Any, limit: int = 12) -> list[dict[str, Any]]:
     """Expose a small curve timeline without bloating Recorder attributes.
 
-    The complete raw samples intentionally stay in the package Store.  The
+    The complete raw samples intentionally stay in the package Store. The
     frontend only needs timestamp and SOC to draw the derived curve, so this
     compact, evenly-spaced view survives in the state attribute without
     exceeding Home Assistant's Recorder attribute size limit.
     """
     usable = [
-        sample for sample in (samples if isinstance(samples, list) else [])
+        sample
+        for sample in (samples if isinstance(samples, list) else [])
         if isinstance(sample, dict) and sample.get("soc") is not None
     ]
     if len(usable) > limit:
-        positions = [round(index * (len(usable) - 1) / (limit - 1)) for index in range(limit)]
+        positions = [
+            round(index * (len(usable) - 1) / (limit - 1)) for index in range(limit)
+        ]
         usable = [usable[index] for index in dict.fromkeys(positions)]
     return [
         {
-            "source_time": sample.get("source_time") or sample.get("time") or sample.get("received_at"),
+            "source_time": sample.get("source_time")
+            or sample.get("time")
+            or sample.get("received_at"),
             "soc": sample.get("soc"),
         }
         for sample in usable
@@ -53,22 +58,47 @@ def _compact_curve_samples(samples: Any, limit: int = 12) -> list[dict[str, Any]
 def _compact_trip_row(trip: dict[str, Any]) -> dict[str, Any]:
     """Return the UI contract without copying 160-character server IDs.
 
-    Full Stellantis IDs remain primary keys in the canonical Store.  The
+    Full Stellantis IDs remain primary keys in the canonical Store. The
     frontend only needs a stable row key, for which a 20-character suffix is
     ample and keeps the state attribute within Recorder's size limit.
     """
-    row = {key: trip.get(key) for key in (
-        "start_time", "end_time", "duration_seconds", "distance_km", "start_mileage",
-        "soc_start", "soc_end", "energy_kwh", "energy_per_100_km", "average_speed",
-    )}
+    row = {
+        key: trip.get(key)
+        for key in (
+            "start_time",
+            "end_time",
+            "duration_seconds",
+            "distance_km",
+            "start_mileage",
+            "soc_start",
+            "soc_end",
+            "energy_kwh",
+            "energy_per_100_km",
+            "average_speed",
+            "valid_for_statistics",
+            "quality_flags",
+            "speed_source",
+        )
+    }
     row["server_id"] = str(trip.get("server_id") or trip.get("id") or "")[-20:]
     return row
 
 
 _TRIP_ATTRIBUTE_COLUMNS = (
-    "server_id", "start_time", "end_time", "duration_seconds", "distance_km",
-    "start_mileage", "soc_start", "soc_end", "energy_kwh", "energy_per_100_km",
+    "server_id",
+    "start_time",
+    "end_time",
+    "duration_seconds",
+    "distance_km",
+    "start_mileage",
+    "soc_start",
+    "soc_end",
+    "energy_kwh",
+    "energy_per_100_km",
     "average_speed",
+    "valid_for_statistics",
+    "quality_flags",
+    "speed_source",
 )
 
 
@@ -98,7 +128,7 @@ def _trip_position_geojson(trips: Any) -> dict[str, Any]:
     """Build a bounded GeoJSON overlay from canonical server-trip positions.
 
     The Stellantis trip endpoint provides start/stop points, not necessarily a
-    complete route.  Lines in this overlay therefore deliberately represent
+    complete route. Lines in this overlay therefore deliberately represent
     start-to-stop approximations; HA Recorder history remains the detailed
     live route source when available.
     """
@@ -106,8 +136,12 @@ def _trip_position_geojson(trips: Any) -> dict[str, Any]:
     for trip in trips if isinstance(trips, list) else []:
         if not isinstance(trip, dict) or trip.get("distance_km") == 0:
             continue
-        start = _geojson_coordinates(trip.get("display_start_position") or trip.get("raw_start_position"))
-        end = _geojson_coordinates(trip.get("display_end_position") or trip.get("raw_stop_position"))
+        start = _geojson_coordinates(
+            trip.get("display_start_position") or trip.get("raw_start_position")
+        )
+        end = _geojson_coordinates(
+            trip.get("display_end_position") or trip.get("raw_stop_position")
+        )
         properties = {
             "trip_id": str(trip.get("id") or trip.get("server_id") or "")[-20:],
             "start_time": trip.get("start_time"),
@@ -117,23 +151,29 @@ def _trip_position_geojson(trips: Any) -> dict[str, Any]:
             "route_detail": "start_stop_only",
         }
         if start:
-            features.append({
-                "type": "Feature",
-                "geometry": {"type": "Point", "coordinates": start},
-                "properties": {**properties, "point_type": "start"},
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": start},
+                    "properties": {**properties, "point_type": "start"},
+                }
+            )
         if end:
-            features.append({
-                "type": "Feature",
-                "geometry": {"type": "Point", "coordinates": end},
-                "properties": {**properties, "point_type": "end"},
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": end},
+                    "properties": {**properties, "point_type": "end"},
+                }
+            )
         if start and end and start != end:
-            features.append({
-                "type": "Feature",
-                "geometry": {"type": "LineString", "coordinates": [start, end]},
-                "properties": properties,
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "LineString", "coordinates": [start, end]},
+                    "properties": properties,
+                }
+            )
     return {"type": "FeatureCollection", "features": features}
 
 
@@ -165,7 +205,7 @@ async def async_setup_entry(
             coordinator.server_history.register_entity(entity)
     async_add_entities(entities)
 
-    # The strategy reads metric entity IDs from the status entity.  Entity
+    # The strategy reads metric entity IDs from the status entity. Entity
     # registration occurs asynchronously, so publish once more on the next
     # event-loop turn after the complete platform set is registered.
     @callback
@@ -175,9 +215,7 @@ async def async_setup_entry(
     async_call_later(hass, 0, _publish_metric_mapping)
 
 
-class Ec3DashboardStatusSensor(
-    CoordinatorEntity, SensorEntity
-):
+class Ec3DashboardStatusSensor(CoordinatorEntity, SensorEntity):
     """Expose setup, mapping and module diagnostics to the dashboard strategy."""
 
     _attr_has_entity_name = True
@@ -199,7 +237,9 @@ class Ec3DashboardStatusSensor(
     def extra_state_attributes(self) -> dict[str, Any]:
         """Expose only non-sensitive mapping data."""
         metric_entities = {
-            registry_entry.unique_id.removeprefix(f"{self._entry.entry_id}_"): registry_entry.entity_id
+            registry_entry.unique_id.removeprefix(
+                f"{self._entry.entry_id}_"
+            ): registry_entry.entity_id
             for registry_entry in er.async_entries_for_config_entry(
                 er.async_get(self.coordinator.hass), self._entry.entry_id
             )
@@ -208,7 +248,9 @@ class Ec3DashboardStatusSensor(
             and registry_entry.unique_id != f"{self._entry.entry_id}_status"
         }
         control_entities = {
-            registry_entry.unique_id.removeprefix(f"{self._entry.entry_id}_"): registry_entry.entity_id
+            registry_entry.unique_id.removeprefix(
+                f"{self._entry.entry_id}_"
+            ): registry_entry.entity_id
             for registry_entry in er.async_entries_for_config_entry(
                 er.async_get(self.coordinator.hass), self._entry.entry_id
             )
@@ -224,13 +266,17 @@ class Ec3DashboardStatusSensor(
             "metric_entities": metric_entities,
             "control_entities": control_entities,
             "server_history_entities": {
-                registry_entry.unique_id.removeprefix(f"{self._entry.entry_id}_"): registry_entry.entity_id
+                registry_entry.unique_id.removeprefix(
+                    f"{self._entry.entry_id}_"
+                ): registry_entry.entity_id
                 for registry_entry in er.async_entries_for_config_entry(
                     er.async_get(self.coordinator.hass), self._entry.entry_id
                 )
                 if registry_entry.domain == "sensor"
                 and registry_entry.platform == DOMAIN
-                and registry_entry.unique_id.removeprefix(f"{self._entry.entry_id}_").startswith("server_")
+                and registry_entry.unique_id.removeprefix(
+                    f"{self._entry.entry_id}_"
+                ).startswith("server_")
             },
             "notification_status": self.coordinator.notifications.data.get(
                 "last_notification"
@@ -238,12 +284,12 @@ class Ec3DashboardStatusSensor(
             "notification_diagnostics": self.coordinator.notifications.diagnostic(),
             "wakeup_status": {
                 "last_wakeup": self.coordinator.notifications.data.get("last_wakeup"),
-                "today": self.coordinator.notifications.data.get("wakeup_count_today", 0),
+                "today": self.coordinator.notifications.data.get(
+                    "wakeup_count_today", 0
+                ),
             },
             "missing_required": self.coordinator.data["missing_required"],
-            "upstream_entity_count": self.coordinator.data[
-                "upstream_entity_count"
-            ],
+            "upstream_entity_count": self.coordinator.data["upstream_entity_count"],
             "modules": self.coordinator.data["modules"],
             "history_window_hours": self.coordinator.data["history_window_hours"],
             "upstream_compatibility": self.coordinator.data["upstream_compatibility"],
@@ -299,6 +345,7 @@ class Ec3ServerTripHistorySensor(Ec3MetricSensor):
     """Count and compact attributes for canonical Stellantis trips."""
 
     _attr_name = "Server trip history"
+    _attr_translation_key = "server_trip_history"
     _attr_icon = "mdi:car-clock"
 
     def __init__(self, coordinator, entry):
@@ -313,19 +360,33 @@ class Ec3ServerTripHistorySensor(Ec3MetricSensor):
         data = super().extra_state_attributes
         rows = [_packed_trip_row(trip) for trip in self.metrics.canonical_trips()]
         history = getattr(self.metrics, "server_history", None)
-        raw_count = len(getattr(history, "data", {}).get("canonical_trips", [])) if history else len(rows)
+        raw_count = (
+            len(getattr(history, "data", {}).get("canonical_trips", []))
+            if history
+            else len(rows)
+        )
         zero_rows = []
         if history:
             for trip in history.data.get("canonical_trips", []):
                 if trip.get("distance_km") != 0:
                     continue
                 zero_rows.append(_packed_trip_row(trip))
-        data.update({
-            "count": len(rows), "raw_count": raw_count, "zero_distance_count": max(0, raw_count - len(rows)),
-            "trip_columns": _TRIP_ATTRIBUTE_COLUMNS, "trip_rows": rows,
-            "zero_trip_rows": zero_rows, "source": "canonical_history",
-            "server_history_ready": bool(history and history.data.get("updated_at") and not history.data.get("error")),
-        })
+        data.update(
+            {
+                "count": len(rows),
+                "raw_count": raw_count,
+                "zero_distance_count": max(0, raw_count - len(rows)),
+                "trip_columns": _TRIP_ATTRIBUTE_COLUMNS,
+                "trip_rows": rows,
+                "zero_trip_rows": zero_rows,
+                "source": "canonical_history",
+                "server_history_ready": bool(
+                    history
+                    and history.data.get("updated_at")
+                    and not history.data.get("error")
+                ),
+            }
+        )
         return data
 
 
@@ -333,6 +394,7 @@ class Ec3ServerGpsHistorySensor(Ec3MetricSensor):
     """Expose server-trip positions as a GeoJSON map overlay."""
 
     _attr_name = "Server GPS history"
+    _attr_translation_key = "server_gps_history"
     _attr_icon = "mdi:map-marker-path"
 
     def __init__(self, coordinator, entry):
@@ -341,23 +403,37 @@ class Ec3ServerGpsHistorySensor(Ec3MetricSensor):
     @property
     def native_value(self):
         history = getattr(self.metrics, "server_history", None)
-        trips = getattr(history, "data", {}).get("canonical_trips", []) if history else []
-        return sum(1 for trip in trips if isinstance(trip, dict) and trip.get("distance_km") != 0)
+        trips = (
+            getattr(history, "data", {}).get("canonical_trips", []) if history else []
+        )
+        return sum(
+            1
+            for trip in trips
+            if isinstance(trip, dict) and trip.get("distance_km") != 0
+        )
 
     @property
     def extra_state_attributes(self):
         data = super().extra_state_attributes
         history = getattr(self.metrics, "server_history", None)
-        trips = getattr(history, "data", {}).get("canonical_trips", []) if history else []
+        trips = (
+            getattr(history, "data", {}).get("canonical_trips", []) if history else []
+        )
         geojson = _trip_position_geojson(trips)
-        data.update({
-            "geojson": geojson,
-            "source": "stellantis_trip_positions",
-            "route_detail": "start_stop_only",
-            "trip_count": self.native_value,
-            "feature_count": len(geojson["features"]),
-            "server_history_ready": bool(history and history.data.get("updated_at") and not history.data.get("error")),
-        })
+        data.update(
+            {
+                "geojson": geojson,
+                "source": "stellantis_trip_positions",
+                "route_detail": "start_stop_only",
+                "trip_count": self.native_value,
+                "feature_count": len(geojson["features"]),
+                "server_history_ready": bool(
+                    history
+                    and history.data.get("updated_at")
+                    and not history.data.get("error")
+                ),
+            }
+        )
         return data
 
 
@@ -365,6 +441,7 @@ class Ec3ServerChargeHistorySensor(Ec3MetricSensor):
     """Count and compact attributes for deterministic charge windows."""
 
     _attr_name = "Server charge history"
+    _attr_translation_key = "server_charge_history"
     _attr_icon = "mdi:ev-station"
 
     def __init__(self, coordinator, entry):
@@ -380,19 +457,51 @@ class Ec3ServerChargeHistorySensor(Ec3MetricSensor):
         rows = []
         for charge in self.metrics.canonical_charges():
             if charge.get("quality") == "observed":
-                row = {key: charge.get(key) for key in (
-                    "id", "quality", "source", "sources", "window_start", "window_end",
-                    "standstill_duration_seconds", "start_time", "end_time", "charging_duration_seconds",
-                    "soc_start", "soc_end", "capacity_kwh", "energy_kwh", "average_power_kw",
-                    "maximum_power_kw", "charge_type", "has_charge_curve", "sample_count",
-                    "minimum_power_kw", "median_power_kw", "power_source", "match_metadata",
-                )}
+                row = {
+                    key: charge.get(key)
+                    for key in (
+                        "id",
+                        "quality",
+                        "source",
+                        "sources",
+                        "window_start",
+                        "window_end",
+                        "standstill_duration_seconds",
+                        "start_time",
+                        "end_time",
+                        "charging_duration_seconds",
+                        "soc_start",
+                        "soc_end",
+                        "capacity_kwh",
+                        "energy_kwh",
+                        "average_power_kw",
+                        "maximum_power_kw",
+                        "charge_type",
+                        "has_charge_curve",
+                        "sample_count",
+                        "minimum_power_kw",
+                        "median_power_kw",
+                        "power_source",
+                        "match_metadata",
+                    )
+                }
             else:
-                row = {key: charge.get(key) for key in (
-                    "id", "quality", "source", "window_start", "window_end", "standstill_duration_seconds",
-                    "soc_start", "soc_end", "capacity_kwh", "energy_kwh",
-                )}
-            # Raw samples remain in the local Store.  The browser receives a
+                row = {
+                    key: charge.get(key)
+                    for key in (
+                        "id",
+                        "quality",
+                        "source",
+                        "window_start",
+                        "window_end",
+                        "standstill_duration_seconds",
+                        "soc_start",
+                        "soc_end",
+                        "capacity_kwh",
+                        "energy_kwh",
+                    )
+                }
+            # Raw samples remain in the local Store. The browser receives a
             # deliberately bounded timeline only for observed sessions.
             if charge.get("quality") == "observed":
                 row["samples"] = _compact_curve_samples(charge.get("samples", []))
@@ -400,30 +509,44 @@ class Ec3ServerChargeHistorySensor(Ec3MetricSensor):
         active = getattr(self.metrics, "data", {}).get("active_charge")
         active_payload = None
         if isinstance(active, dict) and active.get("start_time"):
-            samples = [sample for sample in active.get("samples", []) if isinstance(sample, dict)]
+            samples = [
+                sample
+                for sample in active.get("samples", [])
+                if isinstance(sample, dict)
+            ]
             active_payload = {
                 "start_time": active.get("start_time"),
                 "soc_start": active.get("start_soc"),
-                "soc_end": samples[-1].get("soc") if samples else active.get("start_soc"),
+                "soc_end": samples[-1].get("soc")
+                if samples
+                else active.get("start_soc"),
                 "capacity_kwh": active.get("capacity_kwh"),
                 "charge_type": active.get("charge_type") or "Unknown",
                 "samples": _compact_curve_samples(samples),
             }
         history = getattr(self.metrics, "server_history", None)
-        archive = getattr(history, "data", {}).get("archive_metadata", {}) if history else {}
-        data.update({
-            "count": len(rows),
-            "charges": rows,
-            "active_charge": active_payload,
-            "archive_observed_count": archive.get("observed_charge_count", 0),
-            "archive_oldest_observed_charge": archive.get("oldest_observed_charge"),
-            "curve_store": archive.get("curve_store", False),
-            "curve_raw_sample_sessions": archive.get("raw_sample_session_count", 0),
-            "curve_raw_sample_count": archive.get("raw_sample_count", 0),
-            "curve_oldest_session": archive.get("curve_oldest_session"),
-            "source": "canonical_history",
-            "server_history_ready": bool(history and history.data.get("updated_at") and not history.data.get("error")),
-        })
+        archive = (
+            getattr(history, "data", {}).get("archive_metadata", {}) if history else {}
+        )
+        data.update(
+            {
+                "count": len(rows),
+                "charges": rows,
+                "active_charge": active_payload,
+                "archive_observed_count": archive.get("observed_charge_count", 0),
+                "archive_oldest_observed_charge": archive.get("oldest_observed_charge"),
+                "curve_store": archive.get("curve_store", False),
+                "curve_raw_sample_sessions": archive.get("raw_sample_session_count", 0),
+                "curve_raw_sample_count": archive.get("raw_sample_count", 0),
+                "curve_oldest_session": archive.get("curve_oldest_session"),
+                "source": "canonical_history",
+                "server_history_ready": bool(
+                    history
+                    and history.data.get("updated_at")
+                    and not history.data.get("error")
+                ),
+            }
+        )
         return data
 
 
@@ -449,6 +572,7 @@ class Ec3VehicleInfoSensor(Ec3MetricSensor):
     """Expose backend-supplied vehicle metadata without VIN inference."""
 
     _attr_name = "Vehicle information"
+    _attr_translation_key = "vehicle_info"
     _attr_icon = "mdi:car-info"
 
     def __init__(self, coordinator, entry):
@@ -472,7 +596,8 @@ class Ec3VehicleInfoSensor(Ec3MetricSensor):
             "VIN": info.get("vin") or "—",
             "Bildanzahl": info.get("picture_count", 0),
             "Wartung verbleibende Tage": maintenance.get("days_remaining") or "—",
-            "Wartung verbleibende Kilometer": maintenance.get("mileage_remaining_km") or "—",
+            "Wartung verbleibende Kilometer": maintenance.get("mileage_remaining_km")
+            or "—",
             "Wartung aktualisiert": _relative_age(maintenance.get("updated_at")),
             "Datenquelle": "Stellantis Fahrzeug- und Wartungsdaten",
         }
@@ -480,8 +605,11 @@ class Ec3VehicleInfoSensor(Ec3MetricSensor):
 
 class Ec3TrailingConsumptionSensor(Ec3MetricSensor):
     _attr_name = "Trailing consumption (500 km)"
+    _attr_translation_key = "trailing_consumption_500km"
     _attr_icon = "mdi:car-electric"
-    _attr_native_unit_of_measurement = f"{UnitOfEnergy.KILO_WATT_HOUR}/100 {UnitOfLength.KILOMETERS}"
+    _attr_native_unit_of_measurement = (
+        f"{UnitOfEnergy.KILO_WATT_HOUR}/100 {UnitOfLength.KILOMETERS}"
+    )
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
@@ -495,12 +623,18 @@ class Ec3TrailingConsumptionSensor(Ec3MetricSensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         data = super().extra_state_attributes
         data.update(self.metrics.trailing_consumption())
-        data["source"] = "local completed trips"
+        history = getattr(self.metrics, "server_history", None)
+        data["source"] = (
+            "canonical server trip history"
+            if history and getattr(history, "data", {}).get("trips")
+            else "local completed trips fallback"
+        )
         return data
 
 
 class Ec3DistanceSinceChargeSensor(Ec3MetricSensor):
     _attr_name = "Distance since last charge"
+    _attr_translation_key = "distance_since_charge"
     _attr_icon = "mdi:map-marker-distance"
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_device_class = SensorDeviceClass.DISTANCE
@@ -529,6 +663,7 @@ class Ec3DistanceSinceChargeSensor(Ec3MetricSensor):
 
 class Ec3CurrentTripEnergySensor(Ec3MetricSensor):
     _attr_name = "Current trip energy"
+    _attr_translation_key = "current_trip_energy"
     _attr_icon = "mdi:battery-minus"
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_device_class = SensorDeviceClass.ENERGY
@@ -550,6 +685,7 @@ class Ec3CurrentChargePowerSensor(Ec3MetricSensor):
     """Battery-side instantaneous estimate from successive SOC reports."""
 
     _attr_name = "Current charge power"
+    _attr_translation_key = "current_charge_power"
     _attr_icon = "mdi:flash"
     _attr_native_unit_of_measurement = UnitOfPower.KILO_WATT
     _attr_device_class = SensorDeviceClass.POWER
@@ -569,6 +705,7 @@ class Ec3CurrentChargePowerSensor(Ec3MetricSensor):
 
 class Ec3LastTripResultSensor(Ec3MetricSensor):
     _attr_name = "Last local trip result"
+    _attr_translation_key = "last_trip_result"
     _attr_icon = "mdi:map-marker-check"
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_device_class = SensorDeviceClass.DISTANCE
@@ -600,6 +737,7 @@ class Ec3LastChargeResultSensor(Ec3MetricSensor):
     """One durable, local result row for each completed charge."""
 
     _attr_name = "Last local charge result"
+    _attr_translation_key = "last_charge_result"
     _attr_icon = "mdi:battery-check"
 
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
