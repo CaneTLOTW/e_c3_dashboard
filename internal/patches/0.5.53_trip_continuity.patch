@@ -1,7 +1,7 @@
 diff --git a/custom_components/e_c3_dashboard/server_history.py b/custom_components/e_c3_dashboard/server_history.py
 --- a/custom_components/e_c3_dashboard/server_history.py
 +++ b/custom_components/e_c3_dashboard/server_history.py
-@@ -21,7 +21,8 @@ from .const import (
+@@ -24,7 +24,8 @@ from .const import (
      DOMAIN,
      OPTION_HISTORY_HOURS,
      UPSTREAM_DOMAIN,
@@ -10,7 +10,7 @@ diff --git a/custom_components/e_c3_dashboard/server_history.py b/custom_compone
  
  _LOGGER = logging.getLogger(__name__)
  
-@@ -939,6 +940,12 @@ class ServerHistoryManager:
+@@ -940,8 +941,14 @@ class ServerHistoryManager:
              normalize_trip(raw, self._capacity_for_trip(raw))
              for raw in self.data.get("server_trips_raw", [])
              if isinstance(raw, dict) and raw.get("id")
@@ -38,7 +38,7 @@ diff --git a/custom_components/e_c3_dashboard/manifest.json b/custom_components/
 diff --git a/custom_components/e_c3_dashboard/const.py b/custom_components/e_c3_dashboard/const.py
 --- a/custom_components/e_c3_dashboard/const.py
 +++ b/custom_components/e_c3_dashboard/const.py
-@@ -38,4 +38,4 @@ DEFAULT_OPTIONS = {
+@@ -37,4 +37,4 @@ DEFAULT_OPTIONS = {
  # package modules are internal ES modules loaded by this entry point.
  FRONTEND_URL = "/e_c3_dashboard/frontend.js"
 -FRONTEND_VERSION = "0.5.52"
@@ -47,7 +47,7 @@ diff --git a/custom_components/e_c3_dashboard/const.py b/custom_components/e_c3_
 diff --git a/custom_components/e_c3_dashboard/static/frontend.js b/custom_components/e_c3_dashboard/static/frontend.js
 --- a/custom_components/e_c3_dashboard/static/frontend.js
 +++ b/custom_components/e_c3_dashboard/static/frontend.js
-@@ -72,11 +72,11 @@ installTransparentMapMarkerCompatibility();
+@@ -70,13 +70,13 @@ installTransparentMapMarkerCompatibility();
   * no longer produce a false missing-dependency page during the first reload.
   */
  const packageModules = Promise.all([
