@@ -21,7 +21,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 
 class NotificationQuietTime(TimeEntity):
-    _attr_has_entity_name = True
+    # Keep device grouping without prepending the vehicle/VIN-like device name
+    # to the translated quiet-hour labels.
+    _attr_has_entity_name = False
     _attr_should_poll = False
 
     def __init__(self, coordinator, entry, key: str, icon: str) -> None:
