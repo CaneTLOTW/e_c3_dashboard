@@ -124,35 +124,25 @@ python3 -m json.tool custom_components/e_c3_dashboard/manifest.json
 git diff --check
 ```
 
-## Runtime procedure — intentionally simple
+## Runtime procedure — normal deployment flow
 
-Do **not** use direct `8123`, MCP, Supervisor, registry, Core-health, CLI-token,
-or similar helper checks as deployment gates. They are not part of the eC3
-acceptance and have repeatedly interrupted otherwise normal deployment work.
-
-Use the same simple procedure as for previous successful eC3 updates:
+Use the normal e-C3 runtime workflow:
 
 1. Take/retain an eC3 package-only rollback copy.
 2. Synchronize only `custom_components/e_c3_dashboard` from the exact candidate.
 3. Verify the Lovelace package resource is
    `/e_c3_dashboard/frontend.js?v=0.5.47`.
-4. Perform **one normal Home Assistant Core restart** because this candidate
-   includes Python/platform changes.
-5. A restart request may itself time out when Core goes down. Do not interpret
-   that as a failed restart.
-6. Wait a normal startup interval before continuing. Do not poll LAN port 8123,
-   MCP, Supervisor, registry state, or management APIs as an acceptance gate.
-7. Continue with the actual eC3 functional acceptance below.
-8. If Home Assistant genuinely does not come back for the user, then the restart
-   failed. At that point diagnose/recover normally. Do not invent a separate
-   `RUNTIME_STATUS_UNCERTAIN` or transport-health state just because Codex cannot
-   reach one of its helper endpoints.
-9. No repeated restart loop. No rollback merely because a Codex-side helper
-   probe is unavailable.
+4. Perform one normal Home Assistant Core restart because this candidate includes
+   Python/platform changes.
+5. Allow a normal startup interval. The connection used to request the restart
+   may close while Core stops; that is ordinary restart behavior.
+6. Continue directly with the actual eC3 functional acceptance below.
+7. If a required functional step cannot be completed, capture that concrete
+   symptom and diagnose it in context. Connectivity or management checks are
+   useful at that point when they help explain the failed functional action.
 
-In short: restart once, wait, then test the eC3 functionality. If HA really does
-not start, that is a real failure; otherwise helper-probe reachability is
-irrelevant.
+The deployment flow itself does not add a separate infrastructure-health stage.
+The feature checks below are the acceptance work.
 
 ## Notification/backend smoke acceptance inherited from `CaneTLOTW/e_c3_dashboard#23`
 
