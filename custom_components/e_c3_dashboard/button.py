@@ -24,9 +24,9 @@ async def async_setup_entry(
 
 
 class Ec3ActionButton(ButtonEntity):
-    # Keep grouping on the dashboard device without prefixing the translated
-    # action name with a vehicle/VIN-like device name.
-    _attr_has_entity_name = False
+    # Keep Home Assistant entity naming enabled so translation keys remain the
+    # visible action names instead of falling back to the dashboard device name.
+    _attr_has_entity_name = True
     _attr_should_poll = False
 
     def __init__(self, coordinator, entry: ConfigEntry, key: str, icon: str) -> None:
