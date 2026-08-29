@@ -24,7 +24,9 @@ async def async_setup_entry(
 
 
 class Ec3ActionButton(ButtonEntity):
-    _attr_has_entity_name = True
+    # Keep grouping on the dashboard device without prefixing the translated
+    # action name with a vehicle/VIN-like device name.
+    _attr_has_entity_name = False
     _attr_should_poll = False
 
     def __init__(self, coordinator, entry: ConfigEntry, key: str, icon: str) -> None:
