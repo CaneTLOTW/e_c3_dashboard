@@ -58,9 +58,10 @@ def _time(value: Any) -> datetime | None:
         return None
 
 
-def _trip_sort_key(trip: dict[str, Any]) -> tuple[datetime, str]:
+def _trip_sort_key(trip: dict[str, Any]) -> tuple[str, str]:
+    """Sort the already ISO-normalized timestamps without mixing tz awareness."""
     return (
-        _time(trip.get("start_time") or trip.get("startedAt")) or datetime.min,
+        str(trip.get("start_time") or trip.get("startedAt") or ""),
         str(trip.get("id") or trip.get("server_id") or ""),
     )
 
@@ -85,11 +86,16 @@ def _local_match(
             continue
         local_start = _time(local.get("start_time"))
         local_end = _time(local.get("end_time"))
-        deltas = [
-            abs((left - right).total_seconds())
-            for left, right in ((server_start, local_start), (server_end, local_end))
-            if left is not None and right is not None
-        ]
+        deltas: list[float] = []
+        for left, right in ((server_start, local_start), (server_end, local_end)):
+            if left is None or right is None:
+                continue
+            try:
+                deltas.append(abs((left - right).total_seconds()))
+            except TypeError:
+                # A malformed naive timestamp must not make canonical rebuild
+                # fail; mileage continuity can still provide corroboration.
+                continue
         if deltas and min(deltas) > _LOCAL_TIME_TOLERANCE_SECONDS:
             continue
         score = (min(deltas) if deltas else _LOCAL_TIME_TOLERANCE_SECONDS) + (
