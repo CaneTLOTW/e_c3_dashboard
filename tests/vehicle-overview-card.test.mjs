@@ -62,6 +62,18 @@ test("vehicle overview resolves every household value through the config-entry m
   assert.match(source, /attributes\.vehicle_slug/);
 });
 
+test("preconditioning visual follows live state and bridges a delayed upstream status", () => {
+  assert.match(source, /const liveActive = entity\?\.state === 'on'/);
+  assert.match(source, /Date\.parse\(String\(item\?\.state \?\? ''\)\)/);
+  assert.match(source, /startAt > stopAt/);
+  assert.match(source, /Date\.now\(\) - startAt <= 20 \* 60 \* 1000/);
+  assert.match(source, /sourceUpdated >= startAt/);
+  assert.match(source, /liveActive \|\| \(recentStart && !sourceAnsweredAfterStart\)/);
+  assert.match(source, /Number\(temp\.state\) > 20 \? 'rgba\(33,150,243,0\.22\)' : 'rgba\(244,67,54,0\.22\)'/);
+  assert.match(source, /Number\(temp\.state\) > 20 \? 'rgb\(33,150,243\)' : 'rgb\(244,67,54\)'/);
+  assert.match(source, /triggers_update: \[preconditioning, preconditioningStart, preconditioningStop, temperature\]/);
+});
+
 test("vehicle overview contains no legacy household route, VIN or fixed vehicle entity", () => {
   assert.doesNotMatch(source, /dashboard-kfz\/ec3/);
   assert.doesNotMatch(source, /VR7CBZYA7TZ814720/i);
