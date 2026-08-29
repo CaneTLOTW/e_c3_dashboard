@@ -9,6 +9,7 @@ const frontend = read("static/frontend.js");
 const strategy = read("static/e_c3_dashboard.js");
 const overview = read("static/vehicle-overview-card.js");
 const gps = read("static/gps-history-card.js");
+const i18n = read("static/i18n.js");
 const constants = read("const.py");
 const init = read("__init__.py");
 const switches = read("switch.py");
@@ -18,11 +19,11 @@ const times = read("time.py");
 
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
-  assert.match(constants, /FRONTEND_VERSION = "0\.5\.51"/);
+  assert.match(constants, /FRONTEND_VERSION = "0\.5\.52"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.51"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.51"\)/);
-  assert.match(frontend, /import\("\.\/e_c3_dashboard\.js\?v=0\.5\.51"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.52"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.52"\)/);
+  assert.match(frontend, /import\("\.\/e_c3_dashboard\.js\?v=0\.5\.52"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -31,7 +32,7 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.51"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.52"\)/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
@@ -160,9 +161,25 @@ test("notification controls publish after forwarded platforms without blocking b
   assert.doesNotMatch(strategy, /\{\{ state_attr\('\$\{statusEntity\}', 'notification_diagnostics'\) \}\}/);
 });
 
-test("package-owned controls keep concise translated names without device/VIN prefix", () => {
+test("dashboard translations contain every explicit notification and wake-up card label", () => {
+  for (const [key, de, en] of [
+    ["vehicleAlerts", "Fahrzeugwarnungen", "Vehicle alerts"],
+    ["tripReports", "Fahrtberichte", "Trip reports"],
+    ["chargeReports", "Ladeberichte", "Charge reports"],
+    ["hourlyWakeup", "Stündlicher Wake-up", "Hourly wake-up"],
+    ["availabilityProbe", "Erreichbarkeitsprobe mit Wake-up", "Availability wake-up probe"],
+    ["chargeWakeup", "Wake-up beim Laden", "Wake-up while charging"],
+    ["testNotification", "Testbenachrichtigung", "Test notification"],
+  ]) {
+    assert.match(i18n, new RegExp(`${key}: "${de.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+    assert.match(i18n, new RegExp(`${key}: "${en.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+  }
+});
+
+test("package-owned controls keep translation-backed entity names", () => {
   for (const source of [switches, buttons, numbers, times]) {
-    assert.match(source, /_attr_has_entity_name = False/);
+    assert.match(source, /_attr_has_entity_name = True/);
+    assert.doesNotMatch(source, /_attr_has_entity_name = False/);
   }
 });
 
