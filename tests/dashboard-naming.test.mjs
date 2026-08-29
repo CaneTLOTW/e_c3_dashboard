@@ -29,9 +29,9 @@ test("dashboard rename keeps the existing url path and only updates package-owne
   assert.doesNotMatch(dashboardSource, /async_update_item\([^\n]*url_path/);
 });
 
-test("dashboard display name is a per-entry option and 0.5.51 cache version", () => {
+test("dashboard display name is a per-entry option and 0.5.52 cache version", () => {
   assert.match(configFlowSource, /OPTION_DASHBOARD_NAME/);
   assert.match(configFlowSource, /normalized\[OPTION_DASHBOARD_NAME\]/);
   assert.match(constSource, /OPTION_DASHBOARD_NAME = "dashboard_name"/);
-  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.51"/);
+  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.52"/);
 });
