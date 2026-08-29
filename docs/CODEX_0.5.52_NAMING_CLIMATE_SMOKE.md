@@ -4,9 +4,9 @@
 
 This is a **deployment + runtime smoke test** for an already prepared source candidate. Do not start a broad implementation pass.
 
-Repository: `CaneTLOTW/e_c3_dashboard`  
-Branch: `develop`  
-Previous runtime: `0.5.51`  
+Repository: `CaneTLOTW/e_c3_dashboard`
+Branch: `develop`
+Previous runtime: `0.5.51`
 Target: exact 0.5.52 candidate referenced by the latest `CaneTLOTW/e_c3_dashboard#24` ChatGPT handoff.
 
 The user has already accepted the general 0.5.51 layout. This pass is intentionally narrow:
