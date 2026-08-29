@@ -70,13 +70,13 @@ installTransparentMapMarkerCompatibility();
  * no longer produce a false missing-dependency page during the first reload.
  */
 const packageModules = Promise.all([
-  import("./trip-history-card.js?v=0.5.50"),
-  import("./charge-history-card.js?v=0.5.50"),
-  import("./gps-history-card.js?v=0.5.50"),
-  import("./vehicle-overview-card.js?v=0.5.50"),
+  import("./trip-history-card.js?v=0.5.51"),
+  import("./charge-history-card.js?v=0.5.51"),
+  import("./gps-history-card.js?v=0.5.51"),
+  import("./vehicle-overview-card.js?v=0.5.51"),
 ]);
 const dependencyReadiness = Promise.all(REQUIRED_ELEMENTS.map(waitForElement));
 
 await packageModules;
 window.__ec3DashboardDependencyReadiness = await dependencyReadiness;
-await import("./e_c3_dashboard.js?v=0.5.50");
+await import("./e_c3_dashboard.js?v=0.5.51");
