@@ -19,8 +19,9 @@ GitHub Issue
   -> repository/static tests on develop
   -> Candidate = exact develop SHA/version
   -> Codex deploys that exact Candidate to the designated HA acceptance instance
-  -> Runtime = exact SHA/version actually served by Home Assistant
-  -> browser/app/runtime validation
+  -> required reload/restart, then a normal startup interval
+  -> Runtime = exact SHA/version deployed into the active Home Assistant instance
+  -> continue directly with task-specific browser/app/runtime validation
   -> if a diagnostic patch proved the fix: integrate it into canonical source
   -> build a new Candidate and repeat affected tests
   -> Validated = exact integrated Runtime SHA/version that passed the required checks
@@ -45,9 +46,10 @@ Rules:
 
 1. `Candidate` changes whenever a new intended test commit is prepared on
    `develop`.
-2. `Runtime` changes **only** after Codex or another authorized deployment has
-   actually copied that exact candidate to Home Assistant and verified the
-   served files/version.
+2. `Runtime` changes after Codex or another authorized deployment has copied the
+   exact candidate into the active Home Assistant instance and completed the
+   reload/restart required by that change. Runtime status describes what was
+   deployed; it is not the same as functional acceptance.
 3. A newer `develop` HEAD does not silently update the runtime. Until the next
    explicit deployment, Home Assistant continues to run the previous Runtime.
 4. `Validated` changes only after the required live/browser/app/user checks
@@ -62,6 +64,25 @@ Rules:
 This distinction is mandatory in Issue handoffs and prevents the common
 ambiguity where a fix exists on `develop` but has not yet reached the live
 acceptance instance.
+
+## Normal restart and runtime acceptance
+
+A Home Assistant Core restart is an ordinary deployment step when Python or
+platform code changed. Request the restart once, allow a normal startup interval,
+and then proceed with the next functional acceptance step for the feature being
+worked on. The connection that requested the restart may close while Core stops;
+that is normal restart behavior by itself.
+
+Acceptance is driven by the feature under test. Examples are opening the
+package-owned dashboard, resolving the config entry and its entities, changing a
+package-owned setting, or exercising the specific frontend behavior named in the
+Issue. A successful task-specific interaction is sufficient evidence that Home
+Assistant is usable for that acceptance step.
+
+Transport, management and health interfaces are useful diagnostic tools when a
+real functional action cannot be completed, or when connectivity itself is the
+subject of the Issue. They are not an additional precondition that must be
+satisfied before ordinary e-C3 functional validation can begin.
 
 ## Patch-to-source integration gate
 
@@ -128,7 +149,7 @@ source branch: develop
 Candidate SHA/version: <sha> / <version>
 Runtime SHA/version before deploy: <sha> / <version>
 Runtime SHA/version after deploy: <sha> / <version>
-served frontend version: <version>
+configured frontend resource version: <version>
 HA deployment/restart: PASS|FAIL
 browser light/dark: PASS|FAIL|NOT_TESTED
 HA app light/dark: PASS|FAIL|NOT_TESTED
@@ -136,9 +157,12 @@ Validated SHA/version: <sha> / <version> | NOT_VALIDATED
 issue acceptance: PASS|FAIL|BLOCKED
 ```
 
-The Runtime SHA/version must be established from the actual deployed files and
-served versioned Lovelace resources, not inferred from the current GitHub
-`develop` HEAD.
+The Runtime SHA/version is established from the exact package deployed to the
+Home Assistant instance, together with the required reload/restart and the
+configured versioned package resource where applicable. Functional acceptance
+then proves whether that Runtime behaves correctly. No separate connectivity
+or health probe is required to promote a deployed candidate from `Candidate` to
+`Runtime`.
 
 A runtime copy with local modifications is not a new source of truth. If a
 runtime-only fix is unavoidable, Codex must immediately report the diff in the
