@@ -1,0 +1,69 @@
+diff --git a/custom_components/e_c3_dashboard/server_history.py b/custom_components/e_c3_dashboard/server_history.py
+--- a/custom_components/e_c3_dashboard/server_history.py
++++ b/custom_components/e_c3_dashboard/server_history.py
+@@
+ from .const import (
+     CONF_VEHICLE_SLUG,
+     DEFAULT_OPTIONS,
+     DOMAIN,
+     OPTION_HISTORY_HOURS,
+     UPSTREAM_DOMAIN,
+ )
++from .trip_repair import repair_trip_odometer_continuity
+@@
+     def _rebuild_canonical(self) -> None:
+         self.data["recorder_observed_charges_archive"] = self._hydrate_observed_sessions(
+             self.data.get("recorder_observed_charges_archive", [])
+         )
+         trips = [
+             normalize_trip(raw, self._capacity_for_trip(raw))
+             for raw in self.data.get("server_trips_raw", [])
+             if isinstance(raw, dict) and raw.get("id")
+         ]
++        local_trips = [
++            item
++            for item in getattr(self.metrics, "data", {}).get("trips", [])
++            if isinstance(item, dict)
++        ] if self.metrics else []
++        trips = repair_trip_odometer_continuity(trips, local_trips)
+         by_id = {trip["id"]: trip for trip in trips if trip.get("id")}
+         all_trips = derive_trip_display_positions(
+             sorted(by_id.values(), key=_trip_sort_key)
+         )
+diff --git a/custom_components/e_c3_dashboard/manifest.json b/custom_components/e_c3_dashboard/manifest.json
+--- a/custom_components/e_c3_dashboard/manifest.json
++++ b/custom_components/e_c3_dashboard/manifest.json
+@@
+-  "version": "0.5.52"
++  "version": "0.5.53"
+ }
+diff --git a/custom_components/e_c3_dashboard/const.py b/custom_components/e_c3_dashboard/const.py
+--- a/custom_components/e_c3_dashboard/const.py
++++ b/custom_components/e_c3_dashboard/const.py
+@@
+-FRONTEND_VERSION = "0.5.52"
++FRONTEND_VERSION = "0.5.53"
+ STATIC_VERSION = FRONTEND_VERSION
+diff --git a/tests/dashboard-naming.test.mjs b/tests/dashboard-naming.test.mjs
+--- a/tests/dashboard-naming.test.mjs
++++ b/tests/dashboard-naming.test.mjs
+@@
+-test("dashboard display name is a per-entry option and 0.5.52 cache version", () => {
++test("dashboard display name is a per-entry option and 0.5.53 cache version", () => {
+   assert.match(configFlowSource, /OPTION_DASHBOARD_NAME/);
+   assert.match(configFlowSource, /normalized\[OPTION_DASHBOARD_NAME\]/);
+   assert.match(constSource, /OPTION_DASHBOARD_NAME = "dashboard_name"/);
+-  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.52"/);
++  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.53"/);
+ });
+diff --git a/tests/trip-quality.test.mjs b/tests/trip-quality.test.mjs
+--- a/tests/trip-quality.test.mjs
++++ b/tests/trip-quality.test.mjs
+@@
+ test("trip normalization refuses impossible distance/time speed fallbacks", () => {
+   assert.match(source, /fallback_speed_valid/);
+   assert.match(source, /derived_speed_outlier/);
+   assert.match(source, /valid_for_statistics = False/);
+   assert.match(source, /zero_start_odometer_sentinel/);
++  assert.match(source, /repair_trip_odometer_continuity\(trips, local_trips\)/);
+ });
