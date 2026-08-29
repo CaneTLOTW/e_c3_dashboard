@@ -11,12 +11,18 @@ const overview = read("static/vehicle-overview-card.js");
 const gps = read("static/gps-history-card.js");
 const constants = read("const.py");
 const init = read("__init__.py");
+const switches = read("switch.py");
+const buttons = read("button.py");
+const numbers = read("number.py");
+const times = read("time.py");
 
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
+  assert.match(constants, /FRONTEND_VERSION = "0\.5\.50"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.49"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.49"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.50"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.50"\)/);
+  assert.match(frontend, /import\("\.\/e_c3_dashboard\.js\?v=0\.5\.50"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -25,7 +31,7 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.49"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.50"\)/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {
@@ -46,6 +52,39 @@ test("vehicle information popup puts maintenance before vehicle data", () => {
   assert.ok(maintenance >= 0);
   assert.ok(vehicle > maintenance);
   assert.doesNotMatch(strategy, /metric\("vehicle_info"\) \? bubble\("vehicle_info"/);
+});
+
+test("vehicle overview keeps only useful vehicle metrics and moves privacy to system", () => {
+  const overviewStart = strategy.indexOf("const overviewSections = [");
+  const vehicleEnd = strategy.indexOf("const views = [{", overviewStart);
+  const vehicleBlock = strategy.slice(overviewStart, vehicleEnd);
+  assert.doesNotMatch(vehicleBlock, /entity\("daylight"\)/);
+  assert.doesNotMatch(vehicleBlock, /entity\("alarm"\)/);
+  assert.doesNotMatch(vehicleBlock, /separator\(strings\.vehicleDetails/);
+  assert.doesNotMatch(vehicleBlock, /entity\("privacy"\)/);
+  const usage = vehicleBlock.indexOf('separator(strings.consumptionUsage');
+  const mileage = vehicleBlock.indexOf('entity("mileage")', usage);
+  const trailing = vehicleBlock.indexOf('metric("trailing_consumption_500km")', usage);
+  assert.ok(usage >= 0 && mileage > usage && trailing > mileage);
+  const systemStart = strategy.indexOf('path: "system"');
+  assert.ok(systemStart > vehicleEnd);
+  assert.ok(strategy.indexOf('entity("privacy")', systemStart) > systemStart);
+  assert.match(strategy, /"Datenschutz & Freigabe"/);
+});
+
+test("battery health pairs high-voltage and 12-V values at half width", () => {
+  assert.match(strategy, /bubble\("battery_capacity", strings\.highVoltageBattery, "mdi:car-battery", \[\], 6\)/);
+  assert.match(strategy, /serviceBatteryEntity \? bubble\("service_battery"[^\n]+\[\], 6, serviceBatteryEntity\)/);
+  const liveStart = strategy.indexOf('separator(strings.live');
+  const usageStart = strategy.indexOf('separator(strings.consumptionUsage');
+  assert.doesNotMatch(strategy.slice(liveStart, usageStart), /service_battery/);
+});
+
+test("latest charge uses canonical result when available and renders relative age", () => {
+  assert.match(strategy, /const lastChargeResult = metric\("last_charge_result"\)/);
+  assert.match(strategy, /const lastChargeDisplayEntity = lastChargeResult \|\| nativeLastCharge/);
+  assert.match(strategy, /a\.end_time \?\? a\.window_end \?\? a\.stoppedAt/);
+  assert.match(strategy, /styles: relativeEventStyles/);
 });
 
 test("settings and ABRP remain in the system view, not the vehicle overview", () => {
@@ -121,7 +160,15 @@ test("notification controls publish after forwarded platforms without blocking b
   assert.doesNotMatch(strategy, /\{\{ state_attr\('\$\{statusEntity\}', 'notification_diagnostics'\) \}\}/);
 });
 
-test("wake-up action stays a real button press and views keep Vehicle left / Help right", () => {
+test("package-owned controls keep concise translated names without device/VIN prefix", () => {
+  for (const source of [switches, buttons, numbers, times]) {
+    assert.match(source, /_attr_has_entity_name = False/);
+  }
+});
+
+test("wake-up action stays a real button press, shows command status, and views keep Vehicle left / Help right", () => {
+  assert.match(strategy, /const wakeupStatusEntity = entity\("command_status"\) \|\| control\("manual_wakeup"\)/);
+  assert.match(strategy, /entity: wakeupStatusEntity/);
   assert.match(strategy, /perform_action: "button\.press"/);
   assert.match(strategy, /target: \{ entity_id: control\("manual_wakeup"\) \}/);
   assert.match(strategy, /const viewOrder = \["vehicle", "charging", "statistics", "trips", "gps", "wakeup", "notifications", "system", "help"\]/);
