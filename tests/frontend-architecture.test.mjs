@@ -19,11 +19,11 @@ const times = read("time.py");
 
 test("Home Assistant registers one e-C3 frontend resource", () => {
   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
-  assert.match(constants, /FRONTEND_VERSION = "0\.5\.52"/);
+  assert.match(constants, /FRONTEND_VERSION = "0\.5\.53"/);
   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.52"\)/);
-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.52"\)/);
-  assert.match(frontend, /import\("\.\/e_c3_dashboard\.js\?v=0\.5\.52"\)/);
+  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.53"\)/);
+  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.53"\)/);
+  assert.match(frontend, /import\("\.\/e_c3_dashboard\.js\?v=0\.5\.53"\)/);
   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
 });
@@ -32,7 +32,7 @@ test("dependency preflight waits instead of failing on first customElements look
   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
   assert.match(frontend, /await dependencyReadiness/);
-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.52"\)/);
+  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.53"\)/);
 });
 
 test("LIVE reuses the validated vehicle overview lifecycle instead of owning a second hero", () => {

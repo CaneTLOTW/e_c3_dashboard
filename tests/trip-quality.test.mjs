@@ -20,6 +20,7 @@ test("trip normalization refuses impossible distance/time speed fallbacks", () =
   assert.match(source, /derived_speed_outlier/);
   assert.match(source, /valid_for_statistics = False/);
   assert.match(source, /zero_start_odometer_sentinel/);
+  assert.match(source, /repair_trip_odometer_continuity\(trips, local_trips\)/);
 });
 
 test("trailing consumption uses canonical validated trips", () => {

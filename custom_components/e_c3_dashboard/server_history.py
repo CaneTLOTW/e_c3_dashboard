@@ -25,6 +25,7 @@ from .const import (
     OPTION_HISTORY_HOURS,
     UPSTREAM_DOMAIN,
 )
+from .trip_repair import repair_trip_odometer_continuity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -941,6 +942,12 @@ class ServerHistoryManager:
             for raw in self.data.get("server_trips_raw", [])
             if isinstance(raw, dict) and raw.get("id")
         ]
+        local_trips = [
+            item
+            for item in getattr(self.metrics, "data", {}).get("trips", [])
+            if isinstance(item, dict)
+        ] if self.metrics else []
+        trips = repair_trip_odometer_continuity(trips, local_trips)
         by_id = {trip["id"]: trip for trip in trips if trip.get("id")}
         all_trips = derive_trip_display_positions(
             sorted(by_id.values(), key=_trip_sort_key)
