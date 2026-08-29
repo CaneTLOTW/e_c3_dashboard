@@ -273,7 +273,19 @@ function buildConfig(hass, config, statusState) {
           show_label: false,
           show_icon: true,
           icon: `[[[
-            const active = entity?.state === 'on';
+            const liveActive = entity?.state === 'on';
+            const actionTime = (item) => {
+              const stateTime = Date.parse(String(item?.state ?? ''));
+              if (Number.isFinite(stateTime)) return stateTime;
+              const changed = Date.parse(item?.last_changed || '');
+              return Number.isFinite(changed) ? changed : 0;
+            };
+            const startAt = actionTime(states[${literal(preconditioningStart)}]);
+            const stopAt = actionTime(states[${literal(preconditioningStop)}]);
+            const sourceUpdated = Date.parse(entity?.last_updated || entity?.last_changed || '');
+            const recentStart = startAt > 0 && Date.now() - startAt <= 20 * 60 * 1000 && startAt > stopAt;
+            const sourceAnsweredAfterStart = Number.isFinite(sourceUpdated) && sourceUpdated >= startAt;
+            const active = liveActive || (recentStart && !sourceAnsweredAfterStart);
             const temp = states[${literal(temperature)}];
             if (!active || !temp || ['unknown','unavailable'].includes(temp.state) || !Number.isFinite(Number(temp.state))) return 'mdi:air-conditioner';
             return Number(temp.state) > 20 ? 'mdi:air-conditioner' : 'mdi:radiator';
@@ -294,11 +306,23 @@ function buildConfig(hass, config, statusState) {
               { padding: 0 }, { margin: 0 }, { "border-radius": "50%" }, { border: "none" },
               { "box-shadow": "0 1px 4px rgba(0,0,0,0.25)" },
               { background: `[[[
-                const active = entity?.state === 'on';
+                const liveActive = entity?.state === 'on';
+                const actionTime = (item) => {
+                  const stateTime = Date.parse(String(item?.state ?? ''));
+                  if (Number.isFinite(stateTime)) return stateTime;
+                  const changed = Date.parse(item?.last_changed || '');
+                  return Number.isFinite(changed) ? changed : 0;
+                };
+                const startAt = actionTime(states[${literal(preconditioningStart)}]);
+                const stopAt = actionTime(states[${literal(preconditioningStop)}]);
+                const sourceUpdated = Date.parse(entity?.last_updated || entity?.last_changed || '');
+                const recentStart = startAt > 0 && Date.now() - startAt <= 20 * 60 * 1000 && startAt > stopAt;
+                const sourceAnsweredAfterStart = Number.isFinite(sourceUpdated) && sourceUpdated >= startAt;
+                const active = liveActive || (recentStart && !sourceAnsweredAfterStart);
                 if (!active) return 'rgba(20,20,20,0.62)';
                 const temp = states[${literal(temperature)}];
-                if (!temp || ['unknown','unavailable'].includes(temp.state) || !Number.isFinite(Number(temp.state))) return 'rgba(90,90,90,0.88)';
-                return Number(temp.state) > 20 ? 'rgba(33,150,243,0.92)' : 'rgba(244,67,54,0.92)';
+                if (!temp || ['unknown','unavailable'].includes(temp.state) || !Number.isFinite(Number(temp.state))) return 'rgba(90,90,90,0.40)';
+                return Number(temp.state) > 20 ? 'rgba(33,150,243,0.22)' : 'rgba(244,67,54,0.22)';
               ]]]` },
             ],
             grid: [
@@ -306,10 +330,30 @@ function buildConfig(hass, config, statusState) {
               { "grid-template-rows": "30px" }, { "align-items": "center" }, { "justify-items": "center" },
             ],
             icon: [
-              { width: "18px" }, { height: "18px" }, { color: "white" }, { margin: 0 }, { padding: 0 },
+              { width: "18px" }, { height: "18px" },
+              { color: `[[[
+                const liveActive = entity?.state === 'on';
+                const actionTime = (item) => {
+                  const stateTime = Date.parse(String(item?.state ?? ''));
+                  if (Number.isFinite(stateTime)) return stateTime;
+                  const changed = Date.parse(item?.last_changed || '');
+                  return Number.isFinite(changed) ? changed : 0;
+                };
+                const startAt = actionTime(states[${literal(preconditioningStart)}]);
+                const stopAt = actionTime(states[${literal(preconditioningStop)}]);
+                const sourceUpdated = Date.parse(entity?.last_updated || entity?.last_changed || '');
+                const recentStart = startAt > 0 && Date.now() - startAt <= 20 * 60 * 1000 && startAt > stopAt;
+                const sourceAnsweredAfterStart = Number.isFinite(sourceUpdated) && sourceUpdated >= startAt;
+                const active = liveActive || (recentStart && !sourceAnsweredAfterStart);
+                if (!active) return 'white';
+                const temp = states[${literal(temperature)}];
+                if (!temp || ['unknown','unavailable'].includes(temp.state) || !Number.isFinite(Number(temp.state))) return 'white';
+                return Number(temp.state) > 20 ? 'rgb(33,150,243)' : 'rgb(244,67,54)';
+              ]]]` },
+              { margin: 0 }, { padding: 0 },
             ],
           },
-          triggers_update: [preconditioning, temperature].filter(Boolean),
+          triggers_update: [preconditioning, preconditioningStart, preconditioningStop, temperature].filter(Boolean),
         },
       } : "",
       cable: `[[[ return '<ha-icon icon="mdi:ev-plug-type2" style="width:18px;height:18px;display:block;margin:0;padding:0;color:white"></ha-icon>'; ]]]`,
