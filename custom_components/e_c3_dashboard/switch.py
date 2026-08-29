@@ -60,11 +60,10 @@ async def async_setup_entry(
 class Ec3NotificationSwitch(SwitchEntity):
     """One persisted explicit-consent switch."""
 
-    # Keep the entities grouped on the package device, but expose the translated
-    # control name without Home Assistant prepending the vehicle/device name.
-    # This avoids VIN-like prefixes such as "<vehicle> Dashboard …" in both the
-    # package dashboard and the entity UI.
-    _attr_has_entity_name = False
+    # Entity translations are the canonical control names. ``has_entity_name``
+    # must stay enabled so Home Assistant applies the translation key instead of
+    # collapsing an unnamed entity to the dashboard device name.
+    _attr_has_entity_name = True
     _attr_should_poll = False
 
     def __init__(
