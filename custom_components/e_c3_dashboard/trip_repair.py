@@ -66,6 +66,19 @@ def _trip_sort_key(trip: dict[str, Any]) -> tuple[str, str]:
     )
 
 
+def _plausible_anchor_end(trip: dict[str, Any]) -> float | None:
+    """Return an odometer anchor only from an already plausible canonical row."""
+    if trip.get("valid_for_statistics") is False:
+        return None
+    start = _number(trip.get("start_mileage"))
+    end = _number(trip.get("end_mileage"))
+    if start is None or end is None or start < 0 or end <= 0:
+        return None
+    if end < start - _ODOMETER_TOLERANCE_KM:
+        return None
+    return end
+
+
 def _local_match(
     trip: dict[str, Any],
     local_trips: list[dict[str, Any]],
@@ -108,7 +121,10 @@ def _local_match(
 def _next_start_mileage(
     ordered: list[dict[str, Any]], index: int, previous_end: float
 ) -> float | None:
+    """Use only a subsequent plausible row as server continuity evidence."""
     for following in ordered[index + 1 :]:
+        if following.get("valid_for_statistics") is False:
+            continue
         start = _number(following.get("start_mileage"))
         if start is None or start <= 0:
             continue
@@ -136,17 +152,19 @@ def _plausible_repair(distance: float, duration_seconds: float | None) -> tuple[
 def repair_trip_odometer_continuity(
     trips: list[dict[str, Any]], local_trips: list[dict[str, Any]] | None = None
 ) -> list[dict[str, Any]]:
-    """Repair only canonical rows whose odometer regresses behind the prior trip.
+    """Repair canonical rows whose odometer regresses behind a plausible anchor.
 
     Evidence priority for the repaired end odometer is:
     1. a same-window locally observed trip whose start matches the prior end;
-    2. the next positive server start odometer;
+    2. the next plausible positive server start odometer;
     3. for the explicit zero-start sentinel pattern only, the normalized source
        end (which is start + distance and therefore equals the suspicious raw
        distance when start is zero).
 
-    If none of those produce a positive, speed-plausible distance, the row is
-    left untouched and remains invalid. Raw server payloads are never mutated.
+    Invalid/unrepaired rows never become continuity anchors themselves. If none
+    of the corroborating sources produce a positive, speed-plausible distance,
+    the row is left untouched and remains invalid. Raw server payloads are never
+    mutated.
     """
     ordered = sorted(trips, key=_trip_sort_key)
     local_rows = [row for row in (local_trips or []) if isinstance(row, dict)]
@@ -155,16 +173,17 @@ def repair_trip_odometer_continuity(
     for index, trip in enumerate(ordered):
         start = _number(trip.get("start_mileage"))
         end = _number(trip.get("end_mileage"))
+        anchor_end = _plausible_anchor_end(trip)
 
         if previous_end is None:
-            if end is not None and end > 0:
-                previous_end = end
+            if anchor_end is not None:
+                previous_end = anchor_end
             continue
 
         regression = start is None or start < previous_end - _ODOMETER_TOLERANCE_KM
         if not regression:
-            if end is not None and end >= previous_end - _ODOMETER_TOLERANCE_KM:
-                previous_end = max(previous_end, end)
+            if anchor_end is not None and anchor_end >= previous_end - _ODOMETER_TOLERANCE_KM:
+                previous_end = max(previous_end, anchor_end)
             continue
 
         local = _local_match(trip, local_rows, previous_end)
