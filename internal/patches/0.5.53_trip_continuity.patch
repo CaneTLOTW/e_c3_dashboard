@@ -1,21 +1,16 @@
 diff --git a/custom_components/e_c3_dashboard/server_history.py b/custom_components/e_c3_dashboard/server_history.py
 --- a/custom_components/e_c3_dashboard/server_history.py
 +++ b/custom_components/e_c3_dashboard/server_history.py
-@@
- from .const import (
-     CONF_VEHICLE_SLUG,
-     DEFAULT_OPTIONS,
+@@ -21,7 +21,8 @@ from .const import (
      DOMAIN,
      OPTION_HISTORY_HOURS,
      UPSTREAM_DOMAIN,
  )
 +from .trip_repair import repair_trip_odometer_continuity
-@@
-     def _rebuild_canonical(self) -> None:
-         self.data["recorder_observed_charges_archive"] = self._hydrate_observed_sessions(
-             self.data.get("recorder_observed_charges_archive", [])
-         )
-         trips = [
+ 
+ _LOGGER = logging.getLogger(__name__)
+ 
+@@ -939,6 +940,12 @@ class ServerHistoryManager:
              normalize_trip(raw, self._capacity_for_trip(raw))
              for raw in self.data.get("server_trips_raw", [])
              if isinstance(raw, dict) and raw.get("id")
@@ -33,21 +28,48 @@ diff --git a/custom_components/e_c3_dashboard/server_history.py b/custom_compone
 diff --git a/custom_components/e_c3_dashboard/manifest.json b/custom_components/e_c3_dashboard/manifest.json
 --- a/custom_components/e_c3_dashboard/manifest.json
 +++ b/custom_components/e_c3_dashboard/manifest.json
-@@
+@@ -8,5 +8,5 @@
+   "integration_type": "hub",
+   "iot_class": "local_push",
+   "issue_tracker": "https://github.com/CaneTLOTW/e_c3_dashboard/issues",
 -  "version": "0.5.52"
 +  "version": "0.5.53"
  }
 diff --git a/custom_components/e_c3_dashboard/const.py b/custom_components/e_c3_dashboard/const.py
 --- a/custom_components/e_c3_dashboard/const.py
 +++ b/custom_components/e_c3_dashboard/const.py
-@@
+@@ -38,4 +38,4 @@ DEFAULT_OPTIONS = {
+ # package modules are internal ES modules loaded by this entry point.
+ FRONTEND_URL = "/e_c3_dashboard/frontend.js"
 -FRONTEND_VERSION = "0.5.52"
 +FRONTEND_VERSION = "0.5.53"
  STATIC_VERSION = FRONTEND_VERSION
+diff --git a/custom_components/e_c3_dashboard/static/frontend.js b/custom_components/e_c3_dashboard/static/frontend.js
+--- a/custom_components/e_c3_dashboard/static/frontend.js
++++ b/custom_components/e_c3_dashboard/static/frontend.js
+@@ -72,11 +72,11 @@ installTransparentMapMarkerCompatibility();
+  * no longer produce a false missing-dependency page during the first reload.
+  */
+ const packageModules = Promise.all([
+-  import("./trip-history-card.js?v=0.5.52"),
+-  import("./charge-history-card.js?v=0.5.52"),
+-  import("./gps-history-card.js?v=0.5.52"),
+-  import("./vehicle-overview-card.js?v=0.5.52"),
++  import("./trip-history-card.js?v=0.5.53"),
++  import("./charge-history-card.js?v=0.5.53"),
++  import("./gps-history-card.js?v=0.5.53"),
++  import("./vehicle-overview-card.js?v=0.5.53"),
+ ]);
+ const dependencyReadiness = Promise.all(REQUIRED_ELEMENTS.map(waitForElement));
+ 
+ await packageModules;
+ window.__ec3DashboardDependencyReadiness = await dependencyReadiness;
+-await import("./e_c3_dashboard.js?v=0.5.52");
++await import("./e_c3_dashboard.js?v=0.5.53");
 diff --git a/tests/dashboard-naming.test.mjs b/tests/dashboard-naming.test.mjs
 --- a/tests/dashboard-naming.test.mjs
 +++ b/tests/dashboard-naming.test.mjs
-@@
+@@ -32,6 +32,6 @@ test("dashboard rename keeps the existing url path and only updates package-owned metadata", () => {
 -test("dashboard display name is a per-entry option and 0.5.52 cache version", () => {
 +test("dashboard display name is a per-entry option and 0.5.53 cache version", () => {
    assert.match(configFlowSource, /OPTION_DASHBOARD_NAME/);
@@ -56,12 +78,36 @@ diff --git a/tests/dashboard-naming.test.mjs b/tests/dashboard-naming.test.mjs
 -  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.52"/);
 +  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.53"/);
  });
+diff --git a/tests/frontend-architecture.test.mjs b/tests/frontend-architecture.test.mjs
+--- a/tests/frontend-architecture.test.mjs
++++ b/tests/frontend-architecture.test.mjs
+@@ -20,17 +20,17 @@ const times = read("time.py");
+ test("Home Assistant registers one e-C3 frontend resource", () => {
+   assert.match(constants, /FRONTEND_URL = "\/e_c3_dashboard\/frontend\.js"/);
+-  assert.match(constants, /FRONTEND_VERSION = "0\.5\.52"/);
++  assert.match(constants, /FRONTEND_VERSION = "0\.5\.53"/);
+   assert.match(constants, /FRONTEND_RESOURCE_URLS = \(FRONTEND_URL,\)/);
+-  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.52"\)/);
+-  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.52"\)/);
+-  assert.match(frontend, /import\("\.\/e_c3_dashboard\.js\?v=0\.5\.52"\)/);
++  assert.match(frontend, /import\("\.\/vehicle-overview-card\.js\?v=0\.5\.53"\)/);
++  assert.match(frontend, /import\("\.\/gps-history-card\.js\?v=0\.5\.53"\)/);
++  assert.match(frontend, /import\("\.\/e_c3_dashboard\.js\?v=0\.5\.53"\)/);
+   assert.doesNotMatch(frontend, /gps-history-fix\.js/);
+   assert.doesNotMatch(frontend, /map-marker-fix\.js/);
+ });
+ 
+ test("dependency preflight waits instead of failing on first customElements lookup", () => {
+   assert.match(frontend, /customElements\.whenDefined\(tag\)/);
+   assert.match(frontend, /DEPENDENCY_GRACE_MS = 10000/);
+   assert.match(frontend, /await dependencyReadiness/);
+-  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.52"\)/);
++  assert.match(frontend, /await import\("\.\/e_c3_dashboard\.js\?v=0\.5\.53"\)/);
+ });
 diff --git a/tests/trip-quality.test.mjs b/tests/trip-quality.test.mjs
 --- a/tests/trip-quality.test.mjs
 +++ b/tests/trip-quality.test.mjs
-@@
- test("trip normalization refuses impossible distance/time speed fallbacks", () => {
-   assert.match(source, /fallback_speed_valid/);
+@@ -18,6 +18,7 @@ test("trip normalization refuses impossible distance/time speed fallbacks", () => {
    assert.match(source, /derived_speed_outlier/);
    assert.match(source, /valid_for_statistics = False/);
    assert.match(source, /zero_start_odometer_sentinel/);
