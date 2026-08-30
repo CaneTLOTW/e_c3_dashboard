@@ -2,6 +2,36 @@
 
 This document describes the generated e-C3 Dashboard as of the 0.5.53 feature set. Exact values and available controls depend on the upstream Stellantis entities exposed by the configured vehicle.
 
+## Screenshots
+
+The following public examples are visually reviewed and anonymized. Vehicle
+history, map/location information, recipient details and integration-specific
+identifiers are either omitted or covered by opaque redaction.
+
+### Everyday views
+
+![LIVE vehicle view](assets/vehicle-live.png)
+
+![Historical charging curves](assets/charging-history.png)
+
+![Long-term statistics](assets/statistics.png)
+
+### History and controls
+
+![Trip history with rows redacted](assets/trips-history.png)
+
+![GPS history with position and map redacted](assets/gps-history.png)
+
+![Wake-up controls](assets/wakeup.png)
+
+![Notification switches without recipient rows](assets/notifications.png)
+
+![System controls](assets/system.png)
+
+### Integration and entities
+
+![Integration and entity overview with private identifiers redacted](assets/integration-entities.png)
+
 ## Vehicle
 
 The Vehicle view is the primary day-to-day cockpit.

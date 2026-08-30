@@ -116,7 +116,7 @@ charging/range, battery health, 12-V status, position, the latest trip and
 charge, plus trip and charging history. Vehicle and maintenance details share
 one popup; integration administration is intentionally kept out of this view.
 
-![Generated e-C3 dashboard](docs/assets/dashboard-overview.webp)
+![LIVE vehicle view](docs/assets/vehicle-live.png)
 
 ### Charging
 
@@ -126,7 +126,12 @@ information. Historical curves are reconstructed from the available SOC/time
 history and are therefore derived vehicle-side history, not meter-grade wallbox
 measurements.
 
-![Historical e-C3 charging curves](docs/assets/charging-history-curves.webp)
+![Historical e-C3 charging curves](docs/assets/charging-history.png)
+
+Additional anonymized examples for every generated view, including history,
+GPS, wake-up, notification and System screens, are collected in
+[Dashboard features](docs/DASHBOARD_FEATURES.md). Public screenshots use
+opaque redaction for vehicle history, location and recipient details.
 
 ### Statistics
 
