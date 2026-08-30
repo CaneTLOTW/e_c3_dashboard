@@ -23,7 +23,21 @@ Install this repository as an **Integration**, not as a standalone Lovelace dash
 - German and English integration/frontend strings.
 - Multi-vehicle support: each config entry owns its mapping, package state and generated dashboard.
 
-For screenshots and a view-by-view description, see [Dashboard features](docs/DASHBOARD_FEATURES.md).
+## Compact vehicle overview card
+
+The package also registers a compact card through the same frontend entry point. It can be placed on an existing Home Assistant start page or mobility dashboard without opening the full e-C3 dashboard.
+
+```yaml
+type: custom:e-c3-dashboard-vehicle-overview-card
+```
+
+With one configured e-C3 entry the card is zero-config. With multiple entries, bind the card to a specific config entry with `entry_id`.
+
+The generated Vehicle/LIVE hero uses the same canonical card implementation (`variant: live`), so the home-page card and full dashboard share the same entity mapping, vehicle-image lifecycle and primary status semantics.
+
+![Compact e-C3 vehicle overview card](docs/assets/vehicle-overview-card.png)
+
+See [Vehicle overview card](docs/VEHICLE_OVERVIEW_CARD.md) for optional navigation, heading and multi-vehicle configuration.
 
 ## Requirements
 
@@ -41,7 +55,9 @@ The Stellantis integration must already expose a real vehicle with battery, mile
 
 See [Installation](docs/INSTALLATION.en.md) for the full setup and troubleshooting flow.
 
-## Dashboard structure
+## Dashboard structure and screenshots
+
+The generated dashboard is organized by task instead of collecting every vehicle entity in one page:
 
 | View | Purpose |
 | --- | --- |
@@ -56,19 +72,81 @@ See [Installation](docs/INSTALLATION.en.md) for the full setup and troubleshooti
 
 Detailed trip, charge and GPS history is intentionally kept out of the Vehicle view. Vehicle stays the day-to-day cockpit; history and administration have their own views.
 
-## Compact vehicle overview card
+All screenshots below are current, anonymized runtime examples. Location/map content, history rows, recipients and private integration identifiers are omitted or covered by opaque redaction.
 
-The package also registers a compact card through the same frontend entry point:
+### Vehicle / LIVE
 
-```yaml
-type: custom:e-c3-dashboard-vehicle-overview-card
-```
+Vehicle / LIVE is the day-to-day cockpit. Its hero uses the same canonical vehicle-overview implementation as the portable start-page card and presents range, contextual temperature or charging information, SOC/battery state, remote connectivity and preconditioning quick actions.
 
-With one configured e-C3 entry the card is zero-config. With multiple entries, bind the card to a specific config entry with `entry_id`.
+The remainder of the view concentrates on the **current** vehicle picture: usage/consumption, mileage, charging/range state, high-voltage battery health, 12-V/service-battery information, current position and the latest trip and charge. Vehicle and maintenance details share one popup. Historical trip, charging and GPS exploration is intentionally delegated to the dedicated views below.
 
-The generated Vehicle/LIVE hero uses the same canonical card implementation (`variant: live`), so the home-page card and full dashboard do not maintain two independent visual implementations.
+![LIVE vehicle view](docs/assets/vehicle-live.png)
 
-See [Vehicle overview card](docs/VEHICLE_OVERVIEW_CARD.md).
+### Charging
+
+Charging is the dedicated history view for completed AC/DC sessions. A session can be selected and, where source data permits, the view presents start/end SOC, duration, energy and average charging power together with a reconstructed SOC/time curve.
+
+The curve is derived from vehicle-side history. It is useful for comparing sessions, but it is not a meter-grade wallbox power trace and should not be read as one.
+
+![Historical e-C3 charging curves](docs/assets/charging-history.png)
+
+### Statistics
+
+Statistics contains the aggregated metrics rather than individual trip rows. It shows available battery SOH capacity/resistance information, mileage, driven distance and the trailing consumption over approximately 500 km where the required history is available.
+
+Distance charts use Home Assistant long-term statistics. The dashboard does not silently rewrite malformed stored statistics; a pre-existing statistics reset or discontinuity can remain visible until it is repaired through a supported Home Assistant statistics path.
+
+![e-C3 long-term statistics](docs/assets/statistics.png)
+
+### Trips
+
+Trips is the dedicated driving-history view. It uses the canonical server-history layer, provides an explicit server-history refresh and supports filtering, including zero-distance and short-trip handling.
+
+Plausibility checks keep unusable records out of downstream metrics. If an upstream trip contains an implausible odometer boundary, the derived canonical boundary is repaired only when there is strong continuity evidence. The raw upstream record remains unchanged for diagnostics; if evidence is insufficient, the record remains invalid instead of inventing a distance.
+
+![Trip history with private rows redacted](docs/assets/trips-history.png)
+
+### GPS
+
+GPS is separated from the compact current-position information in Vehicle. The history view supports Today, Yesterday, a native Home Assistant date/range selector and All, and can combine Recorder points with canonical Stellantis server history.
+
+The current vehicle position remains a distinct live marker instead of being silently appended as another archived history point. The public screenshot therefore deliberately redacts map and position data.
+
+![GPS history with map and position redacted](docs/assets/gps-history.png)
+
+### Wake-up
+
+Wake-up contains the vehicle-reachability controls: manual wake-up, hourly wake-up, wake-up while charging and the optional reachability probe.
+
+The recovery semantics are deliberately conservative. A remote command reported as `accepted` or `forwarded` only confirms command handling; only fresh, trustworthy vehicle data counts as a recovered heartbeat.
+
+![Wake-up controls](docs/assets/wakeup.png)
+
+### Notifications
+
+Notifications is the dedicated communication-policy view. It contains the master switch, vehicle warnings, trip and charging reports, explicit opt-in recipients, recipient management, test notifications, warning/reset thresholds, reachability/probe parameters, charging-start delay, quiet hours and diagnostics.
+
+Notify-service discovery only makes a recipient available for selection. It never activates that recipient automatically, and installation itself sends no notification.
+
+![Notification switches without recipient rows](docs/assets/notifications.png)
+
+### System
+
+System contains integration and operational administration that does not belong in the everyday vehicle cockpit: setup/connection status, detected upstream entities, privacy/data-sharing state, refresh interval, battery-value correction and ABRP controls/status where configured.
+
+Keeping these controls here is part of the current view structure: **Vehicle** stays focused on the car, while **System** explains and controls how the e-C3 integration is operating.
+
+![System controls](docs/assets/system.png)
+
+### Integration, entities and configuration
+
+The Home Assistant integration/device view is the technical companion to the generated dashboard. Each e-C3 config entry maps the selected upstream vehicle and its entities dynamically instead of embedding a VIN or household-specific entity IDs in dashboard source.
+
+Initial vehicle/module selection and explicit notification opt-in happen through the config flow. Later entry-level changes are available through Home Assistant options; ongoing runtime/operational controls are exposed in **System**. With multiple vehicles, each config entry remains independent and owns its generated dashboard.
+
+![Integration and entity overview with private identifiers redacted](docs/assets/integration-entities.png)
+
+For more detail, see [Dashboard features](docs/DASHBOARD_FEATURES.md), the [entity catalog](docs/ENTITY_CATALOG.md) and the [vehicle overview card guide](docs/VEHICLE_OVERVIEW_CARD.md).
 
 ## Frontend architecture
 
