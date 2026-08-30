@@ -6,7 +6,7 @@
 
 Seit 0.5.39 nutzt auch die automatisch erzeugte **LIVE-/Vehicle-Ansicht** dieselbe kanonische Fahrzeugübersicht mit `variant: live`. Dadurch existiert nicht mehr parallel ein zweiter Strategy-Hero-Bildpfad. Startseitenkarte und LIVE-Hero beziehen das Fahrzeugbild beide aus dem gemappten Live-Tracker.
 
-![e-C3 Fahrzeugübersicht](assets/vehicle-overview-card.webp)
+![e-C3 Fahrzeugübersicht](assets/vehicle-overview-card.png)
 
 ## Minimaler Einsatz
 

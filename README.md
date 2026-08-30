@@ -49,10 +49,16 @@ state and the battery/SOC bar. Range and the right-hand status pill open native
 Home Assistant More Info for the value currently shown. Tapping the vehicle
 opens the generated e-C3 `/vehicle` view.
 
-![Compact e-C3 vehicle overview card](docs/assets/vehicle-overview-card.webp)
+![Compact e-C3 vehicle overview card](docs/assets/vehicle-overview-card.png)
 
-See [the vehicle overview card guide](docs/VEHICLE_OVERVIEW_CARD.md) for optional
-`entry_id`, navigation and heading configuration.
+The card uses the same canonical card implementation as the generated LIVE
+hero (`variant: live` internally). It shows the vehicle picture, range,
+temperature or charge state, SOC/battery bar, cable and driving indicators and
+preconditioning. Tapping the vehicle opens the generated `/vehicle` view;
+range and contextual status pills open native Home Assistant More Info. With
+multiple vehicles, set the optional `entry_id` explicitly. See [the vehicle
+overview card guide](docs/VEHICLE_OVERVIEW_CARD.md) for navigation and heading
+configuration.
 
 ## Required HACS dependencies
 
@@ -82,8 +88,18 @@ rendering any custom-card view.
 2. Download it and restart Home Assistant.
 3. Add **e-C3 Dashboard** in **Settings → Devices & services**.
 4. Select the upstream Stellantis vehicle and desired modules.
-5. If notifications are wanted, enable notification/recipient controls and select the Home Assistant Notify services that may be used.
-6. The integration creates a new **e-C3** dashboard automatically. Open it from the sidebar after setup.
+5. Select the desired modules. If notifications are wanted, enable the
+   notification/recipient controls and explicitly select the Home Assistant
+   Notify services that may be used.
+6. The integration creates a new **e-C3** dashboard automatically. Open it
+   from the sidebar after setup.
+
+The initial preflight checks that the required Lovelace resources are available
+before a vehicle is selected. The config flow discovers mapped upstream
+entities instead of asking for a VIN or fixed entity IDs. With multiple
+vehicles, create one entry per vehicle; each entry owns its generated dashboard
+and can be named independently. Later options remain available through Home
+Assistant; operational controls are grouped in the generated System view.
 
 The dashboard is created once, never overwrites an existing dashboard, and is
 not deleted with the integration.
@@ -107,84 +123,100 @@ Discussions are described in the [community guide](docs/COMMUNITY.en.md).
 
 ## Look & Feel
 
-### Vehicle
+The generated dashboard keeps day-to-day vehicle use and administration
+separate. All screenshots below are current, anonymized runtime examples.
+Location/map content, history rows, recipients and private integration
+identifiers are omitted or covered by opaque redaction.
 
-The Vehicle view is the everyday cockpit. Its LIVE hero surfaces range,
-temperature or active charging information, SOC, remote connectivity and quick
-actions. Below it, the dashboard groups consumption and usage, mileage,
-charging/range, battery health, 12-V status, position, the latest trip and
-charge, plus trip and charging history. Vehicle and maintenance details share
-one popup; integration administration is intentionally kept out of this view.
+### Vehicle / LIVE
+
+The everyday cockpit uses the same canonical overview-card foundation as the
+portable start-page card. Its LIVE hero combines range, temperature or charging
+information, SOC/battery, remote connection and preconditioning quick actions.
+Below it are usage/consumption, mileage, charging/range, high-voltage battery
+health, 12-V information and the latest trip/charge. Vehicle and maintenance
+data share one popup so administration does not crowd the driving view.
 
 ![LIVE vehicle view](docs/assets/vehicle-live.png)
 
 ### Charging
 
-Completed AC/DC charging sessions can be selected in the Charging view. The
-session summary includes the available SOC, duration, energy and average-power
-information. Historical curves are reconstructed from the available SOC/time
-history and are therefore derived vehicle-side history, not meter-grade wallbox
-measurements.
+Completed AC/DC sessions can be selected with available start/end SOC, duration,
+energy and average power. The displayed curve is reconstructed from vehicle
+SOC/time history: it is useful for comparison, but is not a meter-grade wallbox
+power measurement.
 
 ![Historical e-C3 charging curves](docs/assets/charging-history.png)
 
-Additional anonymized examples for every generated view, including history,
-GPS, wake-up, notification and System screens, are collected in
-[Dashboard features](docs/DASHBOARD_FEATURES.md). Public screenshots use
-opaque redaction for vehicle history, location and recipient details.
-
 ### Statistics
 
-The Statistics view presents battery SOH capacity/resistance, mileage, driven
-distance and trailing 500-km consumption where the required source history is
-available.
+Statistics shows available SOH capacity and resistance, mileage, driven
+distance and the trailing 500-km consumption. Distance charts use Home
+Assistant long-term statistics; pre-existing source-statistics anomalies remain
+visible until repaired through a supported Home Assistant statistics path.
 
-Long-term distance charts use Home Assistant statistics. Historical LTS source
-anomalies can therefore remain visible until the affected Home Assistant
-statistics are repaired; the project does not hide or silently rewrite such
-stored history.
+![e-C3 long-term statistics](docs/assets/statistics.png)
 
 ### Trips
 
-Trips are built from a canonical history layer rather than rendering upstream
-rows blindly. The view supports server-history refresh, filters and controls for
-zero/short trips. Plausibility checks keep unusable records out of downstream
-statistics. Where strong continuity evidence exists, the canonical layer may
-repair an implausible odometer boundary while retaining the original upstream
-record for diagnostics.
+Trips are rendered from canonical server history, with a refresh action and
+filters for zero- and short-trip handling. Plausibility checks protect
+downstream statistics. A derived odometer boundary is repaired only when there
+is strong continuity evidence; the original raw record remains available for
+diagnostics.
+
+![Trip history with private rows redacted](docs/assets/trips-history.png)
 
 ### GPS
 
-GPS history provides native Home Assistant date selection with Today,
-Yesterday, explicit ranges and All. It combines Recorder points with canonical
-server-side history while treating the current vehicle position as a separate,
-live marker.
+GPS history supports Today, Yesterday, a native Home Assistant date/range
+selector and All. It combines Recorder points with canonical server history;
+the current vehicle location remains a separate live marker rather than an
+archived point. The public example deliberately redacts map and position data.
+
+![GPS history with map and position redacted](docs/assets/gps-history.png)
 
 ### Wake-up
 
-The Wake-up view contains manual wake-up, hourly wake-up, wake-up while charging
-and an optional reachability probe. When the reliable vehicle heartbeat becomes
-stale, the probe may send one wake-up and then wait. A command merely being
-accepted or forwarded is not recovery; only fresh vehicle data counts as
-recovered connectivity.
+Wake-up controls include manual and hourly wake-up, wake-up while charging and
+an optional reachability probe. A command reported as `accepted` or `forwarded`
+is not proof of recovery: only fresh vehicle data counts as a new heartbeat.
+
+![Wake-up controls](docs/assets/wakeup.png)
 
 ### Notifications
 
-Notifications provide a master switch, vehicle warnings, trip reports, charging
-reports, explicit recipients, recipient management, test notifications,
-warning/reset thresholds, reachability settings, probe wait time, charging-start
-delay, quiet hours and diagnostics. Recipients remain opt-in even when Home
-Assistant Notify services are discovered.
+Notifications provide a master switch, vehicle warnings, trip and charging
+reports, explicit opt-in recipients, tests, warning/reset thresholds,
+reachability/probe parameters, quiet hours and diagnostics. Discovery of a
+Home Assistant Notify service never enables it automatically.
+
+![Notification switches without recipient rows](docs/assets/notifications.png)
 
 ### System
 
-System groups connection/setup status, the number of detected upstream
-entities, privacy/share state, refresh interval, battery-value correction and
-ABRP controls. These administrative functions are intentionally separated from
-the Vehicle view.
+System contains setup/connection status, detected upstream entities,
+privacy/data-sharing state, refresh interval, battery-value correction and ABRP
+controls. This administrative separation keeps the Vehicle view focused on the
+car.
 
-The screenshots show example runtime data. Vehicle values are dynamic and are
-not part of the integration configuration.
+![System controls](docs/assets/system.png)
+
+### Integration, entities and configuration
+
+The Home Assistant integration/device view is the technical companion to the
+dashboard. A config entry maps entities dynamically instead of hard-coding a
+VIN or household entity IDs. The config flow and options handle vehicle/module
+selection and explicit notification opt-in; ongoing integration administration
+lives in System. This also supports one independently configured entry and
+dashboard per vehicle.
+
+![Integration and entity overview with private identifiers redacted](docs/assets/integration-entities.png)
+
+For detailed data contracts, capability notes and privacy guidance, see
+[Dashboard features](docs/DASHBOARD_FEATURES.md), the
+[entity catalog](docs/ENTITY_CATALOG.md) and the
+[vehicle overview card guide](docs/VEHICLE_OVERVIEW_CARD.md).
 
 ## Development
 
