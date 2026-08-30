@@ -1,75 +1,148 @@
 # Notifications and wake-up
 
-## Explicit opt-in
+## Safety model: explicit opt-in
 
-The e-C3 Dashboard package creates **no active notification route and no
-automatic wake-up on installation**. This is intentional: installing a HACS
-repository must never message a household or wake its vehicle.
+Installing e-C3 Dashboard does **not** send a notification and does **not** activate automatic wake-up behavior.
 
-To enable notifications, open **Settings → Devices & services → e-C3 Dashboard
-→ Configure**. Enable *Notification and recipient controls* and select one or
-more existing `notify` services using the typed multi-select field. The package
-does not know names such as a partner, a tablet, Telegram, or a mobile phone.
+Notification delivery requires explicit choices at multiple levels:
 
-After reloading the entry, the generated **Notifications** view has these
-independent switches, all initially off:
+1. choose one or more existing Home Assistant `notify.*` services in **Settings → Devices & services → e-C3 Dashboard → Configure**;
+2. enable the package notification master switch;
+3. enable the relevant topic switch (alerts, trip reports or charge reports);
+4. enable the intended recipient switch.
 
-1. **Notifications** – master consent switch.
-2. **Vehicle alerts**, **Trip reports**, and **Charge reports** – topic
-   switches.
-3. One recipient switch for every Notify service selected in the options form.
+Notify-service discovery is selection-only. A newly discovered service is never silently opted in.
 
-A notification is sent only when the master switch, its topic switch and at
-least one recipient switch are all on. The test button follows the master and
-recipient switches, but does not require a topic switch.
+Multiple selected recipients are supported. A delivery failure for one recipient must not prevent delivery to another active recipient.
 
-Removing a recipient in the options form removes its switch on the next entry
-reload and prevents further deliveries to it. No credentials, device IDs,
-phone names, Telegram configuration, or recipient selections are stored in the
-repository.
+## Package-owned notification settings
 
-## Preserved notification content
+The settings are native e-C3 `number`/`time` entities and persist in the package notification Store.
 
-For a German Home Assistant installation, the package uses the established
-vehicle messages unchanged in meaning and field content:
+| Setting | Default |
+| --- | ---: |
+| Range warning | 25 km |
+| Range reset | 30 km |
+| At-home SOC warning | 30 % |
+| At-home SOC reset | 35 % |
+| At-home warning delay | 20 min |
+| 12-V/service-battery warning | 50 % |
+| 12-V/service-battery reset | 55 % |
+| Stale threshold at home/inactive | 3 h |
+| Stale threshold away/active | 2 h |
+| Reachability probe wait | 15 min |
+| Charge-start notification delay | 10 min |
+| Quiet-hours start | 22:00 |
+| Quiet-hours end | 07:00 |
 
-| Trigger | Title | Content |
-| --- | --- | --- |
-| Completed trip | `Fahrt beendet` | Distance, duration, average speed, start/end SOC, estimated energy and estimated kWh/100 km. |
-| Charging begins and a usable estimate exists after 10 minutes | `Laden gestartet` | Start/current SOC, estimated remaining time and end time, estimate source, AC/DC type. |
-| Completed charge | `Ladevorgang beendet` | Duration, start/end SOC, estimated energy, average/maximum estimated kW, AC/DC type. |
-| Range below 25 km | `Reichweite niedrig` | Remaining range and SOC. Reset above 30 km. |
-| At home, below 30% SOC for 20 minutes | `Laden empfohlen` | SOC and remaining range. Reset after charging, leaving home, or above 35%. |
-| Service battery below 50% | `12-V-Batterie niedrig` | Reported percentage and a wake-up/state reminder. Reset above 55%. |
-| Stale vehicle data | `Fahrzeug nicht erreichbar` | Data age and the result of the optional wake-up probe. |
-| Fresh data after a reported outage | `Fahrzeug wieder verbunden` | Outage duration, SOC and range. |
+Warning/reset pairs retain valid hysteresis. Changing a setting does not intentionally reset existing one-shot/episode markers.
 
-Energy and power values are the same battery-side estimates described in the
-entity catalog. They are not charger-meter readings and exclude charging
-losses.
+## Notification topics
+
+The package can report the following events when the required switches/recipient consent are active:
+
+| Event | Typical content |
+| --- | --- |
+| Completed trip | Distance, duration, speed and available SOC/estimated energy/consumption data. |
+| Charge started | Current/start SOC and a defensible expected finish time when source data supports it. |
+| Charge completed | Duration, SOC change and available estimated energy/power/charge-type data. |
+| Low range | Current range/SOC below the configured warning threshold, with configured reset hysteresis. |
+| At-home charge recommendation | Low SOC persisted for the configured delay while the vehicle is home, off and not charging. |
+| 12-V/service battery warning | Reported service-battery value below the configured threshold, with reset hysteresis. |
+| Vehicle unreachable | Confirmed stale vehicle heartbeat after the configured logic/probe path. |
+| Vehicle recovered | One recovery notification after a previously reported outage and a proven fresh vehicle heartbeat. |
+
+SOC-derived energy/power fields remain battery-side estimates and are not meter readings.
+
+## Reachability heartbeat
+
+A parked car can legitimately keep the same SOC, mileage, range or location for hours. Those unchanged values must not be used as a generic “latest entity timestamp” proof of connection.
+
+The current package prefers a proven fresh vehicle/temperature source heartbeat. The selected heartbeat is exposed in notification diagnostics.
+
+Important semantic rule:
+
+- a Stellantis command status such as `accepted` or `forwarded` proves the server/command path accepted the request;
+- it does **not** by itself prove that the vehicle returned a fresh payload;
+- outage recovery requires a trustworthy fresh vehicle heartbeat.
+
+## Availability episode flow
+
+When the proven heartbeat exceeds the configured stale threshold:
+
+1. the package starts an outage candidate;
+2. if the reachability-probe switch is enabled, it may request one wake-up for the episode;
+3. it waits the configured probe interval;
+4. only a fresh vehicle heartbeat clears the candidate;
+5. if the vehicle remains stale, one unreachable notification can be generated;
+6. after a reported outage, one recovery notification can be generated when genuine freshness returns.
+
+The probe is deliberately conservative. It must not become a high-frequency polling mechanism.
+
+## Quiet hours
+
+Quiet hours apply to non-urgent availability warnings.
+
+A warning that becomes eligible during quiet hours is **deferred, not dropped**. At quiet-hours end:
+
+- send it once if the vehicle is still stale and the episode is still eligible;
+- discard the queued warning if genuine recovery happened first.
+
+Quiet hours do not globally suppress trip/charge reports or every other message family.
+
+## Charge-start expected finish time
+
+The package uses a strict hierarchy so it does not invent a precise ETA:
+
+1. prefer a valid, plausible and sufficiently fresh upstream `battery_charging_end` for the active charging episode;
+2. otherwise use the configured upstream charging limit as target SOC when its limit switch is active and the value is valid above current SOC;
+3. otherwise use 100 % as the fallback target;
+4. estimate remaining time only from the latest one or two positive, plausible power samples from the active charge; if two are usable, average those two;
+5. if neither upstream finish time nor a defensible recent-power estimate exists, omit a precise finish time rather than fabricating one.
+
+There is no hard-coded 80 % default target.
 
 ## Wake-up controls
 
-The **Wake-up** view also starts fully inactive:
+The Wake-up view contains package controls for:
 
-- **Wake vehicle now** is a package button that invokes the selected upstream
-  Stellantis wake-up button and records a package Logbook entry.
-- **Hourly wake-up** wakes an idle, non-charging vehicle at most once per hour.
-- **Wake-up while charging** wakes an actively charging vehicle at most once
-  every five minutes.
-- **Availability probe** requests one wake-up after the data-age threshold is
-  crossed: three hours for an idle vehicle at home and two hours otherwise.
-  A missing response is reported only after the 15-minute probe wait.
+- **Wake vehicle now** — manual package button that invokes the mapped upstream wake-up action and records diagnostics;
+- **Hourly wake-up** — optional persisted switch;
+- **Wake-up while charging** — optional persisted switch;
+- **Reachability wake-up probe** — optional persisted switch used by the outage episode logic.
 
-The schedule controls are independent from notification consent. They do not
-send messages by themselves. The availability warning/recovery message still
-requires Notifications, Vehicle alerts, and a recipient to be enabled.
+All automatic switches start off.
 
-## Persistence and removal
+The existence/success of an upstream command entity is not a guarantee that the selected vehicle supports the physical operation. See the capability matrix for the tested ë-C3 behavior.
 
-Recipient switches, one-time warning markers, the last notification and
-wake-up counters are stored per config entry in Home Assistant private storage
-and survive restarts. Removing the e-C3 Dashboard config entry removes its
-entities and stops its listeners. It never removes upstream Stellantis entities
-or changes the user’s Notify integration, Recorder settings, or existing
-household automations.
+## Recipient management
+
+Recipient selection lives in the Home Assistant integration options rather than being hard-coded into the generated dashboard or repository.
+
+The Notifications view provides the package controls/management entry point and shows switches only for explicitly selected recipients that currently exist as Home Assistant Notify services.
+
+No recipient credentials, mobile-app names, Telegram configuration or household IDs belong in this repository.
+
+## Diagnostics
+
+The Notifications/System state exposes useful package diagnostics including:
+
+- last notification information;
+- heartbeat source/time;
+- outage/probe state;
+- last wake-up/counter information;
+- package control/entity mappings.
+
+These diagnostics are intended to explain package behavior without dumping raw household stores or private upstream payloads.
+
+## Persistence
+
+Notification switches, settings, episode markers, last-notification diagnostics and wake-up counters are stored per config entry and survive Home Assistant restarts.
+
+The notification Store intentionally remains on its backwards-compatible major schema version; new keys are populated with defaults rather than forcing an unnecessary Store major-version migration.
+
+## Current QA status
+
+The current 0.5.53 source implements the contract above, and the Notifications view/settings layout has already passed visual user acceptance.
+
+Focused real-event QA for recipient delivery, quiet-hours deferral, heartbeat outage/recovery and charge-start hierarchy remains tracked in [GitHub Issue #23](https://github.com/CaneTLOTW/e_c3_dashboard/issues/23). Event-driven checks are allowed to complete progressively when the relevant real-world state occurs; the project does not manufacture disruptive vehicle states solely for testing.
