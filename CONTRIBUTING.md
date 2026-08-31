@@ -27,6 +27,11 @@ discussion rules.
 - Add German and English strings at the same time; see
   [localisation](docs/LOCALISATION.en.md).
 - Keep third-party HACS cards as dependencies. Do not vendor or modify them.
+- Use third-party product and brand names only where needed to describe
+  compatibility or interoperability. Do not add manufacturer logos, official
+  badges, brand artwork, promotional imagery, or other protected visual assets
+  unless the applicable permission or licence is clearly documented. See
+  [TRADEMARKS.md](TRADEMARKS.md).
 
 ## Verification
 
