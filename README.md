@@ -210,3 +210,11 @@ See [Branch and deployment workflow](docs/BRANCH_AND_DEPLOYMENT_WORKFLOW.md), [R
 Use [SUPPORT.md](SUPPORT.md) and [Community guidance](docs/COMMUNITY.en.md) for setup/questions and reporting rules.
 
 Do not publish VINs, account/customer IDs, exact locations, GPS tracks, Notify recipient names, credentials, tokens or raw Home Assistant `.storage`/Store exports. Public screenshots in this repository are intentionally anonymized with opaque redaction.
+
+## Trademark and affiliation notice
+
+**e-C3 Dashboard is an independent community project and is not affiliated with, sponsored by, authorized by, maintained by, or endorsed by Automobiles Citroën, Stellantis N.V., any Stellantis group company, or their affiliates.**
+
+Citroën, ë-C3, Stellantis, Home Assistant, and other third-party product or service names, logos, and trademarks referenced by this project are the property of their respective owners. They are used only to identify compatibility, interoperability, upstream data sources, or the intended purpose of this software; their use does not imply an official relationship or endorsement.
+
+The project's MIT licence does not grant rights to third-party trademarks, logos, product artwork, or other third-party intellectual property. See [TRADEMARKS.md](TRADEMARKS.md) for the full notice and contributor guidance.
