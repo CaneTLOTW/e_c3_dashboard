@@ -11,6 +11,7 @@ This project uses semantic package versions and keeps `develop` as the integrati
 - Removed superseded version-specific bug notes, Codex runbooks, migration matrices and temporary forensic handoff documents from the current repository tree. Their history remains available through Git.
 - Consolidated still-open notification QA and Home Assistant LTS work into GitHub Issues #23 and #25 as the canonical work records.
 - Refreshed the README, architecture concept, installation guide, entity catalog, notification guide and release checklist to match the current 0.5.53 architecture.
+- Added a clear third-party trademark/affiliation notice and contributor rules that keep manufacturer names descriptive and avoid unlicensed official logos, badges or promotional artwork.
 
 No runtime behavior changes are included in this documentation cleanup.
 
