@@ -1,0 +1,67 @@
+name: Dev audit housekeeping gaps
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-audit-housekeeping.yml
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Audit language and architecture gaps
+        shell: bash
+        run: |
+          set -e
+          {
+            echo '=== FRONTEND RAW KEY GAPS ==='
+            node --input-type=module <<'JS'
+          import { FRONTEND_TEXT } from './custom_components/e_c3_dashboard/static/i18n.js';
+          import { EXTRA_FRONTEND_TEXT as west } from './custom_components/e_c3_dashboard/static/i18n-extra-west.js';
+          import { EXTRA_FRONTEND_TEXT as north } from './custom_components/e_c3_dashboard/static/i18n-extra-north.js';
+          import { EXTRA_FRONTEND_TEXT as east } from './custom_components/e_c3_dashboard/static/i18n-extra-east.js';
+          const extras = Object.assign({}, west, north, east);
+          for (const [lang, catalog] of Object.entries(extras)) {
+            for (const ns of ['tripHistory','chargeHistory','vehicleOverview','dashboard']) {
+              const canonical = Object.keys(FRONTEND_TEXT[ns].en);
+              const present = new Set(Object.keys(catalog[ns] || {}));
+              const missing = canonical.filter((key) => !present.has(key));
+              console.log(`${lang}/${ns}: ${missing.length ? missing.join(',') : 'OK'}`);
+            }
+          }
+          JS
+            echo '=== BACKEND LANGUAGE MATRIX ==='
+            python <<'PY'
+          import ast
+          from pathlib import Path
+          path=Path('custom_components/e_c3_dashboard/i18n.py')
+          tree=ast.parse(path.read_text())
+          messages=None
+          for node in tree.body:
+              if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == '_MESSAGES':
+                  messages=ast.literal_eval(node.value)
+                  break
+          print('languages:', ','.join(messages or {}))
+          if messages:
+              canonical=set(messages['en'])
+              for lang,data in messages.items():
+                  print(lang, 'missing=', sorted(canonical-set(data)), 'extra=', sorted(set(data)-canonical))
+          PY
+            echo '=== FRONTEND CACHE TOKENS IN RUNTIME ==='
+            grep -RIn --exclude='*.pyc' '0\.5\.53' custom_components/e_c3_dashboard || true
+            echo '=== LEGACY URL MIGRATION ==='
+            grep -n '_async_migrate_generated_dashboard_url\|previous_url_path\|current_url_path.startswith' custom_components/e_c3_dashboard/dashboard.py || true
+            echo '=== ICONS ==='
+            grep -RIn 'mdi:car-electric' custom_components/e_c3_dashboard/dashboard.py custom_components/e_c3_dashboard/static/e_c3_dashboard.js || true
+            echo '=== PATCH / LEGACY FRONTEND FILES ==='
+            find custom_components/e_c3_dashboard/static -maxdepth 1 -type f -printf '%f\n' | sort
+          } | tee audit-housekeeping.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: audit-housekeeping
+          path: audit-housekeeping.txt
+          retention-days: 1
