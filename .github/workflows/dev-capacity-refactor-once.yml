@@ -99,10 +99,11 @@ jobs:
               "function deriveServerChargeDisplay(charge, fallbackCapacity = null) {\n    const observed = charge.quality === \"observed\";\n    const configuredFallback = Number(fallbackCapacity);\n    const capacity = Number(charge.capacity_kwh) > 0\n        ? Number(charge.capacity_kwh)\n        : Number.isFinite(configuredFallback) && configuredFallback > 0\n            ? configuredFallback\n            : null;",
           )
           replace_all(card, "fallback_capacity_kwh: 43.4", "fallback_capacity_kwh: null", 3)
-          replace_once(
+          replace_all(
               card,
               "                fallbackCapacity: Number(this._config.fallback_capacity_kwh),",
               "                fallbackCapacity: this._config.fallback_capacity_kwh,",
+              2,
           )
           replace_once(
               card,
