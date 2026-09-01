@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Irányítópult-kártyák előzetes ellenőrzése",
+        "description": "Az e-C3 Dashboard használatához Bubble Card, Button Card, ha-map-card és layout-card szükséges. Ez a Home Assistantban regisztrált Lovelace-erőforrások tájékoztató jellegű ellenőrzése:\n\n{card_status}\n\nA regisztrált erőforrás nem bizonyítja, hogy a böngésző be is töltötte. Telepítse a hiányzó kártyákat HACS segítségével, ellenőrizze, hogy mindegyik JavaScript-modulként van regisztrálva, majd indítsa újra a Home Assistantot és frissítse a böngészőt. Az irányítópult megjelenítés előtt elvégzi a végső böngészőoldali ellenőrzést.",
+        "data": {"dashboard_cards_confirmed": "Ellenőriztem a szükséges irányítópult-kártyákat"}
+      },
+      "user": {
+        "title": "Jármű kiválasztása",
+        "description": "Válasszon egy, a Stellantis Vehicles integrációban már beállított járművet. A járműazonosító opcionális; ha üresen marad, a kiválasztott járműből származik és automatikusan egyedivé válik. Az akkumulátorkapacitás csak járműspecifikus tartalékérték, ha a Stellantis nem ad használható értéket.",
+        "data": {
+          "vehicle_device_id": "Stellantis jármű",
+          "vehicle_slug": "Járműazonosító (opcionális)",
+          "battery_capacity_kwh": "Tartalék akkumulátorkapacitás"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "A kiválasztott eszköz nem tartozik a Stellantis Vehicles integrációhoz.",
+      "upstream_not_ready": "Fejezze be a Stellantis Vehicles beállítását, és várja meg a jármű akkumulátor-, kilométeróra- és követőentitásainak megjelenését, mielőtt hozzáadja ezt az irányítópultot.",
+      "invalid_slug": "Adjon meg érvényes járműazonosítót.",
+      "slug_in_use": "Ezt a járműazonosítót már egy másik irányítópult-bejegyzés használja."
+    },
+    "abort": {
+      "missing_upstream": "Az irányítópult hozzáadása előtt állítsa be a Stellantis Vehicles integrációt és egy járművet.",
+      "already_configured": "Ehhez a járműhöz már tartozik e-C3 Dashboard bejegyzés.",
+      "unsupported_upstream_version": "Az irányítópult hozzáadása előtt frissítse a Stellantis Vehicles integrációt támogatott verzióra."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Irányítópult-modulok",
+        "data": {
+          "dashboard_name": "Irányítópult megjelenítési neve (üres = automatikus)",
+          "battery_capacity_kwh": "Tartalék akkumulátorkapacitás",
+          "trips": "Utazási előzmények",
+          "charging": "Töltési előzmények és görbék",
+          "gps": "GPS-előzmények",
+          "wakeup": "Ébresztési diagnosztika",
+          "notifications": "Értesítések és címzettek",
+          "notification_recipients": "Választható Notify-címzettek",
+          "history_hours": "Előzmények megjelenítési időablaka"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Szerveres utazási előzmények"},
+      "server_gps_history": {"name": "Szerveres GPS-előzmények"},
+      "server_charge_history": {"name": "Szerveres töltési előzmények"},
+      "vehicle_info": {"name": "Járműinformáció"},
+      "trailing_consumption_500km": {"name": "Átlagfogyasztás (500 km)"},
+      "distance_since_charge": {"name": "Távolság az utolsó töltés óta"},
+      "current_trip_energy": {"name": "Aktuális út energiája"},
+      "current_charge_power": {"name": "Aktuális töltési teljesítmény"},
+      "last_trip_result": {"name": "Utolsó helyi út eredménye"},
+      "last_charge_result": {"name": "Utolsó helyi töltés eredménye"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Alacsony hatótáv figyelmeztetés"},
+      "range_reset_km": {"name": "Alacsony hatótáv visszaállítás"},
+      "home_soc_warning": {"name": "Otthoni SOC-figyelmeztetés"},
+      "home_soc_reset": {"name": "Otthoni SOC-visszaállítás"},
+      "home_delay_minutes": {"name": "Otthoni töltési emlékeztető késleltetése"},
+      "service_battery_warning": {"name": "12 V-os akkumulátor figyelmeztetés"},
+      "service_battery_reset": {"name": "12 V-os akkumulátor visszaállítás"},
+      "stale_home_hours": {"name": "Elérhetőségi időtúllépés otthon"},
+      "stale_away_hours": {"name": "Elérhetőségi időtúllépés távollétkor"},
+      "probe_wait_minutes": {"name": "Elérhetőségi próba várakozási ideje"},
+      "charge_start_delay_minutes": {"name": "Töltéskezdési értesítés késleltetése"}
+    },
+    "time": {
+      "quiet_start": {"name": "Csendes időszak kezdete"},
+      "quiet_end": {"name": "Csendes időszak vége"}
+    },
+    "switch": {
+      "notifications": {"name": "Értesítések"},
+      "trip_reports": {"name": "Útjelentések"},
+      "charge_reports": {"name": "Töltési jelentések"},
+      "alerts": {"name": "Járműriasztások"},
+      "wakeup_hourly": {"name": "Óránkénti ébresztés"},
+      "wakeup_charging": {"name": "Ébresztés töltés közben"},
+      "wakeup_probe": {"name": "Elérhetőségi próba ébresztéssel"},
+      "notify_recipient": {"name": "Notify-címzett: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Jármű ébresztése most"},
+      "test_notification": {"name": "Tesztértesítés"},
+      "sync_server_history": {"name": "Szerverelőzmények szinkronizálása"}
+    }
+  }
+}
