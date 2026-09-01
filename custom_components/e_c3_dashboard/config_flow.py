@@ -71,12 +71,23 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             elif not self._has_required_upstream_entities(device_id):
                 errors[CONF_VEHICLE_DEVICE_ID] = "upstream_not_ready"
             else:
-                vehicle_slug = slugify(user_input[CONF_VEHICLE_SLUG])
-                if not vehicle_slug:
-                    errors[CONF_VEHICLE_SLUG] = "invalid_slug"
+                await self.async_set_unique_id(f"{DOMAIN}_{device_id}")
+                self._abort_if_unique_id_configured()
+
+                requested_slug = str(
+                    user_input.get(CONF_VEHICLE_SLUG, "") or ""
+                ).strip()
+                if requested_slug:
+                    vehicle_slug = slugify(requested_slug)
+                    if not vehicle_slug:
+                        errors[CONF_VEHICLE_SLUG] = "invalid_slug"
+                    elif self._slug_in_use(vehicle_slug):
+                        errors[CONF_VEHICLE_SLUG] = "slug_in_use"
                 else:
-                    await self.async_set_unique_id(f"{DOMAIN}_{device_id}")
-                    self._abort_if_unique_id_configured()
+                    base_slug = slugify(self._vehicle_name(device_id)) or "vehicle"
+                    vehicle_slug = self._available_vehicle_slug(base_slug)
+
+                if CONF_VEHICLE_SLUG not in errors:
                     data = {
                         CONF_VEHICLE_DEVICE_ID: device_id,
                         CONF_VEHICLE_SLUG: vehicle_slug,
@@ -94,7 +105,7 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_VEHICLE_DEVICE_ID): selector.DeviceSelector(
                     selector.DeviceSelectorConfig(integration=UPSTREAM_DOMAIN)
                 ),
-                vol.Required(CONF_VEHICLE_SLUG, default="e_c3"): str,
+                vol.Optional(CONF_VEHICLE_SLUG): str,
                 vol.Optional(CONF_BATTERY_CAPACITY_KWH): _battery_capacity_selector(),
             }
         )
@@ -175,10 +186,26 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             and any(entry.entity_id.startswith("device_tracker.") for entry in entries)
         )
 
+    def _slug_in_use(self, vehicle_slug: str) -> bool:
+        """Return whether another dashboard entry already owns this storage slug."""
+        return any(
+            entry.data.get(CONF_VEHICLE_SLUG) == vehicle_slug
+            for entry in self.hass.config_entries.async_entries(DOMAIN)
+        )
+
+    def _available_vehicle_slug(self, base_slug: str) -> str:
+        """Return a deterministic free slug for an automatically named vehicle."""
+        if not self._slug_in_use(base_slug):
+            return base_slug
+        suffix = 2
+        while self._slug_in_use(f"{base_slug}_{suffix}"):
+            suffix += 1
+        return f"{base_slug}_{suffix}"
+
     def _vehicle_name(self, device_id: str) -> str:
         """Return the selected upstream vehicle name for multi-entry fallback."""
         device = dr.async_get(self.hass).async_get(device_id)
-        return device.name_by_user or device.name or "e-C3"
+        return device.name_by_user or device.name or "Stellantis vehicle"
 
     @staticmethod
     @callback

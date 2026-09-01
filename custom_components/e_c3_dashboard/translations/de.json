@@ -11,10 +11,10 @@
       },
       "user": {
         "title": "Fahrzeug auswählen",
-        "description": "Wähle ein Fahrzeug aus, das bereits durch Stellantis Vehicles eingerichtet wurde. Die optionale Batteriekapazität dient nur als fahrzeugbezogener Fallback, wenn Stellantis keinen brauchbaren Kapazitätswert liefert.",
+        "description": "Wähle ein Fahrzeug aus, das bereits durch Stellantis Vehicles eingerichtet wurde. Die Fahrzeugkennung ist optional; bleibt sie leer, wird sie automatisch aus dem gewählten Fahrzeug abgeleitet und eindeutig gemacht. Die Batteriekapazität dient nur als fahrzeugbezogener Fallback, wenn Stellantis keinen brauchbaren Wert liefert.",
         "data": {
           "vehicle_device_id": "Stellantis-Fahrzeug",
-          "vehicle_slug": "Fahrzeugkennung",
+          "vehicle_slug": "Fahrzeugkennung (optional)",
           "battery_capacity_kwh": "Batteriekapazität als Fallback"
         }
       }
@@ -22,7 +22,8 @@
     "error": {
       "invalid_vehicle": "Das ausgewählte Gerät gehört nicht zu Stellantis Vehicles.",
       "upstream_not_ready": "Schließe zuerst die Einrichtung von Stellantis Vehicles ab und warte auf Batterie-, Kilometerstand- und Fahrzeug-Tracker-Entitäten, bevor du dieses Dashboard hinzufügst.",
-      "invalid_slug": "Gib eine gültige Fahrzeugkennung ein."
+      "invalid_slug": "Gib eine gültige Fahrzeugkennung ein.",
+      "slug_in_use": "Diese Fahrzeugkennung wird bereits von einem anderen Dashboard-Eintrag verwendet."
     },
     "abort": {
       "missing_upstream": "Richte zuerst Stellantis Vehicles und ein Fahrzeug ein.",
@@ -50,48 +51,116 @@
   },
   "entity": {
     "sensor": {
-      "server_trip_history": {"name": "Server-Fahrtenhistorie"},
-      "server_gps_history": {"name": "Server-GPS-Historie"},
-      "server_charge_history": {"name": "Server-Ladehistorie"},
-      "vehicle_info": {"name": "Fahrzeuginformationen"},
-      "trailing_consumption_500km": {"name": "Ø Verbrauch (500 km)"},
-      "distance_since_charge": {"name": "Seit letzter Ladung"},
-      "current_trip_energy": {"name": "Aktuelle Fahrtenergie"},
-      "current_charge_power": {"name": "Aktuelle Ladeleistung"},
-      "last_trip_result": {"name": "Letzte lokale Fahrt"},
-      "last_charge_result": {"name": "Letzter lokaler Ladevorgang"}
+      "server_trip_history": {
+        "name": "Server-Fahrtenhistorie"
+      },
+      "server_gps_history": {
+        "name": "Server-GPS-Historie"
+      },
+      "server_charge_history": {
+        "name": "Server-Ladehistorie"
+      },
+      "vehicle_info": {
+        "name": "Fahrzeuginformationen"
+      },
+      "trailing_consumption_500km": {
+        "name": "Ø Verbrauch (500 km)"
+      },
+      "distance_since_charge": {
+        "name": "Seit letzter Ladung"
+      },
+      "current_trip_energy": {
+        "name": "Aktuelle Fahrtenergie"
+      },
+      "current_charge_power": {
+        "name": "Aktuelle Ladeleistung"
+      },
+      "last_trip_result": {
+        "name": "Letzte lokale Fahrt"
+      },
+      "last_charge_result": {
+        "name": "Letzter lokaler Ladevorgang"
+      }
     },
     "number": {
-      "range_warning_km": {"name": "Reichweitenwarnung"},
-      "range_reset_km": {"name": "Reichweitenwarnung zurücksetzen"},
-      "home_soc_warning": {"name": "Ladezustand zuhause – Warnung"},
-      "home_soc_reset": {"name": "Ladezustand zuhause – Reset"},
-      "home_delay_minutes": {"name": "Verzögerung Ladeempfehlung zuhause"},
-      "service_battery_warning": {"name": "12-V-Batterie – Warnung"},
-      "service_battery_reset": {"name": "12-V-Batterie – Reset"},
-      "stale_home_hours": {"name": "Erreichbarkeits-Timeout zuhause"},
-      "stale_away_hours": {"name": "Erreichbarkeits-Timeout unterwegs"},
-      "probe_wait_minutes": {"name": "Wartezeit nach Erreichbarkeitsprobe"},
-      "charge_start_delay_minutes": {"name": "Verzögerung Ladebeginn-Meldung"}
+      "range_warning_km": {
+        "name": "Reichweitenwarnung"
+      },
+      "range_reset_km": {
+        "name": "Reichweitenwarnung zurücksetzen"
+      },
+      "home_soc_warning": {
+        "name": "Ladezustand zuhause – Warnung"
+      },
+      "home_soc_reset": {
+        "name": "Ladezustand zuhause – Reset"
+      },
+      "home_delay_minutes": {
+        "name": "Verzögerung Ladeempfehlung zuhause"
+      },
+      "service_battery_warning": {
+        "name": "12-V-Batterie – Warnung"
+      },
+      "service_battery_reset": {
+        "name": "12-V-Batterie – Reset"
+      },
+      "stale_home_hours": {
+        "name": "Erreichbarkeits-Timeout zuhause"
+      },
+      "stale_away_hours": {
+        "name": "Erreichbarkeits-Timeout unterwegs"
+      },
+      "probe_wait_minutes": {
+        "name": "Wartezeit nach Erreichbarkeitsprobe"
+      },
+      "charge_start_delay_minutes": {
+        "name": "Verzögerung Ladebeginn-Meldung"
+      }
     },
     "time": {
-      "quiet_start": {"name": "Ruhezeit Beginn"},
-      "quiet_end": {"name": "Ruhezeit Ende"}
+      "quiet_start": {
+        "name": "Ruhezeit Beginn"
+      },
+      "quiet_end": {
+        "name": "Ruhezeit Ende"
+      }
     },
     "switch": {
-      "notifications": {"name": "Benachrichtigungen"},
-      "trip_reports": {"name": "Fahrtberichte"},
-      "charge_reports": {"name": "Ladeberichte"},
-      "alerts": {"name": "Fahrzeugwarnungen"},
-      "wakeup_hourly": {"name": "Stündlicher Wake-up"},
-      "wakeup_charging": {"name": "Wake-up beim Laden"},
-      "wakeup_probe": {"name": "Erreichbarkeitsprobe mit Wake-up"},
-      "notify_recipient": {"name": "Notify-Empfänger: {recipient}"}
+      "notifications": {
+        "name": "Benachrichtigungen"
+      },
+      "trip_reports": {
+        "name": "Fahrtberichte"
+      },
+      "charge_reports": {
+        "name": "Ladeberichte"
+      },
+      "alerts": {
+        "name": "Fahrzeugwarnungen"
+      },
+      "wakeup_hourly": {
+        "name": "Stündlicher Wake-up"
+      },
+      "wakeup_charging": {
+        "name": "Wake-up beim Laden"
+      },
+      "wakeup_probe": {
+        "name": "Erreichbarkeitsprobe mit Wake-up"
+      },
+      "notify_recipient": {
+        "name": "Notify-Empfänger: {recipient}"
+      }
     },
     "button": {
-      "manual_wakeup": {"name": "Fahrzeug jetzt aufwecken"},
-      "test_notification": {"name": "Testbenachrichtigung"},
-      "sync_server_history": {"name": "Server-Historie synchronisieren"}
+      "manual_wakeup": {
+        "name": "Fahrzeug jetzt aufwecken"
+      },
+      "test_notification": {
+        "name": "Testbenachrichtigung"
+      },
+      "sync_server_history": {
+        "name": "Server-Historie synchronisieren"
+      }
     }
   }
 }
