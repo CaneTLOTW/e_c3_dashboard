@@ -172,7 +172,11 @@ async def async_setup_entry(
 
     entry.async_on_unload(async_call_later(hass, 1, _refresh_control_mapping))
 
-    await async_ensure_dashboard(hass, entry)
+    coordinator.data["dashboard_url_path"] = await async_ensure_dashboard(hass, entry)
+    # The status sensor is already registered at this point. Publish the actual
+    # package/user-managed dashboard path so compact-card navigation never has
+    # to reconstruct a URL from an e-C3-specific slug.
+    await notifications.async_refresh_entities()
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 

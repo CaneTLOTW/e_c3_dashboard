@@ -271,6 +271,7 @@ class Ec3DashboardStatusSensor(CoordinatorEntity, SensorEntity):
             "integration_domain": DOMAIN,
             "entry_id": self._entry.entry_id,
             "vehicle_slug": self.coordinator.data["vehicle_slug"],
+            "dashboard_url_path": self.coordinator.data.get("dashboard_url_path"),
             "vehicle_tracker": self.coordinator.data["vehicle_tracker"],
             "entity_mapping": self.coordinator.data["entity_mapping"],
             "metric_entities": metric_entities,

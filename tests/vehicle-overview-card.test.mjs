@@ -92,7 +92,9 @@ test("vehicle overview contains no legacy household route, VIN or fixed vehicle 
   assert.doesNotMatch(source, /sensor\.vr7/i);
   assert.doesNotMatch(source, /binary_sensor\.vr7/i);
   assert.doesNotMatch(source, /button\.vr7/i);
-  assert.match(source, /`\/e-c3-\$\{pathSlug\}\/vehicle`/);
+  assert.match(source, /attributes\?\.dashboard_url_path/);
+  assert.match(source, /`\/\$\{path\}\/vehicle`/);
+  assert.doesNotMatch(source, /`\/e-c3-\$\{/);
 });
 
 test("late tracker picture rebuilds the wrapper instead of freezing the URL", () => {

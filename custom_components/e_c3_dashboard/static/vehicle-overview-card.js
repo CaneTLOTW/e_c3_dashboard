@@ -55,14 +55,10 @@ const literal = (entityId) => JSON.stringify(entityId || "");
 
 const dashboardPath = (attributes, override) => {
   if (override) return override;
-  const slug = String(attributes?.vehicle_slug || "").trim();
-  if (!slug) return undefined;
-  const pathSlug = slug
-    .toLowerCase()
-    .replaceAll("_", "-")
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return pathSlug ? `/e-c3-${pathSlug}/vehicle` : undefined;
+  const path = String(attributes?.dashboard_url_path || "")
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+  return path ? `/${path}/vehicle` : undefined;
 };
 
 function buildConfig(hass, config, statusState) {
