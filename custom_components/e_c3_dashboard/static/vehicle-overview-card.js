@@ -10,6 +10,8 @@
  * changes presentation (no heading/self-navigation, optional info button);
  * entity resolution, picture lifecycle and overlay rendering stay shared.
  */
+import { languageFor, textFor } from "./i18n.js?v=0.5.53";
+
 const STATUS_DOMAIN = "e_c3_dashboard";
 const CARD_TAG = "e-c3-dashboard-vehicle-overview-card";
 const EDITOR_TAG = "e-c3-dashboard-vehicle-overview-card-editor";
@@ -33,10 +35,11 @@ const candidateLabel = (hass, candidate, index = 0) => {
   const attributes = state?.attributes || {};
   const vehicleEntity = attributes.entity_mapping?.vehicle;
   const vehicle = vehicleEntity ? hass?.states?.[vehicleEntity] : undefined;
+  const strings = textFor(hass, "vehicleOverview");
   return String(
     vehicle?.attributes?.friendly_name ||
     attributes.vehicle_slug ||
-    `e-C3 ${index + 1}`
+    strings.vehicleFallback.replace("{number}", String(index + 1))
   );
 };
 
@@ -62,6 +65,7 @@ const dashboardPath = (attributes, override) => {
 };
 
 function buildConfig(hass, config, statusState) {
+  const strings = textFor(hass, "vehicleOverview");
   const attributes = statusState.attributes || {};
   const mapped = attributes.entity_mapping || {};
   const controls = attributes.control_entities || {};
@@ -219,9 +223,9 @@ function buildConfig(hass, config, statusState) {
               if (raw && !['unknown','unavailable','none'].includes(raw.toLowerCase())) {
                 const parsed = new Date(raw);
                 const end = Number.isNaN(parsed.getTime()) ? (/^[0-9]{1,2}:[0-9]{2}$/.test(raw) ? raw.padStart(5, '0') : raw) : String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0');
-                return 'bis ' + end;
+                return ${literal(strings.chargingUntil)}.replace('{time}', end);
               }
-              return 'Lädt';
+              return ${literal(strings.charging)};
             }
             return value && Number.isFinite(Number(raw)) ? raw + ' ' + (value.attributes?.unit_of_measurement || '°C') : '-- °C';
           ]]]`,
@@ -387,22 +391,22 @@ function buildConfig(hass, config, statusState) {
             if (isCharging) {
               const power = states[${literal(chargePower)}];
               if (power && !['unknown','unavailable','none',''].includes(power.state) && Number.isFinite(Number(power.state))) {
-                return 'Wird geladen · ' + Number(power.state).toFixed(1).replace('.', ',') + ' kW';
+                return ${literal(strings.charging)} + ' · ' + Number(power.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kW';
               }
-              return 'Wird geladen';
+              return ${literal(strings.charging)};
             }
             if (isDriving) {
               const energy = states[${literal(tripEnergy)}];
               if (energy && !['unknown','unavailable','none',''].includes(energy.state) && Number.isFinite(Number(energy.state))) {
-                return 'In Fahrt · ' + Number(energy.state).toFixed(1).replace('.', ',') + ' kWh';
+                return ${literal(strings.driving)} + ' · ' + Number(energy.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';
               }
-              return 'In Fahrt';
+              return ${literal(strings.driving)};
             }
             const residual = states[${literal(batteryResidual)}];
             if (residual && !['unknown','unavailable','none',''].includes(String(residual.state).toLowerCase()) && Number.isFinite(Number(residual.state))) {
-              return 'Batterie · ' + Number(residual.state).toFixed(1).replace('.', ',') + ' kWh';
+              return ${literal(strings.battery)} + ' · ' + Number(residual.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';
             }
-            return 'Batterie';
+            return ${literal(strings.battery)};
           ]]]`,
           state_display: `[[[
             if (!entity || ['unknown','unavailable'].includes(entity.state) || !Number.isFinite(Number(entity.state))) return '-- %';
@@ -464,7 +468,7 @@ function buildConfig(hass, config, statusState) {
     cards: [
       {
         type: "heading",
-        heading: config.heading || "Mobilität",
+        heading: config.heading || strings.heading,
         heading_style: "title",
         icon: config.heading_icon || "fa6-solid:car",
       },
@@ -530,6 +534,7 @@ class Ec3DashboardVehicleOverviewCard extends HTMLElement {
     const tracker = attributes.vehicle_tracker;
     const picture = tracker ? this._hass.states?.[tracker]?.attributes?.entity_picture : "";
     return JSON.stringify([
+      languageFor(this._hass),
       entityId,
       attributes.entry_id,
       attributes.vehicle_slug,
@@ -547,14 +552,15 @@ class Ec3DashboardVehicleOverviewCard extends HTMLElement {
 
   async _rebuild() {
     if (!this.isConnected || !this._hass || this._building) return;
+    const strings = textFor(this._hass, "vehicleOverview");
     const selected = this._selected();
     if (!selected) {
       const all = statusCandidates(this._hass);
       const message = all.length > 1 && !this._config.entry_id
-        ? "e-C3 Dashboard: mehrere Fahrzeuge gefunden. Bitte im Karteneditor ein Fahrzeug auswählen."
+        ? strings.multipleVehicles
         : this._config.entry_id
-          ? "e-C3 Dashboard: das konfigurierte Fahrzeug ist nicht verfügbar."
-          : "e-C3 Dashboard: kein eindeutig zugeordnetes Fahrzeug gefunden.";
+          ? strings.configuredUnavailable
+          : strings.noUniqueVehicle;
       this.innerHTML = `<ha-card><div style="padding:16px;color:var(--secondary-text-color)">${message}</div></ha-card>`;
       this._inner = undefined;
       return;
@@ -608,13 +614,15 @@ class Ec3DashboardVehicleOverviewCardEditor extends HTMLElement {
 
   _render() {
     if (!this.isConnected || !this._hass) return;
+    const strings = textFor(this._hass, "vehicleOverview");
     const candidates = statusCandidates(this._hass);
     if (candidates.length === 0) {
-      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">Keine e-C3-Dashboard-Instanz verfügbar.</div>`;
+      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">${strings.noInstance}</div>`;
       return;
     }
     if (candidates.length === 1) {
-      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">Fahrzeug: automatisch · ${candidateLabel(this._hass, candidates[0], 0)}</div>`;
+      const label = candidateLabel(this._hass, candidates[0], 0);
+      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">${strings.vehicleAuto.replace("{vehicle}", label)}</div>`;
       return;
     }
 
@@ -626,12 +634,12 @@ class Ec3DashboardVehicleOverviewCardEditor extends HTMLElement {
     }).join("");
 
     this.innerHTML = `
-      <label style="display:block;padding:8px 0;font-weight:500">Fahrzeug</label>
+      <label style="display:block;padding:8px 0;font-weight:500">${strings.vehicle}</label>
       <select id="vehicle" style="box-sizing:border-box;width:100%;min-height:42px;padding:0 10px;border:1px solid var(--divider-color);border-radius:10px;background:var(--card-background-color);color:var(--primary-text-color)">
-        <option value=""${this._config.entry_id ? "" : " selected"}>Fahrzeug auswählen …</option>
+        <option value=""${this._config.entry_id ? "" : " selected"}>${strings.selectVehicle}</option>
         ${options}
       </select>
-      <div style="padding:8px 0;color:var(--secondary-text-color);font-size:12px">Die Auswahl wird als e-C3-Config-Entry gespeichert und bleibt fest diesem Fahrzeug zugeordnet.</div>`;
+      <div style="padding:8px 0;color:var(--secondary-text-color);font-size:12px">${strings.selectionHint}</div>`;
     this.querySelector("#vehicle")?.addEventListener("change", (event) => {
       this._emit(event.target.value);
     });
@@ -645,12 +653,16 @@ if (!customElements.get(EDITOR_TAG)) {
   customElements.define(EDITOR_TAG, Ec3DashboardVehicleOverviewCardEditor);
 }
 
+const registrationStrings = textFor(
+  { locale: { language: typeof navigator !== "undefined" ? navigator.language : "en" } },
+  "vehicleOverview",
+);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === CARD_TAG)) {
   window.customCards.push({
     type: CARD_TAG,
-    name: "e-C3 Fahrzeugübersicht",
-    description: "Kompakte e-C3 Live-Karte für die Home-Assistant-Startseite",
+    name: registrationStrings.cardName,
+    description: registrationStrings.cardDescription,
     preview: true,
   });
 }

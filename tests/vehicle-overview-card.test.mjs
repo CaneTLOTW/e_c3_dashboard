@@ -9,7 +9,7 @@ const source = fs.readFileSync(
 
 test("vehicle overview ports the existing button-card layout", () => {
   assert.match(source, /type: "vertical-stack"/);
-  assert.match(source, /heading: config\.heading \|\| "Mobilität"/);
+  assert.match(source, /heading: config\.heading \|\| strings\.heading/);
   assert.match(source, /type: "custom:button-card"/);
   assert.match(source, /height: "270px"/);
   assert.match(source, /"background-position": "center 54%"/);
@@ -65,11 +65,10 @@ test("vehicle overview resolves every household value through the config-entry m
 
 test("battery bar keeps charging and driving semantics and adds trustworthy parked residual energy", () => {
   assert.match(source, /const batteryResidual = mapped\.battery_residual/);
-  assert.match(source, /if \(isCharging\)[\s\S]*Wird geladen ·/);
-  assert.match(source, /if \(isDriving\)[\s\S]*In Fahrt ·/);
+  assert.match(source, /if \(isCharging\)[\s\S]*literal\(strings\.charging\)/);
+  assert.match(source, /if \(isDriving\)[\s\S]*literal\(strings\.driving\)/);
   assert.match(source, /const residual = states\[/);
-  assert.match(source, /return 'Batterie · ' \+ Number\(residual\.state\).*' kWh'/);
-  assert.match(source, /return 'Batterie';/);
+  assert.match(source, /literal\(strings\.battery\)/);
   assert.match(source, /triggers_update: \[battery, batteryResidual, charging, engine, chargePower, tripEnergy\]/);
 });
 
@@ -116,8 +115,9 @@ test("live variant reuses the same hero while removing heading and self-navigati
 test("single vehicle stays zero-config while multiple vehicles require an entry selection", () => {
   assert.match(source, /statusCandidates\(this\._hass, this\._config\.entry_id\)/);
   assert.match(source, /candidates\.length === 1 \? candidates\[0\] : undefined/);
-  assert.match(source, /mehrere Fahrzeuge gefunden/);
-  assert.match(source, /Bitte im Karteneditor ein Fahrzeug auswählen/);
+  assert.match(source, /strings\.multipleVehicles/);
+  assert.match(source, /strings\.configuredUnavailable/);
+  assert.match(source, /strings\.noUniqueVehicle/);
 });
 
 test("card editor persists the selected config entry instead of a VIN", () => {
@@ -126,6 +126,15 @@ test("card editor persists the selected config entry instead of a VIN", () => {
   assert.match(source, /next\.entry_id = entryId/);
   assert.match(source, /delete next\.entry_id/);
   assert.match(source, /config-changed/);
-  assert.match(source, /Fahrzeug auswählen/);
+  assert.match(source, /strings\.selectVehicle/);
   assert.doesNotMatch(source, /config\.vin/i);
+});
+
+
+test("vehicle overview localizes runtime and editor text through the shared catalog", () => {
+  assert.match(source, /import \{ languageFor, textFor \} from "\.\/i18n\.js\?v=0\.5\.53"/);
+  assert.match(source, /textFor\(hass, "vehicleOverview"\)/);
+  assert.match(source, /languageFor\(this\._hass\)/);
+  assert.match(source, /registrationStrings\.cardName/);
+  assert.doesNotMatch(source, /Wird geladen|In Fahrt|mehrere Fahrzeuge gefunden|Fahrzeug auswählen/);
 });

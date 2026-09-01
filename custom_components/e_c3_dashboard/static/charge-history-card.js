@@ -1,6 +1,6 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
 import { buildChargeCurve, buildChargeSessions, buildLocalChargeSessions, chargeSessionId, findChargeSession, mergeChargeSessions } from "./charge-history-core.js?v=0.5.49";
-import { localeFor, textFor } from "./i18n.js?v=0.5.49";
+import { localeFor, textFor } from "./i18n.js?v=0.5.53";
 
 const SELECTION_QUERY_PARAM = "e_c3_charge";
 
@@ -179,12 +179,19 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
         });
     }
 
+    _i18nContext() {
+        const explicit = String(this._config?.language || "").toLowerCase();
+        return ["de", "en", "fr"].includes(explicit)
+            ? { language: explicit }
+            : (this._hass || this._config);
+    }
+
     _locale() {
-        return localeFor(this._config);
+        return localeFor(this._i18nContext());
     }
 
     _text() {
-        return textFor(this._config, "chargeHistory");
+        return textFor(this._i18nContext(), "chargeHistory");
     }
 
     _selectionKey() {
@@ -227,24 +234,24 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
 
     _detail(session) {
         const observed = session.quality === "observed";
-        const de = this._locale().startsWith("de");
+        const text = this._text();
         return html`<div class="detail">
             <div class="detail-grid">
                 <span><strong>SOC:</strong> ${this._number(session.soc_start, 0)} → ${this._number(session.soc_end, 0)} %</span>
-                <span><strong>${de ? "Geladen" : "Battery energy"}:</strong> ${this._number(session.energy_kwh)} kWh</span>
+                <span><strong>${text.batteryEnergy}:</strong> ${this._number(session.energy_kwh)} kWh</span>
                 ${observed ? html`
-                    <span><strong>${de ? "Ladebeginn" : "Start"}:</strong> ${this._formatDate(session.start_time)}</span>
-                    <span><strong>${de ? "Ladeende" : "End"}:</strong> ${this._formatDate(session.end_time)}</span>
-                    <span><strong>${de ? "Ladedauer" : "Duration"}:</strong> ${this._formatDuration(session.charging_duration_seconds)}</span>
-                    <span><strong>${de ? "Ø Leistung" : "Average power"}:</strong> ${this._number(session.average_power_kw)} kW</span>
+                    <span><strong>${text.chargeStartDetail}:</strong> ${this._formatDate(session.start_time)}</span>
+                    <span><strong>${text.chargeEndDetail}:</strong> ${this._formatDate(session.end_time)}</span>
+                    <span><strong>${text.chargeDurationDetail}:</strong> ${this._formatDuration(session.charging_duration_seconds)}</span>
+                    <span><strong>${text.averagePowerDetail}:</strong> ${this._number(session.average_power_kw)} kW</span>
                 ` : html`
-                    <span><strong>${de ? "Standzeit" : "Standstill"}:</strong> ${this._formatDuration(session.standstill_duration_seconds)}</span>
-                    <span><strong>${de ? "Ladezeit" : "Charging duration"}:</strong> —</span>
-                    <span><strong>${de ? "Typ" : "Type"}:</strong> —</span>
+                    <span><strong>${text.standstill}:</strong> ${this._formatDuration(session.standstill_duration_seconds)}</span>
+                    <span><strong>${text.chargingDuration}:</strong> —</span>
+                    <span><strong>${text.type}:</strong> —</span>
                 `}
             </div>
-            ${observed && session.has_charge_curve ? html`<button @click=${(event) => { event.stopPropagation(); this._openSession(session); }}>${de ? "Ladekurve anzeigen" : "Show charge curve"}</button>` : nothing}
-            ${!observed ? html`<span class="detail-hint">${de ? "Dieser Ladevorgang wurde aus der SOC-Änderung zwischen zwei Fahrten rekonstruiert. Eine Ladezeit oder Ladekurve ist nicht verfügbar." : "This event was reconstructed from the SOC change between two trips. Charging duration and curve are unavailable."}</span>` : nothing}
+            ${observed && session.has_charge_curve ? html`<button @click=${(event) => { event.stopPropagation(); this._openSession(session); }}>${text.showCurve}</button>` : nothing}
+            ${!observed ? html`<span class="detail-hint">${text.reconstructedHint}</span>` : nothing}
         </div>`;
     }
 

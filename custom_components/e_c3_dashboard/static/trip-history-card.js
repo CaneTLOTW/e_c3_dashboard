@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from "https://unpkg.com/lit?module";
-import { localeFor, textFor } from "./i18n.js?v=0.5.49";
+import { localeFor, textFor } from "./i18n.js?v=0.5.53";
 
 /**
  * Standalone Lovelace card for the historic Stellantis "last trip" sensor.
@@ -344,12 +344,19 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         this._loadHistory();
     }
 
+    _i18nContext() {
+        const explicit = String(this._config?.language || "").toLowerCase();
+        return ["de", "en", "fr"].includes(explicit)
+            ? { language: explicit }
+            : (this._hass || this._config);
+    }
+
     _locale() {
-        return localeFor(this._config);
+        return localeFor(this._i18nContext());
     }
 
     _text() {
-        return textFor(this._config, "tripHistory");
+        return textFor(this._i18nContext(), "tripHistory");
     }
 
     _value(value, fallback = "—") {
@@ -423,24 +430,23 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
         const hasMaxSpeed = trips.some((trip) => trip.attributes?.max_speed);
         const hasEnergy = trips.some((trip) => trip.attributes?.energy_kwh !== undefined);
         const columnCount = 4 + (hasEnergy ? 2 : 0) + (hasMaxSpeed ? 1 : 0);
-        const de = this._locale().startsWith("de");
         return html`
             <ha-card .header=${this._config.title || text.title}>
                 <div class="card-content">
                     ${this._config.server_entity ? (this._compactFilters ? html`
-                        <div class="filter-note">${de ? "Letzte 30 Tage; Kurzstrecken ≤ 1 km und 0-km-Ereignisse ausgeblendet." : "Last 30 days; trips ≤ 1 km and 0 km events are hidden."}</div>
+                        <div class="filter-note">${text.compactFilterNote}</div>
                     ` : html`<div class="filters">
-                        <label>${de ? "Zeitraum" : "Period"}
+                        <label>${text.period}
                             <select .value=${String(this._filterDays ?? 0)} @change=${(event) => this._changeFilter("_filterDays", event)}>
-                                <option value="0">${de ? "Alle" : "All"}</option>
-                                <option value="7">7 ${de ? "Tage" : "days"}</option>
-                                <option value="30">30 ${de ? "Tage" : "days"}</option>
-                                <option value="90">90 ${de ? "Tage" : "days"}</option>
+                                <option value="0">${text.all}</option>
+                                <option value="7">7 ${text.days}</option>
+                                <option value="30">30 ${text.days}</option>
+                                <option value="90">90 ${text.days}</option>
                             </select>
                         </label>
-                        <label><input type="checkbox" .checked=${this._hideShortTrips} @change=${(event) => this._changeFilter("_hideShortTrips", event)}> ${de ? "≤ 1 km ausblenden" : "Hide ≤ 1 km"}</label>
-                        <label><input type="checkbox" .checked=${this._onlyConsumption} @change=${(event) => this._changeFilter("_onlyConsumption", event)}> ${de ? "nur Verbrauch" : "Consumption only"}</label>
-                        <label><input type="checkbox" .checked=${this._showZeroEvents} @change=${(event) => this._changeFilter("_showZeroEvents", event)}> ${de ? "0-km-Ereignisse" : "0 km events"}</label>
+                        <label><input type="checkbox" .checked=${this._hideShortTrips} @change=${(event) => this._changeFilter("_hideShortTrips", event)}> ${text.hideShort}</label>
+                        <label><input type="checkbox" .checked=${this._onlyConsumption} @change=${(event) => this._changeFilter("_onlyConsumption", event)}> ${text.consumptionOnly}</label>
+                        <label><input type="checkbox" .checked=${this._showZeroEvents} @change=${(event) => this._changeFilter("_showZeroEvents", event)}> ${text.zeroEvents}</label>
                     </div>`) : nothing}
                     ${this._loading && trips.length === 0 ? html`<span class="muted">${text.loading}</span>` : nothing}
                     ${this._error ? html`<span class="error">${text.error} ${this._error}</span>` : nothing}
@@ -465,14 +471,14 @@ class CodexStellantisTripHistoryCardV4 extends LitElement {
                                         ${invalid ? html`<span class="quality-warning">${text.invalidServerTrip}</span>` : nothing}
                                         <span><strong>${text.startMileage}:</strong> ${this._formatMileage(trip.attributes?.start_mileage)}</span>
                                         <span><strong>${text.endMileage}:</strong> ${this._formatMileage(this._endMileage(trip))}</span>
-                                        <span><strong>SOC Start:</strong> ${this._value(trip.attributes?.soc_start)} %</span>
-                                        <span><strong>SOC Ende:</strong> ${this._value(trip.attributes?.soc_end)} %</span>
+                                        <span><strong>${text.socStart}:</strong> ${this._value(trip.attributes?.soc_start)} %</span>
+                                        <span><strong>${text.socEnd}:</strong> ${this._value(trip.attributes?.soc_end)} %</span>
                                     </div>
                                 </td>
                             </tr>` : nothing}`;
                             })}</tbody></table>
                         </div>
-                        ${hasMoreTrips ? html`<div class="table-footer"><span>${de ? `${trips.length} von ${this._allTrips.length} Fahrten sichtbar` : `${trips.length} of ${this._allTrips.length} trips visible`}</span><button type="button" @click=${() => this._loadMoreTrips()}>${de ? "Weitere Fahrten laden" : "Load more trips"}</button></div>` : nothing}` : nothing}
+                        ${hasMoreTrips ? html`<div class="table-footer"><span>${text.visibleTrips.replace("{visible}", String(trips.length)).replace("{total}", String(this._allTrips.length))}</span><button type="button" @click=${() => this._loadMoreTrips()}>${text.loadMore}</button></div>` : nothing}` : nothing}
                 </div>
             </ha-card>
         `;
