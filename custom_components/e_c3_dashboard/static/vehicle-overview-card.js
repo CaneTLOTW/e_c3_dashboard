@@ -75,6 +75,7 @@ function buildConfig(hass, config, statusState) {
   const showHeading = !liveVariant && config.show_heading !== false;
 
   const battery = mapped.battery;
+  const batteryResidual = mapped.battery_residual;
   const autonomy = mapped.autonomy;
   const temperature = mapped.temperature;
   const charging = mapped.battery_charging;
@@ -97,6 +98,7 @@ function buildConfig(hass, config, statusState) {
 
   const trackedEntities = [
     battery,
+    batteryResidual,
     autonomy,
     temperature,
     charging,
@@ -382,7 +384,7 @@ function buildConfig(hass, config, statusState) {
           show_state: true,
           show_icon: false,
           tap_action: { action: "more-info" },
-          triggers_update: [battery, charging, engine, chargePower, tripEnergy].filter(Boolean),
+          triggers_update: [battery, batteryResidual, charging, engine, chargePower, tripEnergy].filter(Boolean),
           name: `[[[
             const isCharging = states[${literal(charging)}]?.state === 'on';
             const isDriving = states[${literal(engine)}]?.state === 'on';
@@ -399,6 +401,10 @@ function buildConfig(hass, config, statusState) {
                 return 'In Fahrt · ' + Number(energy.state).toFixed(1).replace('.', ',') + ' kWh';
               }
               return 'In Fahrt';
+            }
+            const residual = states[${literal(batteryResidual)}];
+            if (residual && !['unknown','unavailable','none',''].includes(String(residual.state).toLowerCase()) && Number.isFinite(Number(residual.state))) {
+              return 'Batterie · ' + Number(residual.state).toFixed(1).replace('.', ',') + ' kWh';
             }
             return 'Batterie';
           ]]]`,
