@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import vm from "node:vm";
 import test from "node:test";
+
+import {
+  FRONTEND_TEXT,
+  languageFor,
+  localeFor,
+} from "../custom_components/e_c3_dashboard/static/i18n.js";
 
 const root = new URL("../custom_components/e_c3_dashboard/", import.meta.url);
 const languages = ["de", "en", "fr", "it", "es", "pt", "nl", "da", "nb", "sv", "fi", "pl", "cs", "sk", "hu", "ro", "sl", "hr"];
@@ -17,13 +22,6 @@ function keyPaths(value, prefix = "") {
   return result.sort();
 }
 
-function readExtra(path) {
-  const source = fs.readFileSync(new URL(path, root), "utf8");
-  const sandbox = { catalog: null };
-  vm.runInNewContext(source.replace("export const EXTRA_FRONTEND_TEXT =", "catalog ="), sandbox);
-  return sandbox.catalog;
-}
-
 test("Home Assistant translations cover the planned 18-language matrix with identical keys", () => {
   const canonical = JSON.parse(fs.readFileSync(new URL("translations/en.json", root), "utf8"));
   const canonicalKeys = keyPaths(canonical);
@@ -35,32 +33,38 @@ test("Home Assistant translations cover the planned 18-language matrix with iden
   }
 });
 
-test("frontend resolver contains every planned locale and normalizes regional variants", () => {
-  const source = fs.readFileSync(new URL("static/i18n.js", root), "utf8");
-  for (const language of languages) assert.ok(source.includes(`"${language}"`), `resolver missing ${language}`);
-  assert.match(source, /normalized\.split\("-"\)\[0\]/);
-  assert.match(source, /if \(base === "no"\) return "nb"/);
-  assert.match(source, /pt: "pt-PT"/);
-  assert.match(source, /cs: "cs-CZ"/);
-  assert.match(source, /nb: "nb-NO"/);
-  assert.match(source, /return SUPPORTED_LANGUAGES\.has\(requested\) \? requested : "en"/);
+test("frontend resolver supports every planned locale and normalizes regional variants", () => {
+  for (const language of languages) {
+    assert.equal(languageFor({ language }), language, `resolver missing ${language}`);
+    assert.ok(localeFor({ language }).includes("-"), `locale mapping missing ${language}`);
+  }
+  assert.equal(languageFor({ language: "fr-FR" }), "fr");
+  assert.equal(languageFor({ language: "de-AT" }), "de");
+  assert.equal(languageFor({ language: "nb-NO" }), "nb");
+  assert.equal(languageFor({ language: "no-NO" }), "nb");
+  assert.equal(languageFor({ language: "unsupported-ZZ" }), "en");
+  assert.equal(localeFor({ language: "pt-PT" }), "pt-PT");
+  assert.equal(localeFor({ language: "cs-CZ" }), "cs-CZ");
+  assert.equal(localeFor({ language: "nb-NO" }), "nb-NO");
 });
 
-test("all fifteen additional frontend languages provide every user-facing namespace", () => {
-  const catalogs = Object.assign({}, readExtra("static/i18n-extra-west.js"), readExtra("static/i18n-extra-north.js"), readExtra("static/i18n-extra-east.js"));
+test("all fifteen additional frontend languages expose every user-facing namespace at runtime", () => {
   for (const language of extraLanguages) {
-    assert.ok(catalogs[language], `missing frontend language ${language}`);
     for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {
-      assert.ok(catalogs[language][namespace], `${language} missing ${namespace}`);
-      assert.ok(Object.keys(catalogs[language][namespace]).length >= 5, `${language}/${namespace} is unexpectedly sparse`);
+      const catalog = FRONTEND_TEXT[namespace][language];
+      assert.ok(catalog, `${language} missing ${namespace}`);
+      assert.deepEqual(
+        Object.keys(catalog).sort(),
+        Object.keys(FRONTEND_TEXT[namespace].en).sort(),
+        `${language}/${namespace} runtime key mismatch`,
+      );
     }
   }
 });
 
 test("long-label smoke locales are explicitly available", () => {
-  const source = fs.readFileSync(new URL("static/i18n.js", root), "utf8");
-  for (const language of ["de", "fr", "pl"]) assert.ok(source.includes(`"${language}"`));
-  const polish = readExtra("static/i18n-extra-north.js").pl;
-  assert.ok(polish.dashboard.notificationRecipients.length > 5);
-  assert.ok(polish.tripHistory.visibleTrips.includes("{visible}"));
+  for (const language of ["de", "fr", "pl"]) {
+    assert.ok(FRONTEND_TEXT.dashboard[language].notificationRecipients.length > 5);
+    assert.ok(FRONTEND_TEXT.tripHistory[language].visibleTrips.includes("{visible}"));
+  }
 });
