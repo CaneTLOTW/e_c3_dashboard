@@ -191,19 +191,31 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]
     status = Ec3DashboardStatusSensor(coordinator, entry)
     coordinator.notifications.register_entity(status)
+    capabilities = coordinator.data.get("capabilities", {})
+    electric = capabilities.get("electric_trip_metrics", False)
+    charge_history = capabilities.get("charge_history", False)
+    charging = capabilities.get("charging", False)
+
     entities = [
         status,
         Ec3ServerTripHistorySensor(coordinator, entry),
         Ec3ServerGpsHistorySensor(coordinator, entry),
-        Ec3ServerChargeHistorySensor(coordinator, entry),
         Ec3VehicleInfoSensor(coordinator, entry),
-        Ec3TrailingConsumptionSensor(coordinator, entry),
-        Ec3DistanceSinceChargeSensor(coordinator, entry),
-        Ec3CurrentTripEnergySensor(coordinator, entry),
         Ec3LastTripResultSensor(coordinator, entry),
-        Ec3CurrentChargePowerSensor(coordinator, entry),
-        Ec3LastChargeResultSensor(coordinator, entry),
     ]
+    if electric:
+        entities.extend([
+            Ec3TrailingConsumptionSensor(coordinator, entry),
+            Ec3CurrentTripEnergySensor(coordinator, entry),
+        ])
+    if charge_history:
+        entities.extend([
+            Ec3ServerChargeHistorySensor(coordinator, entry),
+            Ec3DistanceSinceChargeSensor(coordinator, entry),
+            Ec3LastChargeResultSensor(coordinator, entry),
+        ])
+    if charging:
+        entities.append(Ec3CurrentChargePowerSensor(coordinator, entry))
     for entity in entities[1:]:
         coordinator.metrics.register_entity(entity)
         if hasattr(coordinator, "server_history") and coordinator.server_history:

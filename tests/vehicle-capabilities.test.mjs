@@ -8,6 +8,9 @@ const tripHistory = fs.readFileSync(new URL("../custom_components/e_c3_dashboard
 const coordinator = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/coordinator.py", import.meta.url), "utf8");
 const configFlow = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/config_flow.py", import.meta.url), "utf8");
 const metrics = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/metrics.py", import.meta.url), "utf8");
+const sensorPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/sensor.py", import.meta.url), "utf8");
+const numberPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/number.py", import.meta.url), "utf8");
+const switchPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/switch.py", import.meta.url), "utf8");
 
 test("backend publishes powertrain capability contract without requiring a battery", () => {
   assert.match(coordinator, /_REQUIRED_ENTITY_KEYS = \{"vehicle", "mileage"\}/);
@@ -54,4 +57,15 @@ test("electric metrics are disabled by capability, not by guessed model", () => 
   assert.match(metrics, /capabilities\.get\("electric_trip_metrics"/);
   assert.match(metrics, /capabilities\.get\("battery_capacity"/);
   assert.match(metrics, /capabilities\.get\("charge_history"/);
+});
+
+
+test("package-owned entity platforms do not load EV-only entities for Thermic", () => {
+  assert.match(sensorPlatform, /if electric:/);
+  assert.match(sensorPlatform, /if charge_history:/);
+  assert.match(sensorPlatform, /if charging:/);
+  assert.match(numberPlatform, /if electric:/);
+  assert.match(numberPlatform, /if charging:/);
+  assert.match(switchPlatform, /if capabilities\.get\("charging", False\):/);
+  assert.match(switchPlatform, /allowed_switches/);
 });

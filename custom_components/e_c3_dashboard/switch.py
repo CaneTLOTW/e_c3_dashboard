@@ -38,9 +38,20 @@ async def async_setup_entry(
     """Add disabled-by-default package controls."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
     manager = coordinator.notifications
+    capabilities = coordinator.data.get("capabilities", {})
+    allowed_switches = {
+        SWITCH_NOTIFICATIONS,
+        SWITCH_TRIP_REPORTS,
+        SWITCH_ALERTS,
+        SWITCH_WAKEUP_HOURLY,
+        SWITCH_WAKEUP_PROBE,
+    }
+    if capabilities.get("charging", False):
+        allowed_switches.update({SWITCH_CHARGE_REPORTS, SWITCH_WAKEUP_CHARGING})
     entities = [
         Ec3NotificationSwitch(coordinator, entry, key, _BASE_DETAILS[key])
         for key in BASE_SWITCHES
+        if key in allowed_switches
     ]
     entities.extend(
         Ec3NotificationSwitch(

@@ -14,7 +14,31 @@ from .notifications import SETTING_META
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [NotificationSettingNumber(coordinator, entry, key) for key in SETTING_META]
+    capabilities = coordinator.data.get("capabilities", {})
+    electric = capabilities.get("electric_energy", False)
+    charging = capabilities.get("charging", False)
+    allowed = {
+        "service_battery_warning",
+        "service_battery_reset",
+        "stale_home_hours",
+        "stale_away_hours",
+        "probe_wait_minutes",
+    }
+    if electric:
+        allowed.update({
+            "range_warning_km",
+            "range_reset_km",
+            "home_soc_warning",
+            "home_soc_reset",
+            "home_delay_minutes",
+        })
+    if charging:
+        allowed.add("charge_start_delay_minutes")
+    entities = [
+        NotificationSettingNumber(coordinator, entry, key)
+        for key in SETTING_META
+        if key in allowed
+    ]
     for entity in entities:
         coordinator.notifications.register_entity(entity)
     async_add_entities(entities)
