@@ -21,60 +21,40 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           i18n = Path('custom_components/e_c3_dashboard/static/i18n.js')
           text = i18n.read_text()
           anchor = 'import { EXTRA_FRONTEND_TEXT as EASTERN_TEXT } from "./i18n-extra-east.js?v=0.5.54";\n'
-          imports = (
-              anchor
-              + 'import { ADVANCED_FRONTEND_TEXT as ADVANCED_WESTERN_TEXT } from "./i18n-advanced-west.js?v=0.5.54";\n'
-              + 'import { ADVANCED_FRONTEND_TEXT as ADVANCED_NORTHERN_TEXT } from "./i18n-advanced-north.js?v=0.5.54";\n'
-              + 'import { ADVANCED_FRONTEND_TEXT as ADVANCED_EASTERN_TEXT } from "./i18n-advanced-east.js?v=0.5.54";\n'
-          )
           if 'ADVANCED_WESTERN_TEXT' not in text:
               if text.count(anchor) != 1:
                   raise SystemExit('i18n advanced import anchor mismatch')
-              text = text.replace(anchor, imports, 1)
+              advanced_imports = (
+                  'import { ADVANCED_FRONTEND_TEXT as ADVANCED_WESTERN_TEXT } from "./i18n-advanced-west.js?v=0.5.54";\n'
+                  'import { ADVANCED_FRONTEND_TEXT as ADVANCED_NORTHERN_TEXT } from "./i18n-advanced-north.js?v=0.5.54";\n'
+                  'import { ADVANCED_FRONTEND_TEXT as ADVANCED_EASTERN_TEXT } from "./i18n-advanced-east.js?v=0.5.54";\n'
+              )
+              text = text.replace(anchor, anchor + advanced_imports, 1)
 
-          merge_anchor = '''for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {
-            for (const [language, namespaces] of Object.entries(catalog)) {
-              for (const [namespace, translated] of Object.entries(namespaces)) {
-                FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace].en, ...translated };
-              }
-            }
-          }
-
-          const CAPABILITY_LABELS = {'''
-          merge_replacement = '''for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {
-            for (const [language, namespaces] of Object.entries(catalog)) {
-              for (const [namespace, translated] of Object.entries(namespaces)) {
-                FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace].en, ...translated };
-              }
-            }
-          }
-
-          for (const catalog of [ADVANCED_WESTERN_TEXT, ADVANCED_NORTHERN_TEXT, ADVANCED_EASTERN_TEXT]) {
-            for (const [language, namespaces] of Object.entries(catalog)) {
-              for (const [namespace, translated] of Object.entries(namespaces)) {
-                FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace][language], ...translated };
-              }
-            }
-          }
-
-          const CAPABILITY_LABELS = {'''
-          # normalize workflow indentation before matching source file
-          merge_anchor = '\n'.join(line.strip() if False else line for line in merge_anchor.splitlines())
-          merge_replacement = '\n'.join(line.strip() if False else line for line in merge_replacement.splitlines())
-          # source uses no leading workflow indentation
-          merge_anchor = merge_anchor.replace('          ', '')
-          merge_replacement = merge_replacement.replace('          ', '')
+          capability_marker = 'const CAPABILITY_LABELS = {'
           if 'for (const catalog of [ADVANCED_WESTERN_TEXT' not in text:
-              if text.count(merge_anchor) != 1:
-                  raise SystemExit('i18n advanced merge anchor mismatch')
-              text = text.replace(merge_anchor, merge_replacement, 1)
+              if text.count(capability_marker) != 1:
+                  raise SystemExit('capability marker mismatch')
+              advanced_merge = dedent('''
+              for (const catalog of [ADVANCED_WESTERN_TEXT, ADVANCED_NORTHERN_TEXT, ADVANCED_EASTERN_TEXT]) {
+                for (const [language, namespaces] of Object.entries(catalog)) {
+                  for (const [namespace, translated] of Object.entries(namespaces)) {
+                    FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace][language], ...translated };
+                  }
+                }
+              }
+
+              ''')
+              text = text.replace(capability_marker, advanced_merge + capability_marker, 1)
           i18n.write_text(text)
 
-          Path('tests/language-matrix.test.mjs').write_text(r'''import assert from "node:assert/strict";
+          language_test = dedent(r'''
+          import assert from "node:assert/strict";
           import fs from "node:fs";
           import vm from "node:vm";
           import test from "node:test";
@@ -147,7 +127,6 @@ jobs:
                   ...(baseCatalogs[language]?.[namespace] || {}),
                   ...(advancedCatalogs[language]?.[namespace] || {}),
                 };
-                // Fuel labels are injected centrally from CAPABILITY_LABELS, so compare the final runtime catalog.
                 const runtime = FRONTEND_TEXT[namespace][language];
                 const canonical = FRONTEND_TEXT[namespace].en;
                 assert.deepEqual(Object.keys(runtime).sort(), Object.keys(canonical).sort(), `${language}/${namespace} key mismatch`);
@@ -155,7 +134,6 @@ jobs:
                   assert.deepEqual(placeholders(runtime[key]), placeholders(canonical[key]), `${language}/${namespace}/${key} placeholder mismatch`);
                   assert.notEqual(String(runtime[key]).trim(), "", `${language}/${namespace}/${key} is empty`);
                 }
-                // Ensure non-capability keys are supplied by actual language catalogs rather than silently inherited English.
                 for (const key of Object.keys(canonical).filter((key) => !["fuel", "fuelRange", "fuelConsumption"].includes(key))) {
                   assert.ok(Object.hasOwn(combined, key), `${language}/${namespace}/${key} missing from translated catalogs`);
                 }
@@ -169,25 +147,28 @@ jobs:
             assert.ok(polish.helpContent.includes("##"));
             assert.ok(polish.tripHistoryIntro.includes("**—**"));
           });
-          '''.replace(/^          /gm, ''))
+          ''').lstrip()
+          Path('tests/language-matrix.test.mjs').write_text(language_test)
 
           validate = Path('.github/workflows/validate.yaml')
           v = validate.read_text()
-          anchor = '''          node --check custom_components/e_c3_dashboard/static/i18n.js
-          node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js'''
-          replacement = '''          node --check custom_components/e_c3_dashboard/static/i18n.js
-          for file in custom_components/e_c3_dashboard/static/i18n-extra-*.js custom_components/e_c3_dashboard/static/i18n-advanced-*.js; do
-            node --check "$file"
-          done
-          node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js'''
-          if v.count(anchor) != 1:
-              raise SystemExit('validate i18n syntax anchor mismatch')
-          validate.write_text(v.replace(anchor, replacement, 1))
+          syntax_line = '          node --check custom_components/e_c3_dashboard/static/i18n.js\n'
+          if 'i18n-advanced-*.js' not in v:
+              if v.count(syntax_line) != 1:
+                  raise SystemExit('validate i18n syntax anchor mismatch')
+              extra_checks = (
+                  syntax_line
+                  + '          for file in custom_components/e_c3_dashboard/static/i18n-extra-*.js custom_components/e_c3_dashboard/static/i18n-advanced-*.js; do\n'
+                  + '            node --check "$file"\n'
+                  + '          done\n'
+              )
+              v = v.replace(syntax_line, extra_checks, 1)
+              validate.write_text(v)
 
           gap = Path('tests/i18n-gap-report.test.mjs')
-          if gap.exists(): gap.unlink()
-          workflow = Path('.github/workflows/dev-finalize-llm-i18n.yml')
-          workflow.unlink()
+          if gap.exists():
+              gap.unlink()
+          Path('.github/workflows/dev-finalize-llm-i18n.yml').unlink()
           PY
       - name: Validate completed catalogs
         run: |
