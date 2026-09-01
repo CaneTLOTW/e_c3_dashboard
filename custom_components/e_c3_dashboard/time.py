@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
+from .entity_identity import apply_vehicle_entity_identity
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
@@ -30,7 +31,13 @@ class NotificationQuietTime(TimeEntity):
         self.coordinator, self.entry, self.key = coordinator, entry, key
         self._attr_translation_key = key
         self._attr_icon = icon
-        self._attr_unique_id = f"{entry.entry_id}_notification_setting_{key}"
+        apply_vehicle_entity_identity(
+            self,
+            coordinator.hass,
+            entry,
+            "time",
+            f"notification_setting_{key}",
+        )
 
     @property
     def native_value(self) -> time | None:
