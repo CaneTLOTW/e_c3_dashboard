@@ -48,8 +48,8 @@ test("LIVE reuses the validated vehicle overview lifecycle instead of owning a s
 });
 
 test("vehicle information popup puts maintenance before vehicle data", () => {
-  const maintenance = strategy.indexOf('title: language(hass) === "de" ? "Wartung" : "Maintenance"');
-  const vehicle = strategy.indexOf('title: language(hass) === "de" ? "Fahrzeug" : "Vehicle"');
+  const maintenance = strategy.indexOf("title: strings.maintenance");
+  const vehicle = strategy.indexOf("title: strings.vehicle");
   assert.ok(maintenance >= 0);
   assert.ok(vehicle > maintenance);
   assert.doesNotMatch(strategy, /metric\("vehicle_info"\) \? bubble\("vehicle_info"/);
@@ -70,7 +70,7 @@ test("vehicle overview keeps only useful vehicle metrics and moves privacy to sy
   const systemStart = strategy.indexOf('path: "system"');
   assert.ok(systemStart > vehicleEnd);
   assert.ok(strategy.indexOf('entity("privacy")', systemStart) > systemStart);
-  assert.match(strategy, /"Datenschutz & Freigabe"/);
+  assert.match(strategy, /separator\(strings\.privacySharing/);
 });
 
 test("battery health pairs high-voltage and 12-V values at half width", () => {

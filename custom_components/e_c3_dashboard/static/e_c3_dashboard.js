@@ -157,6 +157,10 @@ class Ec3DashboardStrategy extends HTMLElement {
     const entity = (key) => mapped[key];
     const control = (key) => controls[key];
     const present = (cards) => cards.filter(Boolean);
+    const literalText = (value) => JSON.stringify(String(value));
+    const jinjaText = (value) => String(value).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+    const jinjaAge = (template, expression) =>
+      jinjaText(template).replace("{value}", `' ~ ${expression} ~ '`);
 
     const controlSwitch = (key, name, icon, columns = 6) => control(key) ? {
       type: "custom:bubble-card",
@@ -216,13 +220,14 @@ class Ec3DashboardStrategy extends HTMLElement {
       let text = '—';
       if (Number.isFinite(timestamp)) {
         const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+        const fill = (template, value) => template.replace('{value}', String(value));
         text = minutes < 1
-          ? '${language(hass) === "de" ? "gerade eben" : "just now"}'
+          ? ${literalText(strings.justNow)}
           : minutes < 60
-            ? '${language(hass) === "de" ? "vor " : ""}' + minutes + '${language(hass) === "de" ? " Min." : " min ago"}'
+            ? fill(${literalText(strings.minutesAgo)}, minutes)
             : minutes < 1440
-              ? '${language(hass) === "de" ? "vor " : ""}' + Math.floor(minutes / 60) + '${language(hass) === "de" ? " Std." : " hr ago"}'
-              : '${language(hass) === "de" ? "vor " : ""}' + Math.floor(minutes / 1440) + '${language(hass) === "de" ? " Tagen" : " days ago"}';
+              ? fill(${literalText(strings.hoursAgo)}, Math.floor(minutes / 60))
+              : fill(${literalText(strings.daysAgo)}, Math.floor(minutes / 1440));
       }
       const target = card.querySelector('.bubble-state');
       if (target) target.innerText = text;
@@ -338,7 +343,7 @@ class Ec3DashboardStrategy extends HTMLElement {
       button_action: { tap_action: { action: "more-info" } },
       sub_button: [
         subState("battery_charging_type", "AC/DC", "mdi:current-ac"),
-        subState("battery_charging_end", "End", "mdi:clock-end"),
+        subState("battery_charging_end", strings.chargeEndShort, "mdi:clock-end"),
         currentChargePower ? { entity: currentChargePower, name: "kW", icon: "mdi:flash", show_state: true, show_name: false, show_background: true, tap_action: { action: "more-info" } } : null,
         subState("battery_plugged", strings.cable, "mdi:ev-plug-type2"),
       ].filter(Boolean),
@@ -363,7 +368,7 @@ class Ec3DashboardStrategy extends HTMLElement {
       type: "custom:bubble-card",
       card_type: "pop-up",
       hash: "#e-c3-vehicle-info",
-      name: language(hass) === "de" ? "Fahrzeug- und Wartungsdaten" : "Vehicle and maintenance data",
+      name: strings.vehicleMaintenanceData,
       icon: "mdi:car-info",
       popup_mode: "adaptive-dialog",
       popup_style: "classic",
@@ -371,21 +376,21 @@ class Ec3DashboardStrategy extends HTMLElement {
       cards: [
         {
           type: "entities",
-          title: language(hass) === "de" ? "Wartung" : "Maintenance",
+          title: strings.maintenance,
           show_header_toggle: false,
           entities: [
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Tage", name: language(hass) === "de" ? "Verbleibende Tage" : "Days remaining" },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Kilometer", name: language(hass) === "de" ? "Verbleibende Kilometer" : "Mileage remaining" },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung aktualisiert", name: language(hass) === "de" ? "Aktualisiert" : "Updated" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Tage", name: strings.daysRemaining },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Kilometer", name: strings.mileageRemaining },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung aktualisiert", name: strings.updated },
           ],
         },
         {
           type: "entities",
-          title: language(hass) === "de" ? "Fahrzeug" : "Vehicle",
+          title: strings.vehicle,
           show_header_toggle: false,
           entities: [
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Marke", name: language(hass) === "de" ? "Marke" : "Brand" },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Antrieb", name: language(hass) === "de" ? "Antrieb" : "Powertrain" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Marke", name: strings.brand },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "Antrieb", name: strings.powertrain },
             { type: "attribute", entity: vehicleInfoEntity, attribute: "VIN", name: "VIN" },
           ],
         },
@@ -412,7 +417,7 @@ class Ec3DashboardStrategy extends HTMLElement {
         vehicleInfoPopupCard,
         entity("remote_commands") ? {
           ...bubble("remote_commands", strings.remote, "mdi:car-wireless", [press("wakeup", strings.manualWakeup, "mdi:car-connected")]),
-          styles: `\${(() => { const e=hass.states[entity]; const raw=e?.state; const timestamp=Date.parse(e?.last_changed||''); const seconds=Number.isFinite(timestamp)?Math.max(0,Math.floor((Date.now()-timestamp)/1000)):null; const age=seconds===null?'Zeit unbekannt':seconds<60?'seit gerade eben':seconds<3600?'seit '+Math.floor(seconds/60)+' Min.':seconds<86400?'seit '+Math.floor(seconds/3600)+' Std.':'seit '+Math.floor(seconds/86400)+' Tagen'; card.querySelector('.bubble-state').innerText=(raw==='on'?'Verbunden':raw==='off'?'Getrennt':'Unbekannt')+' · '+age; icon.setAttribute('icon',raw==='on'?'mdi:car-wireless':'mdi:car-wireless-off'); })()}`,
+          styles: `\${(() => { const e=hass.states[entity]; const raw=e?.state; const timestamp=Date.parse(e?.last_changed||''); const seconds=Number.isFinite(timestamp)?Math.max(0,Math.floor((Date.now()-timestamp)/1000)):null; const fill=(template,value)=>template.replace('{value}',String(value)); const age=seconds===null?${literalText(strings.ageUnknown)}:seconds<60?${literalText(strings.sinceJustNow)}:seconds<3600?fill(${literalText(strings.sinceMinutes)},Math.floor(seconds/60)):seconds<86400?fill(${literalText(strings.sinceHours)},Math.floor(seconds/3600)):fill(${literalText(strings.sinceDays)},Math.floor(seconds/86400)); const connection=raw==='on'?${literalText(strings.connected)}:raw==='off'?${literalText(strings.disconnected)}:${literalText(strings.unknown)}; card.querySelector('.bubble-state').innerText=connection+' · '+age; icon.setAttribute('icon',raw==='on'?'mdi:car-wireless':'mdi:car-wireless-off'); })()}`,
         } : null,
       ]) },
       { type: "grid", cards: present([
@@ -431,9 +436,9 @@ class Ec3DashboardStrategy extends HTMLElement {
         separator(strings.chargingRange, "mdi:battery-charging"),
         chargingCard,
         entity("battery_charging_limit_number") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("battery_charging_limit_number"), name: strings.chargeLimit, icon: "mdi:battery-charging-80", show_state: true, force_icon: true } : null,
-        entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: `${strings.chargeLimit} ${language(hass) === "de" ? "aktiv" : "enabled"}`, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
+        entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: strings.chargeLimitEnabled, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
         bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
-        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: language(hass) === "de" ? "Ladekurve" : "Charge curve", charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), server_entity: serverChargeEntity, include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: null }, grid_options: { columns: "full" } } : null,
+        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: strings.chargeCurve, charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), server_entity: serverChargeEntity, include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: null }, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
@@ -444,7 +449,7 @@ class Ec3DashboardStrategy extends HTMLElement {
         entity("battery_health_capacity") ? { ...bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
         entity("battery_health_resistance") ? { ...bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
         bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery", [], 6),
-        serviceBatteryEntity ? bubble("service_battery", language(hass) === "de" ? "12-V-Batterie" : "12 V battery", "mdi:car-battery", [], 6, serviceBatteryEntity) : null,
+        serviceBatteryEntity ? bubble("service_battery", strings.serviceBattery, "mdi:car-battery", [], 6, serviceBatteryEntity) : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.latestActivities, "mdi:history"),
@@ -493,8 +498,8 @@ class Ec3DashboardStrategy extends HTMLElement {
           type: "grid",
           cards: [
             { type: "heading", heading: strings.tripHistory, icon: "mdi:car-clock", heading_style: "title" },
-            markdown(language(hass) === "de" ? "Abgeschlossene Fahrten stammen aus der Stellantis-Serverhistorie und können älter als 90 Tage sein. Energie- und Verbrauchswerte sind SOC-basierte Näherungen; nicht belastbare Werte werden als **—** angezeigt. Beim Scrollen werden ältere Einträge nachgeladen." : "Completed trips come from Stellantis server history and can be older than 90 days. Energy and consumption are SOC-based estimates; unreliable values are shown as **—**. Older entries load as you scroll."),
-            control("sync_server_history") ? controlButton("sync_server_history", language(hass) === "de" ? "Serverhistorie aktualisieren" : "Update server history", "mdi:database-sync") : null,
+            markdown(strings.tripHistoryIntro),
+            control("sync_server_history") ? controlButton("sync_server_history", strings.syncServerHistory, "mdi:database-sync") : null,
             { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, expanded_window: true, initial_visible_trips: 100, max_trips: 0, grid_options: { columns: "full", rows: 10 } },
           ].filter(Boolean),
         }],
@@ -544,9 +549,7 @@ class Ec3DashboardStrategy extends HTMLElement {
     }
 
     if (modules.gps && tracker) {
-      const gpsPositionDetails = language(hass) === "de"
-        ? `{% set tracker = '${tracker}' %}\n{% set lat = state_attr(tracker, 'latitude') %}\n{% set lon = state_attr(tracker, 'longitude') %}\n{% set updated = states[tracker].last_updated %}\n{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}\n{% if age < 60 %}{% set age_text = 'gerade eben' %}{% elif age < 3600 %}{% set age_text = 'vor ' ~ ((age / 60) | int) ~ ' Min.' %}{% elif age < 86400 %}{% set age_text = 'vor ' ~ ((age / 3600) | int) ~ ' Std.' %}{% else %}{% set age_text = 'vor ' ~ ((age / 86400) | int) ~ ' Tg.' %}{% endif %}\n### 📍 Koordinaten\n{% if lat is not none and lon is not none %}\n**Breitengrad:** {{ lat | round(6) }}  \n**Längengrad:** {{ lon | round(6) }}\n**Positionsupdate:** {{ age_text }}\n{% else %}\nKeine GPS-Koordinaten verfügbar.\n{% endif %}`
-        : `{% set tracker = '${tracker}' %}\n{% set lat = state_attr(tracker, 'latitude') %}\n{% set lon = state_attr(tracker, 'longitude') %}\n{% set updated = states[tracker].last_updated %}\n{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}\n{% if age < 60 %}{% set age_text = 'just now' %}{% elif age < 3600 %}{% set age_text = ((age / 60) | int) ~ ' min ago' %}{% elif age < 86400 %}{% set age_text = ((age / 3600) | int) ~ ' hr ago' %}{% else %}{% set age_text = ((age / 86400) | int) ~ ' days ago' %}{% endif %}\n### 📍 Coordinates\n{% if lat is not none and lon is not none %}\n**Latitude:** {{ lat | round(6) }}  \n**Longitude:** {{ lon | round(6) }}\n**Position update:** {{ age_text }}\n{% else %}\nNo GPS coordinates available.\n{% endif %}`;
+      const gpsPositionDetails = `{% set tracker = '${tracker}' %}\n{% set lat = state_attr(tracker, 'latitude') %}\n{% set lon = state_attr(tracker, 'longitude') %}\n{% set updated = states[tracker].last_updated %}\n{% set age = (as_timestamp(now()) - as_timestamp(updated)) | int(0) %}\n{% if age < 60 %}{% set age_text = '${jinjaText(strings.justNow)}' %}{% elif age < 3600 %}{% set age_text = '${jinjaAge(strings.minutesAgo, "((age / 60) | int)")}' %}{% elif age < 86400 %}{% set age_text = '${jinjaAge(strings.hoursAgo, "((age / 3600) | int)")}' %}{% else %}{% set age_text = '${jinjaAge(strings.daysAgo, "((age / 86400) | int)")}' %}{% endif %}\n### 📍 ${strings.coordinates}\n{% if lat is not none and lon is not none %}\n**${strings.latitude}:** {{ lat | round(6) }}  \n**${strings.longitude}:** {{ lon | round(6) }}\n**${strings.positionUpdate}:** {{ age_text }}\n{% else %}\n${strings.noGpsCoordinates}\n{% endif %}`;
 
       const gpsBaseMap = {
         type: "custom:map-card",
@@ -694,7 +697,7 @@ class Ec3DashboardStrategy extends HTMLElement {
         ["quiet_start", strings.quietStart, "mdi:weather-night"],
         ["quiet_end", strings.quietEnd, "mdi:weather-sunny"],
       ]);
-      const notificationDiagnostics = `### ${strings.notificationDiagnostics || "Notification diagnostics"}
+      const notificationDiagnostics = `### ${strings.notificationDiagnostics}
 
 {% set d = state_attr('${statusEntity}', 'notification_diagnostics') or {} %}
 {% set last = d.get('last_notification') or {} %}
@@ -728,7 +731,7 @@ class Ec3DashboardStrategy extends HTMLElement {
             recipientControls.length ? recipientControls.map(({ key, entityId }) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entityId, name: key.replace(/^recipient_/, "").replace(/^notify_/, "").replace(/^mobile_app_/, "").replaceAll("_", " "), icon: "mdi:account-bell-outline", force_icon: true, show_state: true, card_layout: "large", grid_options: { columns: "full" } })) : markdown(strings.noRecipients),
             { type: "button", name: strings.manageRecipients, icon: "mdi:account-multiple-plus-outline", show_state: false, tap_action: { action: "navigate", navigation_path: `/config/integrations/integration/${STATUS_DOMAIN}` }, grid_options: { columns: "full" } },
             controlButton("test_notification", strings.testNotification, "mdi:message-alert-outline"),
-            { type: "heading", heading: strings.notificationSettings || "Notification settings", icon: "mdi:tune-variant", heading_style: "subtitle" },
+            { type: "heading", heading: strings.notificationSettings, icon: "mdi:tune-variant", heading_style: "subtitle" },
             warningThresholds || markdown(strings.notificationSettingsUnavailable),
             timingAvailability,
             quietHours,
@@ -757,13 +760,13 @@ class Ec3DashboardStrategy extends HTMLElement {
         { type: "heading", heading: strings.system, icon: "mdi:car-cog", heading_style: "title" },
         bubble(null, strings.status, "mdi:car-cog", [], "full", statusEntity),
         { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: statusEntity, name: strings.mappedEntities, icon: "mdi:transit-connection-variant", show_state: true, force_icon: true, card_layout: "large", grid_options: { columns: "full" }, styles: `\${(() => { const target=card.querySelector('.bubble-state'); if (target) target.innerText='${mappedEntityCount}'; })()}` },
-        entity("privacy") ? separator(language(hass) === "de" ? "Datenschutz & Freigabe" : "Privacy & sharing", "mdi:shield-account") : null,
-        entity("privacy") ? { ...bubble("privacy", language(hass) === "de" ? "Datenschutz / Datenfreigabe" : "Privacy / data sharing", "mdi:shield-check", [subState("privacy_mode", "", "mdi:shield-account")]), show_state: false, styles: `\${(() => { const raw=hass.states[entity]?.state; card.querySelector('.bubble-state').innerText=raw==='on'?'${language(hass) === "de" ? "Uneingeschränkt" : "Unrestricted"}':raw==='off'?'${language(hass) === "de" ? "Eingeschränkt" : "Restricted"}':'—'; icon.setAttribute('icon',raw==='on'?'mdi:shield-check':raw==='off'?'mdi:shield-alert-outline':'mdi:shield-question'); })()}` } : null,
+        entity("privacy") ? separator(strings.privacySharing, "mdi:shield-account") : null,
+        entity("privacy") ? { ...bubble("privacy", strings.privacyDataSharing, "mdi:shield-check", [subState("privacy_mode", "", "mdi:shield-account")]), show_state: false, styles: `\${(() => { const raw=hass.states[entity]?.state; card.querySelector('.bubble-state').innerText=raw==='on'?${literalText(strings.unrestricted)}:raw==='off'?${literalText(strings.restricted)}:'—'; icon.setAttribute('icon',raw==='on'?'mdi:shield-check':raw==='off'?'mdi:shield-alert-outline':'mdi:shield-question'); })()}` } : null,
         separator(strings.settings, "mdi:cog-outline"),
-        entity("refresh_interval") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("refresh_interval"), name: language(hass) === "de" ? "Aktualisierungsintervall" : "Refresh interval", icon: "mdi:update", show_state: true, force_icon: true, button_action: { tap_action: { action: "more-info" }, hold_action: { action: "more-info" } } } : null,
-        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: language(hass) === "de" ? "Korrektur Batteriewerte" : "Correct battery values", icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
+        entity("refresh_interval") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("refresh_interval"), name: strings.refreshInterval, icon: "mdi:update", show_state: true, force_icon: true, button_action: { tap_action: { action: "more-info" }, hold_action: { action: "more-info" } } } : null,
+        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
         entity("abrp_sync") ? separator("ABRP", "mdi:map-marker-path") : null,
-        entity("abrp_sync") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("abrp_sync"), name: "ABRP Live-Daten", icon: "mdi:transit-connection-variant", show_state: true, force_icon: true } : null,
+        entity("abrp_sync") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("abrp_sync"), name: strings.abrpLiveData, icon: "mdi:transit-connection-variant", show_state: true, force_icon: true } : null,
         entity("abrp_token") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: entity("abrp_token"), name: "ABRP Token", icon: "mdi:key", show_state: false, force_icon: true, button_action: { tap_action: { action: "more-info" } } } : null,
       ]) }],
     });
@@ -780,16 +783,29 @@ class Ec3DashboardStrategy extends HTMLElement {
 class Ec3DashboardStrategyEditor extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
-    this.innerHTML = `
-      <div style="padding: 8px 0; line-height: 1.5;">
-        <strong>e-C3 Dashboard</strong><br>
-        Dieses Dashboard verwendet die zuvor eingerichtete e-C3-Dashboard-Integration.
-        Nach dem Erstellen werden keine vorhandenen Fahrzeug-Dashboards oder Entitäten verändert.
-      </div>`;
+    this._render();
     queueMicrotask(() => this.configChanged(this._config));
   }
 
-  set hass(_hass) {}
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  connectedCallback() {
+    this._render();
+  }
+
+  _render() {
+    if (!this.isConnected && !this._hass) return;
+    const context = this._hass || { locale: { language: typeof navigator !== "undefined" ? navigator.language : "en" } };
+    const strings = t(context);
+    this.innerHTML = `
+      <div style="padding: 8px 0; line-height: 1.5;">
+        <strong>${strings.name}</strong><br>
+        ${strings.strategyEditorDescription}
+      </div>`;
+  }
 
   configChanged(config) {
     this.dispatchEvent(new CustomEvent("config-changed", {
@@ -807,12 +823,15 @@ if (!customElements.get("e-c3-dashboard-strategy-editor")) {
   customElements.define("e-c3-dashboard-strategy-editor", Ec3DashboardStrategyEditor);
 }
 
+const strategyRegistrationStrings = t({
+  locale: { language: typeof navigator !== "undefined" ? navigator.language : "en" },
+});
 window.customStrategies = window.customStrategies || [];
 if (!window.customStrategies.some((strategy) => strategy.type === STRATEGY_TYPE)) {
   window.customStrategies.push({
     type: STRATEGY_TYPE,
     strategyType: "dashboard",
-    name: "e-C3 Dashboard",
-    description: "Vehicle dashboard for Stellantis Vehicles",
+    name: strategyRegistrationStrings.name,
+    description: strategyRegistrationStrings.description,
   });
 }

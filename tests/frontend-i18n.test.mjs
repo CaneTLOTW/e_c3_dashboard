@@ -7,6 +7,7 @@ const catalog = read("../custom_components/e_c3_dashboard/static/i18n.js");
 const trip = read("../custom_components/e_c3_dashboard/static/trip-history-card.js");
 const charge = read("../custom_components/e_c3_dashboard/static/charge-history-card.js");
 const vehicle = read("../custom_components/e_c3_dashboard/static/vehicle-overview-card.js");
+const strategy = read("../custom_components/e_c3_dashboard/static/e_c3_dashboard.js");
 
 test("frontend catalog exposes German English and French namespaces", () => {
   for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {
@@ -33,4 +34,18 @@ test("localized custom cards consume catalog keys instead of hard-coded German U
   assert.match(charge, /text\.reconstructedHint/);
   assert.match(vehicle, /textFor\(hass, "vehicleOverview"\)/);
   assert.doesNotMatch(vehicle, /Wird geladen|In Fahrt|mehrere Fahrzeuge gefunden|Fahrzeug auswählen/);
+});
+
+
+test("dashboard strategy uses catalog strings without binary German branches", () => {
+  assert.doesNotMatch(strategy, /language\(hass\) === "de"/);
+  for (const key of [
+    "vehicleMaintenanceData", "maintenance", "brand", "powertrain",
+    "chargeLimitEnabled", "serviceBattery", "tripHistoryIntro", "syncServerHistory",
+    "privacySharing", "privacyDataSharing", "refreshInterval", "correctBatteryValues",
+    "abrpLiveData", "strategyEditorDescription",
+  ]) {
+    assert.match(strategy, new RegExp(`strings\.${key}`));
+  }
+  assert.doesNotMatch(strategy, /Zeit unbekannt|seit gerade eben|Verbunden|Getrennt|ABRP Live-Daten/);
 });
