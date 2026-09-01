@@ -26,6 +26,11 @@ function numericState(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function positiveCapacity(value) {
+    const parsed = numericState(value);
+    return parsed !== null && parsed > 0 ? parsed : null;
+}
+
 function stateAt(states, timestamp) {
     let latest = null;
     for (const item of states) {
@@ -97,6 +102,7 @@ function maximumPowerFromStates(powerStates, start, end) {
 }
 
 function maximumPowerFromSoc(socStates, start, end, startSoc, capacity) {
+    if (positiveCapacity(capacity) === null) return null;
     const points = [{ timestamp: start, value: startSoc }];
     for (const item of socStates) {
         if (item.timestamp <= start || item.timestamp > end) continue;
@@ -226,16 +232,16 @@ export function findChargeSession(sessions = [], requested) {
  * Builds the points for one charging-session curve.
  *
  * The Stellantis API publishes a whole-number SOC rather than a direct
- * charging-power value.  Each segment therefore represents the battery-side
- * average power between two increasing SOC reports.  This deliberately does
- * not claim to be the power measured at the charging station.
+ * charging-power value. Each segment therefore represents the battery-side
+ * average power between two increasing SOC reports. Without a trustworthy
+ * capacity, no power curve is invented from the SOC delta.
  */
 export function buildChargeCurve({
     socStates,
     modeStates = [],
     start,
     end,
-    capacityKwh = 43.4,
+    capacityKwh = null,
 }) {
     const startTimestamp = timestampValue(start);
     const endTimestamp = timestampValue(end);
@@ -247,11 +253,14 @@ export function buildChargeCurve({
     const modes = normalizedStates(modeStates);
     const startState = stateAt(soc, startTimestamp);
     const startSoc = numericState(startState?.state);
-    if (startSoc === null) return { points: [], charge_type: chargeTypeForInterval(modes, startTimestamp, endTimestamp) };
+    const chargeType = chargeTypeForInterval(modes, startTimestamp, endTimestamp);
+    if (startSoc === null) return { points: [], charge_type: chargeType };
 
-    const capacity = Number.isFinite(Number(capacityKwh)) && Number(capacityKwh) > 0
-        ? Number(capacityKwh)
-        : 43.4;
+    const capacity = positiveCapacity(capacityKwh);
+    if (capacity === null) {
+        return { points: [], start_soc: startSoc, end_soc: startSoc, charge_type: chargeType };
+    }
+
     const points = [];
     let previous = { timestamp: startTimestamp, soc: startSoc };
 
@@ -287,7 +296,7 @@ export function buildChargeCurve({
         points,
         start_soc: startSoc,
         end_soc: previous.soc,
-        charge_type: chargeTypeForInterval(modes, startTimestamp, endTimestamp),
+        charge_type: chargeType,
     };
 }
 
@@ -297,7 +306,7 @@ export function buildChargeSessions({
     powerStates = [],
     modeStates = [],
     capacityStates = [],
-    fallbackCapacity = 43.4,
+    fallbackCapacity = null,
     mergeGapMinutes = 3,
     includeActive = false,
 }) {
@@ -316,20 +325,20 @@ export function buildChargeSessions({
         const capacityState = stateAt(capacities, interval.start);
         const startSoc = numericState(startState?.state);
         const endSoc = numericState(endState?.state);
-        const measuredCapacity = numericState(capacityState?.state);
-        const capacity = measuredCapacity && measuredCapacity > 0
-            ? measuredCapacity
-            : fallbackCapacity;
+        const measuredCapacity = positiveCapacity(capacityState?.state);
+        const capacity = measuredCapacity ?? positiveCapacity(fallbackCapacity);
         const durationSeconds = (interval.end - interval.start) / 1000;
         const socDelta = startSoc !== null && endSoc !== null
             ? Math.max(0, endSoc - startSoc)
             : null;
-        const energy = socDelta !== null ? socDelta * capacity / 100 : null;
+        const energy = socDelta !== null && capacity !== null
+            ? socDelta * capacity / 100
+            : null;
         const averagePower = energy !== null && durationSeconds > 0
             ? energy / (durationSeconds / 3600)
             : null;
         const recordedMaximum = maximumPowerFromStates(power, interval.start, interval.end);
-        const derivedMaximum = startSoc !== null
+        const derivedMaximum = startSoc !== null && capacity !== null
             ? maximumPowerFromSoc(soc, interval.start, interval.end, startSoc, capacity)
             : null;
         const maximumPower = recordedMaximum !== null && recordedMaximum > 0
@@ -348,7 +357,7 @@ export function buildChargeSessions({
             average_power_kw: averagePower,
             maximum_power_kw: maximumPower,
             charge_type: chargeTypeForInterval(modes, interval.start, interval.end),
-            estimated: true,
+            estimated: energy !== null,
         };
     });
 }
