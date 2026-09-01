@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Verificare preliminară a cardurilor tabloului de bord",
+        "description": "e-C3 Dashboard necesită Bubble Card, Button Card, ha-map-card și layout-card. Aceasta este o verificare orientativă a resurselor Lovelace înregistrate în Home Assistant:\n\n{card_status}\n\nO resursă înregistrată nu înseamnă că browserul a încărcat-o. Instalați cardurile lipsă cu HACS, asigurați-vă că fiecare este înregistrat ca modul JavaScript, apoi reporniți Home Assistant și reîmprospătați browserul. Tabloul de bord efectuează verificarea finală în browser înainte de afișare.",
+        "data": {"dashboard_cards_confirmed": "Am verificat cardurile necesare ale tabloului de bord"}
+      },
+      "user": {
+        "title": "Selectați vehiculul",
+        "description": "Alegeți un vehicul configurat deja în Stellantis Vehicles. Identificatorul vehiculului este opțional; dacă rămâne gol, este derivat din vehiculul selectat și făcut automat unic. Capacitatea bateriei este doar o valoare de rezervă specifică vehiculului atunci când Stellantis nu furnizează o valoare utilizabilă.",
+        "data": {
+          "vehicle_device_id": "Vehicul Stellantis",
+          "vehicle_slug": "Identificator vehicul (opțional)",
+          "battery_capacity_kwh": "Capacitate baterie de rezervă"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Dispozitivul selectat nu aparține Stellantis Vehicles.",
+      "upstream_not_ready": "Finalizați configurarea Stellantis Vehicles și așteptați entitățile pentru baterie, kilometraj și tracker înainte de a adăuga acest tablou de bord.",
+      "invalid_slug": "Introduceți un identificator de vehicul valid.",
+      "slug_in_use": "Acest identificator de vehicul este deja utilizat de o altă intrare a tabloului de bord."
+    },
+    "abort": {
+      "missing_upstream": "Configurați Stellantis Vehicles și un vehicul înainte de a adăuga acest tablou de bord.",
+      "already_configured": "Acest vehicul are deja o intrare e-C3 Dashboard.",
+      "unsupported_upstream_version": "Actualizați Stellantis Vehicles la o versiune compatibilă înainte de a adăuga acest tablou de bord."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Module tablou de bord",
+        "data": {
+          "dashboard_name": "Nume afișat al tabloului de bord (gol = automat)",
+          "battery_capacity_kwh": "Capacitate baterie de rezervă",
+          "trips": "Istoric deplasări",
+          "charging": "Istoric și curbe de încărcare",
+          "gps": "Istoric GPS",
+          "wakeup": "Diagnostic de trezire",
+          "notifications": "Notificări și destinatari",
+          "notification_recipients": "Destinatari Notify selectabili",
+          "history_hours": "Fereastră de afișare a istoricului"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Istoric deplasări server"},
+      "server_gps_history": {"name": "Istoric GPS server"},
+      "server_charge_history": {"name": "Istoric încărcări server"},
+      "vehicle_info": {"name": "Informații vehicul"},
+      "trailing_consumption_500km": {"name": "Consum mediu (500 km)"},
+      "distance_since_charge": {"name": "Distanță de la ultima încărcare"},
+      "current_trip_energy": {"name": "Energia deplasării curente"},
+      "current_charge_power": {"name": "Putere de încărcare curentă"},
+      "last_trip_result": {"name": "Rezultatul ultimei deplasări locale"},
+      "last_charge_result": {"name": "Rezultatul ultimei încărcări locale"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Avertizare autonomie redusă"},
+      "range_reset_km": {"name": "Resetare autonomie redusă"},
+      "home_soc_warning": {"name": "Avertizare SOC acasă"},
+      "home_soc_reset": {"name": "Resetare SOC acasă"},
+      "home_delay_minutes": {"name": "Întârziere memento încărcare acasă"},
+      "service_battery_warning": {"name": "Avertizare baterie 12 V"},
+      "service_battery_reset": {"name": "Resetare baterie 12 V"},
+      "stale_home_hours": {"name": "Expirare disponibilitate acasă"},
+      "stale_away_hours": {"name": "Expirare disponibilitate în deplasare"},
+      "probe_wait_minutes": {"name": "Așteptare test disponibilitate"},
+      "charge_start_delay_minutes": {"name": "Întârziere notificare început încărcare"}
+    },
+    "time": {
+      "quiet_start": {"name": "Început interval silențios"},
+      "quiet_end": {"name": "Sfârșit interval silențios"}
+    },
+    "switch": {
+      "notifications": {"name": "Notificări"},
+      "trip_reports": {"name": "Rapoarte deplasări"},
+      "charge_reports": {"name": "Rapoarte încărcare"},
+      "alerts": {"name": "Alerte vehicul"},
+      "wakeup_hourly": {"name": "Trezire la fiecare oră"},
+      "wakeup_charging": {"name": "Trezire în timpul încărcării"},
+      "wakeup_probe": {"name": "Test disponibilitate cu trezire"},
+      "notify_recipient": {"name": "Destinatar Notify: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Trezește vehiculul acum"},
+      "test_notification": {"name": "Notificare de test"},
+      "sync_server_history": {"name": "Sincronizează istoricul serverului"}
+    }
+  }
+}
