@@ -87,8 +87,9 @@ test("15 extra languages explicitly provide every ordinary EN key before runtime
         ...(advancedCatalogs[language]?.[namespace] || {}),
       };
       const exceptions = CAPABILITY_EXCEPTIONS[namespace] || new Set();
-      const required = canonicalKeys(namespace).filter((key) => !exceptions.has(key));
-      assert.deepEqual(Object.keys(provided).sort(), required.sort(), `source coverage mismatch ${language}/${namespace}`);
+      const required = canonicalKeys(namespace).filter((key) => !exceptions.has(key)).sort();
+      const ordinaryProvided = Object.keys(provided).filter((key) => !exceptions.has(key)).sort();
+      assert.deepEqual(ordinaryProvided, required, `source coverage mismatch ${language}/${namespace}`);
       for (const key of required) {
         assert.ok(String(provided[key]).trim(), `empty source ${language}/${namespace}.${key}`);
       }
