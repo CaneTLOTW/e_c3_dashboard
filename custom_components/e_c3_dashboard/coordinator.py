@@ -11,6 +11,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from .capabilities import capability_map, powertrain_from_mapping
 from .compatibility import async_check_upstream_compatibility
 from .const import (
     CONF_VEHICLE_DEVICE_ID,
@@ -23,10 +24,10 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-# ``translation_key`` belongs to the upstream integration's entity contract.
-# It remains stable when a user renames an entity or changes the VIN prefix in
-# the entity ID, which makes it the only safe primary key for a portable UI.
-_REQUIRED_ENTITY_KEYS = {"vehicle", "battery", "mileage"}
+# Battery is deliberately not required: Thermic vehicles have none. The
+# upstream ``type`` sensor plus entity capabilities determine which UI modules
+# are valid for the selected vehicle.
+_REQUIRED_ENTITY_KEYS = {"vehicle", "mileage"}
 
 
 class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -88,9 +89,11 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         missing_required = sorted(
             key for key in _REQUIRED_ENTITY_KEYS if key not in entity_mapping
         )
+        powertrain = powertrain_from_mapping(self.hass, entity_mapping)
+        capabilities = capability_map(powertrain, entity_mapping)
 
         compatibility = await async_check_upstream_compatibility(self.hass)
-        # Keep the public module contract deliberately closed.  Older beta
+        # Keep the public module contract deliberately closed. Older beta
         # entries may contain now-removed migration options, but those must
         # never reintroduce references to installation-specific helpers.
         options = {
@@ -113,6 +116,8 @@ class Ec3DashboardCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "vehicle_device_id": self.entry.data[CONF_VEHICLE_DEVICE_ID],
             "vehicle_slug": self.entry.data["vehicle_slug"],
             "vehicle_tracker": tracker,
+            "powertrain": powertrain,
+            "capabilities": capabilities,
             "entity_mapping": entity_mapping,
             "missing_required": missing_required,
             "upstream_entities": sorted(
