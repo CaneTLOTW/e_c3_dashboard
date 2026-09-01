@@ -74,9 +74,16 @@ function buildConfig(hass, config, statusState) {
   const liveVariant = config.variant === "live";
   const showHeading = !liveVariant && config.show_heading !== false;
 
+  const capabilities = attributes.capabilities || {};
   const battery = mapped.battery;
   const batteryResidual = mapped.battery_residual;
   const autonomy = mapped.autonomy;
+  const fuel = mapped.fuel;
+  const fuelAutonomy = mapped.fuel_autonomy;
+  const supportsElectric = capabilities.electric_energy ?? Boolean(battery);
+  const supportsFuel = capabilities.fuel ?? Boolean(fuel);
+  const primaryLevel = supportsElectric && battery ? battery : supportsFuel ? fuel : battery || fuel;
+  const rangeEntity = supportsElectric && autonomy ? autonomy : supportsFuel ? fuelAutonomy : autonomy || fuelAutonomy;
   const temperature = mapped.temperature;
   const charging = mapped.battery_charging;
   const chargingEnd = mapped.battery_charging_end;
@@ -89,7 +96,7 @@ function buildConfig(hass, config, statusState) {
   const tripEnergy = metricEntity(hass, attributes, "current_trip_energy");
   const vehicleInfo = metricEntity(hass, attributes, "vehicle_info");
   const navigationPath = liveVariant ? undefined : dashboardPath(attributes, config.navigation_path);
-  const chargingState = charging ? hass.states?.[charging]?.state === "on" : false;
+  const chargingState = supportsElectric && charging ? hass.states?.[charging]?.state === "on" : false;
   const rightStatusEntity = chargingState && chargingEnd && hass.states?.[chargingEnd]
     ? chargingEnd
     : chargingState
@@ -97,9 +104,13 @@ function buildConfig(hass, config, statusState) {
       : temperature;
 
   const trackedEntities = [
+    primaryLevel,
     battery,
     batteryResidual,
+    rangeEntity,
     autonomy,
+    fuel,
+    fuelAutonomy,
     temperature,
     charging,
     chargingEnd,
@@ -120,7 +131,7 @@ function buildConfig(hass, config, statusState) {
 
   const heroCard = {
     type: "custom:button-card",
-    entity: battery,
+    entity: primaryLevel,
     show_name: false,
     show_state: false,
     show_icon: false,
@@ -187,13 +198,13 @@ function buildConfig(hass, config, statusState) {
       range: {
         card: {
           type: "custom:button-card",
-          entity: autonomy,
+          entity: rangeEntity,
           icon: "mdi:map-marker-distance",
           show_name: true,
           show_state: false,
           tap_action: { action: "more-info" },
           hold_action: { action: "more-info" },
-          name: `[[[ const value = states[${literal(autonomy)}]; return value && Number.isFinite(Number(value.state)) ? Math.round(Number(value.state)) + ' km' : '-- km'; ]]]`,
+          name: `[[[ const value = states[${literal(rangeEntity)}]; return value && Number.isFinite(Number(value.state)) ? Math.round(Number(value.state)) + ' km' : '-- km'; ]]]`,
           styles: {
             card: [
               { height: "26px" }, { "min-height": "26px" }, { padding: "0 9px" }, { margin: 0 },
@@ -379,12 +390,12 @@ function buildConfig(hass, config, statusState) {
       battery: {
         card: {
           type: "custom:button-card",
-          entity: battery,
+          entity: primaryLevel,
           show_name: true,
           show_state: true,
           show_icon: false,
           tap_action: { action: "more-info" },
-          triggers_update: [battery, batteryResidual, charging, engine, chargePower, tripEnergy].filter(Boolean),
+          triggers_update: [primaryLevel, battery, batteryResidual, fuel, charging, engine, chargePower, tripEnergy].filter(Boolean),
           name: `[[[
             const isCharging = states[${literal(charging)}]?.state === 'on';
             const isDriving = states[${literal(engine)}]?.state === 'on';
@@ -402,11 +413,14 @@ function buildConfig(hass, config, statusState) {
               }
               return ${literal(strings.driving)};
             }
-            const residual = states[${literal(batteryResidual)}];
-            if (residual && !['unknown','unavailable','none',''].includes(String(residual.state).toLowerCase()) && Number.isFinite(Number(residual.state))) {
-              return ${literal(strings.battery)} + ' · ' + Number(residual.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';
+            if (${supportsElectric ? "true" : "false"}) {
+              const residual = states[${literal(batteryResidual)}];
+              if (residual && !['unknown','unavailable','none',''].includes(String(residual.state).toLowerCase()) && Number.isFinite(Number(residual.state))) {
+                return ${literal(strings.battery)} + ' · ' + Number(residual.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';
+              }
+              return ${literal(strings.battery)};
             }
-            return ${literal(strings.battery)};
+            return ${literal(strings.fuel || "Fuel")};
           ]]]`,
           state_display: `[[[
             if (!entity || ['unknown','unavailable'].includes(entity.state) || !Number.isFinite(Number(entity.state))) return '-- %';

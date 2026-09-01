@@ -155,6 +155,12 @@ class Ec3DashboardStrategy extends HTMLElement {
     const serverGpsEntity = serverHistoryEntity("server_gps_history");
     const serverChargeEntity = serverHistoryEntity("server_charge_history");
     const entity = (key) => mapped[key];
+    const capabilities = attributes.capabilities || {};
+    const powertrain = attributes.powertrain || "unknown";
+    const supportsElectric = capabilities.electric_energy ?? Boolean(entity("battery"));
+    const supportsFuel = capabilities.fuel ?? Boolean(entity("fuel"));
+    const supportsCharging = capabilities.charging ?? Boolean(entity("battery_charging"));
+    const supportsChargeHistory = capabilities.charge_history ?? (supportsCharging && Boolean(entity("battery")));
     const control = (key) => controls[key];
     const present = (cards) => cards.filter(Boolean);
     const literalText = (value) => JSON.stringify(String(value));
@@ -403,7 +409,7 @@ class Ec3DashboardStrategy extends HTMLElement {
      * this view through normal Home Assistant navigation behaves exactly like
      * the already validated standalone overview card.
      */
-    const hero = tracker && entity("battery") ? {
+    const hero = tracker && (entity("battery") || entity("fuel")) ? {
       type: "custom:e-c3-dashboard-vehicle-overview-card",
       entry_id: attributes.entry_id,
       variant: "live",
@@ -423,9 +429,12 @@ class Ec3DashboardStrategy extends HTMLElement {
       { type: "grid", cards: present([
         separator(strings.consumptionUsage, "mdi:chart-line"),
         entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }`, grid_options: { columns: "full" } } : null,
-        metric("trailing_consumption_500km") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("trailing_consumption_500km"), name: strings.trailingConsumption, icon: "mdi:lightning-bolt-circle", force_icon: true, card_layout: "large", button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, grid_options: { columns: 6 } } : null,
-        metric("distance_since_charge") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("distance_since_charge"), name: strings.distanceSinceCharge, icon: "mdi:map-marker-distance", force_icon: true, card_layout: "large", grid_options: { columns: 6 } } : null,
-        metric("current_trip_energy") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("current_trip_energy"), name: strings.currentTripEnergy, icon: "mdi:battery-minus", force_icon: true, card_layout: "large" } : null,
+        supportsElectric && metric("trailing_consumption_500km") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("trailing_consumption_500km"), name: strings.trailingConsumption, icon: "mdi:lightning-bolt-circle", force_icon: true, card_layout: "large", button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, grid_options: { columns: 6 } } : null,
+        supportsChargeHistory && metric("distance_since_charge") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("distance_since_charge"), name: strings.distanceSinceCharge, icon: "mdi:map-marker-distance", force_icon: true, card_layout: "large", grid_options: { columns: 6 } } : null,
+        supportsElectric && metric("current_trip_energy") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("current_trip_energy"), name: strings.currentTripEnergy, icon: "mdi:battery-minus", force_icon: true, card_layout: "large" } : null,
+        supportsFuel ? bubble("fuel", strings.fuel, "mdi:gas-station", [], 6) : null,
+        supportsFuel ? bubble("fuel_autonomy", strings.fuelRange, "mdi:map-marker-distance", [], 6) : null,
+        supportsFuel ? bubble("fuel_consumption_instant", strings.fuelConsumption, "mdi:gas-station-outline") : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.quickActions, "mdi:lightning-bolt"),
@@ -433,32 +442,32 @@ class Ec3DashboardStrategy extends HTMLElement {
         bubble("preconditioning", strings.climate, "mdi:air-conditioner", [press("preconditioning_start", strings.startClimate, "mdi:fan"), press("preconditioning_stop", strings.stopClimate, "mdi:fan-off")]),
       ]) },
       { type: "grid", cards: present([
-        separator(strings.chargingRange, "mdi:battery-charging"),
-        chargingCard,
-        entity("battery_charging_limit_number") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("battery_charging_limit_number"), name: strings.chargeLimit, icon: "mdi:battery-charging-80", show_state: true, force_icon: true } : null,
-        entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: strings.chargeLimitEnabled, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
-        bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
-        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: strings.chargeCurve, charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), server_entity: serverChargeEntity, include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: null }, grid_options: { columns: "full" } } : null,
+        supportsCharging ? separator(strings.chargingRange, "mdi:battery-charging") : null,
+        supportsCharging ? chargingCard : null,
+        supportsCharging && entity("battery_charging_limit_number") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("battery_charging_limit_number"), name: strings.chargeLimit, icon: "mdi:battery-charging-80", show_state: true, force_icon: true } : null,
+        supportsCharging && entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: strings.chargeLimitEnabled, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
+        supportsCharging ? bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6) : null,
+        supportsCharging && entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: strings.chargeCurve, charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), server_entity: serverChargeEntity, include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: null }, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
         tracker ? { type: "custom:map-card", focus_entity: tracker, zoom: 17, theme_mode: "auto", entities: [{ entity: tracker, display: "marker", label: " ", picture: markerPicture, size: 90, color: "transparent", css: "--ec3-transparent-picture-marker: 1; --ha-marker-color: transparent; --card-background-color: transparent; --ha-marker-border-radius: 0px; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; filter: none !important; -webkit-filter: none !important;" }], map_options: { zoomControl: true }, grid_options: { columns: "full", rows: 5 } } : markdown(`**${strings.trackerUnavailable}**`),
       ]) },
       { type: "grid", cards: present([
-        separator(strings.batteryHealth, "mdi:battery-heart-variant"),
-        entity("battery_health_capacity") ? { ...bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
-        entity("battery_health_resistance") ? { ...bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
-        bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery", [], 6),
+        supportsElectric ? separator(strings.batteryHealth, "mdi:battery-heart-variant") : serviceBatteryEntity ? separator(strings.serviceBattery, "mdi:car-battery") : null,
+        supportsElectric && entity("battery_health_capacity") ? { ...bubble("battery_health_capacity", strings.batteryHealthCapacity, "mdi:battery-heart", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
+        supportsElectric && entity("battery_health_resistance") ? { ...bubble("battery_health_resistance", strings.batteryHealthResistance, "mdi:resistor", [], 6), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } } } : null,
+        supportsElectric ? bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery", [], 6) : null,
         serviceBatteryEntity ? bubble("service_battery", strings.serviceBattery, "mdi:car-battery", [], 6, serviceBatteryEntity) : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.latestActivities, "mdi:history"),
         lastTripDisplayEntity ? bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6, lastTripDisplayEntity) : null,
-        lastChargeDisplayEntity ? { ...bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6, lastChargeDisplayEntity), styles: relativeEventStyles } : null,
-        modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), compact_filters: true, filter_days: 30, hide_short_trips: true, show_zero_events: false, hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
-        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, server_entity: serverChargeEntity, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: lastChargeResult, navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: null, grid_options: { columns: "full" } } : null,
+        supportsCharging && lastChargeDisplayEntity ? { ...bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6, lastChargeDisplayEntity), styles: relativeEventStyles } : null,
+        modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: supportsElectric ? [lastTripResult].filter(Boolean) : [], title: strings.tripHistory, language: language(hass), compact_filters: true, filter_days: 30, hide_short_trips: true, show_zero_events: false, hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
+        modules.charging && supportsChargeHistory ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, server_entity: serverChargeEntity, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: lastChargeResult, navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: null, grid_options: { columns: "full" } } : null,
       ]) },
-    ];
+    ].filter((section) => section.cards.length);
 
     const views = [{
       title: strings.vehicle,
@@ -478,11 +487,12 @@ class Ec3DashboardStrategy extends HTMLElement {
 
     if (entity("battery_health_capacity") || entity("battery_health_resistance") || entity("mileage") || metric("trailing_consumption_500km")) {
       const statisticsCards = [
-        entity("battery_health_capacity") ? { type: "statistics-graph", title: strings.sohCapacityHistory, entities: [entity("battery_health_capacity")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean", "min", "max"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
-        entity("battery_health_resistance") ? { type: "statistics-graph", title: strings.sohResistanceHistory, entities: [entity("battery_health_resistance")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean", "min", "max"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
+        supportsElectric && entity("battery_health_capacity") ? { type: "statistics-graph", title: strings.sohCapacityHistory, entities: [entity("battery_health_capacity")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean", "min", "max"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
+        supportsElectric && entity("battery_health_resistance") ? { type: "statistics-graph", title: strings.sohResistanceHistory, entities: [entity("battery_health_resistance")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean", "min", "max"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
         entity("mileage") ? { type: "statistics-graph", title: strings.mileageHistory, entities: [entity("mileage")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["state"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
         entity("mileage") ? { type: "statistics-graph", title: strings.drivenDistanceHistory, entities: [entity("mileage")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["change"], chart_type: "bar", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
-        metric("trailing_consumption_500km") ? { type: "statistics-graph", title: strings.consumptionHistory, entities: [metric("trailing_consumption_500km")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
+        supportsElectric && metric("trailing_consumption_500km") ? { type: "statistics-graph", title: strings.consumptionHistory, entities: [metric("trailing_consumption_500km")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
+        supportsFuel && entity("fuel_consumption_instant") ? { type: "statistics-graph", title: strings.fuelConsumption, entities: [entity("fuel_consumption_instant")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,
       ].filter(Boolean);
       views.push({ title: strings.longTermStatistics, path: "statistics", icon: "mdi:chart-timeline-variant", type: "sections", max_columns: 2, sections: [{ type: "grid", cards: [{ type: "heading", heading: strings.longTermStatistics, icon: "mdi:chart-timeline-variant", heading_style: "title" }, markdown(strings.longTermStatisticsIntro), ...statisticsCards] }] });
     }
@@ -500,13 +510,13 @@ class Ec3DashboardStrategy extends HTMLElement {
             { type: "heading", heading: strings.tripHistory, icon: "mdi:car-clock", heading_style: "title" },
             markdown(strings.tripHistoryIntro),
             control("sync_server_history") ? controlButton("sync_server_history", strings.syncServerHistory, "mdi:database-sync") : null,
-            { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, expanded_window: true, initial_visible_trips: 100, max_trips: 0, grid_options: { columns: "full", rows: 10 } },
+            { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: supportsElectric ? [lastTripResult].filter(Boolean) : [], title: strings.tripHistory, language: language(hass), hours_to_show: historyHours, expanded_window: true, initial_visible_trips: 100, max_trips: 0, grid_options: { columns: "full", rows: 10 } },
           ].filter(Boolean),
         }],
       });
     }
 
-    if (modules.charging && entity("battery_charging") && entity("battery")) {
+    if (modules.charging && supportsChargeHistory) {
       views.push({
         title: strings.chargeCurves,
         path: "charging",
@@ -651,7 +661,7 @@ class Ec3DashboardStrategy extends HTMLElement {
             } : { type: "button", entity: entity("wakeup"), name: strings.manualWakeup, icon: "mdi:car-key", show_state: false, grid_options: { columns: "full" } },
             controlSwitch("wakeup_hourly", strings.hourlyWakeup, "mdi:car-clock", "full"),
             controlSwitch("wakeup_probe", strings.availabilityProbe, "mdi:access-point-check", "full"),
-            controlSwitch("wakeup_charging", strings.chargeWakeup, "mdi:battery-sync-outline", "full"),
+            supportsCharging ? controlSwitch("wakeup_charging", strings.chargeWakeup, "mdi:battery-sync-outline", "full") : null,
             bubble("remote_commands", strings.remote, "mdi:car-wireless"),
           ].filter(Boolean),
         }],
@@ -725,7 +735,7 @@ class Ec3DashboardStrategy extends HTMLElement {
             controlSwitch("notifications", strings.notifications, "mdi:bell-ring-outline", "full"),
             controlSwitch("alerts", strings.vehicleAlerts, "mdi:alert-outline", "full"),
             controlSwitch("trip_reports", strings.tripReports, "mdi:car-info", "full"),
-            controlSwitch("charge_reports", strings.chargeReports, "mdi:ev-station", "full"),
+            supportsCharging ? controlSwitch("charge_reports", strings.chargeReports, "mdi:ev-station", "full") : null,
             { type: "heading", heading: strings.notificationRecipients, icon: "mdi:send-outline", heading_style: "subtitle" },
             { ...markdown(strings.recipientsHint), grid_options: { columns: "full" } },
             recipientControls.length ? recipientControls.map(({ key, entityId }) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entityId, name: key.replace(/^recipient_/, "").replace(/^notify_/, "").replace(/^mobile_app_/, "").replaceAll("_", " "), icon: "mdi:account-bell-outline", force_icon: true, show_state: true, card_layout: "large", grid_options: { columns: "full" } })) : markdown(strings.noRecipients),

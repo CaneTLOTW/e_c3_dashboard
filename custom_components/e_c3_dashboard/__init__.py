@@ -105,6 +105,9 @@ async def async_setup(hass: HomeAssistant, _config: dict) -> bool:
         "charge-history-card.js",
         "charge-history-core.js",
         "i18n.js",
+        "i18n-extra-west.js",
+        "i18n-extra-north.js",
+        "i18n-extra-east.js",
     ]
     await hass.http.async_register_static_paths(
         [
@@ -133,7 +136,12 @@ async def async_setup_entry(
     coordinator = Ec3DashboardCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
 
-    metrics = VehicleMetricsManager(hass, entry, coordinator.data["entity_mapping"])
+    metrics = VehicleMetricsManager(
+        hass,
+        entry,
+        coordinator.data["entity_mapping"],
+        coordinator.data.get("capabilities"),
+    )
     await metrics.async_initialize()
     coordinator.metrics = metrics
 

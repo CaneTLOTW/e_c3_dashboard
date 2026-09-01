@@ -21,14 +21,14 @@ test("vehicle overview ports the existing button-card layout", () => {
 
 test("range and right status use nested native button-card more-info pills", () => {
   assert.match(source, /range: \{\s*card: \{[\s\S]*type: "custom:button-card"/);
-  assert.match(source, /entity: autonomy/);
+  assert.match(source, /entity: rangeEntity/);
   assert.match(source, /icon: "mdi:map-marker-distance"/);
   assert.match(source, /tap_action: \{ action: "more-info" \}/);
   assert.match(source, /right_status: \{\s*card: \{/);
   assert.match(source, /entity: rightStatusEntity/);
   assert.match(source, /const rightStatusEntity/);
   assert.match(source, /states\[.*rightStatusEntity/);
-  assert.match(source, /states\[.*autonomy/);
+  assert.match(source, /states\[.*rangeEntity/);
   assert.match(source, /height: "26px"/);
   assert.match(source, /"min-height": "26px"/);
   assert.match(source, /padding: "0 9px"/);
@@ -69,7 +69,7 @@ test("battery bar keeps charging and driving semantics and adds trustworthy park
   assert.match(source, /if \(isDriving\)[\s\S]*literal\(strings\.driving\)/);
   assert.match(source, /const residual = states\[/);
   assert.match(source, /literal\(strings\.battery\)/);
-  assert.match(source, /triggers_update: \[battery, batteryResidual, charging, engine, chargePower, tripEnergy\]/);
+  assert.match(source, /triggers_update: \[primaryLevel, battery, batteryResidual, fuel, charging, engine, chargePower, tripEnergy\]/);
 });
 
 test("preconditioning visual follows live state and bridges a delayed upstream status", () => {

@@ -13,6 +13,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 from homeassistant.util import slugify
 
+from .capabilities import capability_map, mapping_from_registry_entries, powertrain_from_mapping
 from .compatibility import async_check_upstream_compatibility
 from .const import (
     CONF_BATTERY_CAPACITY_KWH,
@@ -31,6 +32,25 @@ from .const import (
     REQUIRED_DASHBOARD_CARDS,
     UPSTREAM_DOMAIN,
 )
+
+
+def _upstream_vehicle_entries(hass, device_id: str):
+    upstream_entry_ids = {
+        entry.entry_id
+        for entry in hass.config_entries.async_entries(UPSTREAM_DOMAIN)
+    }
+    entity_registry = er.async_get(hass)
+    return [
+        registry_entry
+        for registry_entry in er.async_entries_for_device(entity_registry, device_id)
+        if registry_entry.config_entry_id in upstream_entry_ids
+    ]
+
+
+def _vehicle_capabilities_for_device(hass, device_id: str) -> dict[str, bool]:
+    mapping = mapping_from_registry_entries(_upstream_vehicle_entries(hass, device_id))
+    powertrain = powertrain_from_mapping(hass, mapping)
+    return capability_map(powertrain, mapping)
 
 
 def _battery_capacity_selector() -> selector.NumberSelector:
@@ -52,7 +72,7 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        """Select a Stellantis device and a local, stable slug."""
+        """Select one vehicle; request traction capacity only when relevant."""
         if not self.context.get("dashboard_card_preflight_seen"):
             return await self.async_step_dashboard_cards()
 
@@ -74,9 +94,7 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(f"{DOMAIN}_{device_id}")
                 self._abort_if_unique_id_configured()
 
-                requested_slug = str(
-                    user_input.get(CONF_VEHICLE_SLUG, "") or ""
-                ).strip()
+                requested_slug = str(user_input.get(CONF_VEHICLE_SLUG, "") or "").strip()
                 if requested_slug:
                     vehicle_slug = slugify(requested_slug)
                     if not vehicle_slug:
@@ -88,30 +106,45 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vehicle_slug = self._available_vehicle_slug(base_slug)
 
                 if CONF_VEHICLE_SLUG not in errors:
-                    data = {
-                        CONF_VEHICLE_DEVICE_ID: device_id,
-                        CONF_VEHICLE_SLUG: vehicle_slug,
-                    }
-                    capacity = user_input.get(CONF_BATTERY_CAPACITY_KWH)
-                    if capacity is not None:
-                        data[CONF_BATTERY_CAPACITY_KWH] = float(capacity)
-                    return self.async_create_entry(
-                        title=self._vehicle_name(device_id),
-                        data=data,
-                    )
+                    capabilities = _vehicle_capabilities_for_device(self.hass, device_id)
+                    needs_capacity = capabilities.get("battery_capacity", False)
+                    if needs_capacity and self.context.get("capacity_prompt_for") != device_id:
+                        self.context["capacity_prompt_for"] = device_id
+                        self.context["capacity_prompt_slug"] = vehicle_slug
+                    else:
+                        data = {
+                            CONF_VEHICLE_DEVICE_ID: device_id,
+                            CONF_VEHICLE_SLUG: vehicle_slug,
+                        }
+                        if needs_capacity:
+                            capacity = user_input.get(CONF_BATTERY_CAPACITY_KWH)
+                            if capacity is not None:
+                                data[CONF_BATTERY_CAPACITY_KWH] = float(capacity)
+                        return self.async_create_entry(
+                            title=self._vehicle_name(device_id),
+                            data=data,
+                        )
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_VEHICLE_DEVICE_ID): selector.DeviceSelector(
-                    selector.DeviceSelectorConfig(integration=UPSTREAM_DOMAIN)
-                ),
-                vol.Optional(CONF_VEHICLE_SLUG): str,
-                vol.Optional(CONF_BATTERY_CAPACITY_KWH): _battery_capacity_selector(),
-            }
-        )
+        prompt_device = self.context.get("capacity_prompt_for")
+        fields = {}
+        if prompt_device:
+            fields[vol.Required(CONF_VEHICLE_DEVICE_ID, default=prompt_device)] = selector.DeviceSelector(
+                selector.DeviceSelectorConfig(integration=UPSTREAM_DOMAIN)
+            )
+            fields[vol.Optional(
+                CONF_VEHICLE_SLUG,
+                default=self.context.get("capacity_prompt_slug", ""),
+            )] = str
+            fields[vol.Optional(CONF_BATTERY_CAPACITY_KWH)] = _battery_capacity_selector()
+        else:
+            fields[vol.Required(CONF_VEHICLE_DEVICE_ID)] = selector.DeviceSelector(
+                selector.DeviceSelectorConfig(integration=UPSTREAM_DOMAIN)
+            )
+            fields[vol.Optional(CONF_VEHICLE_SLUG)] = str
+
         return self.async_show_form(
             step_id="user",
-            data_schema=schema,
+            data_schema=vol.Schema(fields),
             errors=errors,
         )
 
@@ -169,20 +202,11 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return bool(set(device.config_entries) & upstream_entry_ids)
 
     def _has_required_upstream_entities(self, device_id: str) -> bool:
-        """Require a completed upstream setup, not merely an installed repo."""
-        upstream_entry_ids = {
-            entry.entry_id
-            for entry in self.hass.config_entries.async_entries(UPSTREAM_DOMAIN)
-        }
-        entity_registry = er.async_get(self.hass)
-        entries = [
-            registry_entry
-            for registry_entry in er.async_entries_for_device(entity_registry, device_id)
-            if registry_entry.config_entry_id in upstream_entry_ids
-        ]
+        """Require universal vehicle basics; battery is capability-specific."""
+        entries = _upstream_vehicle_entries(self.hass, device_id)
         keys = {registry_entry.translation_key for registry_entry in entries}
         return (
-            {"vehicle", "battery", "mileage"}.issubset(keys)
+            {"vehicle", "mileage"}.issubset(keys)
             and any(entry.entity_id.startswith("device_tracker.") for entry in entries)
         )
 
@@ -264,13 +288,19 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
             if current_capacity is not None
             else vol.Optional(CONF_BATTERY_CAPACITY_KWH)
         )
-        schema = vol.Schema(
+        fields = {
+            vol.Optional(
+                OPTION_DASHBOARD_NAME,
+                default=options[OPTION_DASHBOARD_NAME],
+            ): str,
+        }
+        capabilities = _vehicle_capabilities_for_device(
+            self.hass, self.config_entry.data[CONF_VEHICLE_DEVICE_ID]
+        )
+        if capabilities.get("battery_capacity", False):
+            fields[capacity_key] = _battery_capacity_selector()
+        fields.update(
             {
-                vol.Optional(
-                    OPTION_DASHBOARD_NAME,
-                    default=options[OPTION_DASHBOARD_NAME],
-                ): str,
-                capacity_key: _battery_capacity_selector(),
                 vol.Required(OPTION_TRIPS, default=options[OPTION_TRIPS]): bool,
                 vol.Required(
                     OPTION_CHARGING, default=options[OPTION_CHARGING]
@@ -303,4 +333,5 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
                 ),
             }
         )
+        schema = vol.Schema(fields)
         return self.async_show_form(step_id="init", data_schema=schema)

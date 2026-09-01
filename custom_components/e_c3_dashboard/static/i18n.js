@@ -237,6 +237,22 @@ for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {
   }
 }
 
+const CAPABILITY_LABELS = {
+  de: ["Kraftstoff", "Kraftstoffreichweite", "Kraftstoffverbrauch"], en: ["Fuel", "Fuel range", "Fuel consumption"],
+  fr: ["Carburant", "Autonomie carburant", "Consommation carburant"], it: ["Carburante", "Autonomia carburante", "Consumo carburante"],
+  es: ["Combustible", "Autonomía de combustible", "Consumo de combustible"], pt: ["Combustível", "Autonomia de combustível", "Consumo de combustível"],
+  nl: ["Brandstof", "Brandstofbereik", "Brandstofverbruik"], da: ["Brændstof", "Brændstofrækkevidde", "Brændstofforbrug"],
+  nb: ["Drivstoff", "Drivstoffrekkevidde", "Drivstofforbruk"], sv: ["Bränsle", "Bränsleräckvidd", "Bränsleförbrukning"],
+  fi: ["Polttoaine", "Polttoaineen toimintamatka", "Polttoaineenkulutus"], pl: ["Paliwo", "Zasięg na paliwie", "Zużycie paliwa"],
+  cs: ["Palivo", "Dojezd na palivo", "Spotřeba paliva"], sk: ["Palivo", "Dojazd na palivo", "Spotreba paliva"],
+  hu: ["Üzemanyag", "Üzemanyag-hatótáv", "Üzemanyag-fogyasztás"], ro: ["Combustibil", "Autonomie combustibil", "Consum combustibil"],
+  sl: ["Gorivo", "Doseg z gorivom", "Poraba goriva"], hr: ["Gorivo", "Doseg goriva", "Potrošnja goriva"],
+};
+for (const [language, [fuel, fuelRange, fuelConsumption]] of Object.entries(CAPABILITY_LABELS)) {
+  FRONTEND_TEXT.vehicleOverview[language] = { ...FRONTEND_TEXT.vehicleOverview.en, ...FRONTEND_TEXT.vehicleOverview[language], fuel };
+  FRONTEND_TEXT.dashboard[language] = { ...FRONTEND_TEXT.dashboard.en, ...FRONTEND_TEXT.dashboard[language], fuel, fuelRange, fuelConsumption };
+}
+
 function normalizeLanguage(value) {
   const normalized = String(value || "").trim().toLowerCase().replaceAll("_", "-");
   if (!normalized) return "";

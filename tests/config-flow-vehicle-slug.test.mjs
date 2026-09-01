@@ -12,7 +12,7 @@ const catalogs = [
 ].map((path) => JSON.parse(read(path)));
 
 test("fresh vehicle setup has no fixed e-C3 slug default", () => {
-  assert.match(flow, /vol\.Optional\(CONF_VEHICLE_SLUG\): str/);
+  assert.match(flow, /fields\[vol\.Optional\(CONF_VEHICLE_SLUG\)\] = str/);
   assert.doesNotMatch(flow, /default="e_c3"/);
   assert.match(flow, /base_slug = slugify\(self\._vehicle_name\(device_id\)\) or "vehicle"/);
   assert.match(flow, /vehicle_slug = self\._available_vehicle_slug\(base_slug\)/);

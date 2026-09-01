@@ -40,10 +40,17 @@ _MAX_CHARGE_SAMPLES = 720
 class VehicleMetricsManager:
     """Derive local results without issuing any request to Stellantis."""
 
-    def __init__(self, hass: HomeAssistant, entry, entity_mapping: dict[str, str]):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry,
+        entity_mapping: dict[str, str],
+        capabilities: dict[str, bool] | None = None,
+    ):
         self.hass = hass
         self.entry = entry
         self.mapping = entity_mapping
+        self.capabilities = capabilities or {}
         slug = entry.data[CONF_VEHICLE_SLUG]
         self._store = Store(hass, _STORE_VERSION, f"{DOMAIN}_{slug}_metrics")
         self.data: dict[str, Any] = {
@@ -527,6 +534,8 @@ class VehicleMetricsManager:
         self.hass.bus.async_fire(f"{DOMAIN}_charge_completed", charge)
 
     def current_trip_energy(self) -> float | None:
+        if not self.capabilities.get("electric_trip_metrics", bool(self.mapping.get("battery"))):
+            return None
         active = self.data.get("active_trip")
         if not isinstance(active, dict):
             return None
@@ -541,6 +550,14 @@ class VehicleMetricsManager:
         return self._as_float(self.data.get("current_charge_power_kw"))
 
     def trailing_consumption(self) -> dict[str, Any]:
+        if not self.capabilities.get("electric_trip_metrics", bool(self.mapping.get("battery"))):
+            return {
+                "value": None,
+                "distance_km": 0.0,
+                "energy_kwh": 0.0,
+                "trip_count": 0,
+                "complete": False,
+            }
         remaining = _WINDOW_KM
         distance = 0.0
         energy = 0.0
@@ -571,6 +588,8 @@ class VehicleMetricsManager:
         }
 
     def distance_since_charge(self) -> float | None:
+        if not self.capabilities.get("charge_history", bool(self.mapping.get("battery_charging"))):
+            return None
         baseline = self._as_float(self.data.get("charge_odometer_km"))
         mileage = self._number("mileage")
         if baseline is None or mileage is None:
@@ -579,6 +598,8 @@ class VehicleMetricsManager:
 
     def battery_capacity(self) -> tuple[float | None, str | None]:
         """Return capacity and provenance without inventing a vehicle default."""
+        if not self.capabilities.get("battery_capacity", bool(self.mapping.get("battery"))):
+            return None, None
         current = self._number("battery_capacity")
         if current is not None and current > 0:
             return round(current, 3), "api"
@@ -595,6 +616,8 @@ class VehicleMetricsManager:
 
     async def _async_capture_capacity(self) -> None:
         """Persist only a valid upstream/API capacity for later temporary gaps."""
+        if not self.capabilities.get("battery_capacity", bool(self.mapping.get("battery"))):
+            return
         current = self._number("battery_capacity")
         if current is None or current <= 0:
             return

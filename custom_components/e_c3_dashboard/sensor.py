@@ -273,6 +273,8 @@ class Ec3DashboardStatusSensor(CoordinatorEntity, SensorEntity):
             "vehicle_slug": self.coordinator.data["vehicle_slug"],
             "dashboard_url_path": self.coordinator.data.get("dashboard_url_path"),
             "vehicle_tracker": self.coordinator.data["vehicle_tracker"],
+            "powertrain": self.coordinator.data.get("powertrain", "unknown"),
+            "capabilities": self.coordinator.data.get("capabilities", {}),
             "entity_mapping": self.coordinator.data["entity_mapping"],
             "metric_entities": metric_entities,
             "control_entities": control_entities,
