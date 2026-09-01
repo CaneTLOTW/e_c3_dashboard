@@ -689,20 +689,20 @@ class Ec3DashboardStrategy extends HTMLElement {
         } : null;
       };
       const warningThresholds = notificationSettingsCard(strings.notificationWarningThresholds, [
-        ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"],
-        ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"],
-        ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"],
-        ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"],
+        supportsElectric ? ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"] : null,
+        supportsElectric ? ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"] : null,
+        supportsElectric ? ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"] : null,
+        supportsElectric ? ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"] : null,
         ["service_battery_warning", strings.battery12Warning, "mdi:car-battery"],
         ["service_battery_reset", strings.battery12Reset, "mdi:car-battery"],
-      ]);
+      ].filter(Boolean));
       const timingAvailability = notificationSettingsCard(strings.notificationTimingAvailability, [
-        ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"],
+        supportsElectric ? ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"] : null,
         ["stale_home_hours", strings.staleAtHome, "mdi:home-clock-outline"],
         ["stale_away_hours", strings.staleAway, "mdi:car-clock"],
         ["probe_wait_minutes", strings.probeWait, "mdi:timer-sand"],
-        ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"],
-      ]);
+        supportsCharging ? ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"] : null,
+      ].filter(Boolean));
       const quietHours = notificationSettingsCard(strings.notificationQuietHours, [
         ["quiet_start", strings.quietStart, "mdi:weather-night"],
         ["quiet_end", strings.quietEnd, "mdi:weather-sunny"],
@@ -774,7 +774,7 @@ class Ec3DashboardStrategy extends HTMLElement {
         entity("privacy") ? { ...bubble("privacy", strings.privacyDataSharing, "mdi:shield-check", [subState("privacy_mode", "", "mdi:shield-account")]), show_state: false, styles: `\${(() => { const raw=hass.states[entity]?.state; card.querySelector('.bubble-state').innerText=raw==='on'?${literalText(strings.unrestricted)}:raw==='off'?${literalText(strings.restricted)}:'—'; icon.setAttribute('icon',raw==='on'?'mdi:shield-check':raw==='off'?'mdi:shield-alert-outline':'mdi:shield-question'); })()}` } : null,
         separator(strings.settings, "mdi:cog-outline"),
         entity("refresh_interval") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("refresh_interval"), name: strings.refreshInterval, icon: "mdi:update", show_state: true, force_icon: true, button_action: { tap_action: { action: "more-info" }, hold_action: { action: "more-info" } } } : null,
-        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
+        supportsElectric && entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,
         entity("abrp_sync") ? separator("ABRP", "mdi:map-marker-path") : null,
         entity("abrp_sync") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("abrp_sync"), name: strings.abrpLiveData, icon: "mdi:transit-connection-variant", show_state: true, force_icon: true } : null,
         entity("abrp_token") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: entity("abrp_token"), name: "ABRP Token", icon: "mdi:key", show_state: false, force_icon: true, button_action: { tap_action: { action: "more-info" } } } : null,
