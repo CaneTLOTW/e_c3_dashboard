@@ -1,0 +1,124 @@
+name: Dev expanded language matrix
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-expand-language-matrix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Wire frontend language matrix
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          p = Path('custom_components/e_c3_dashboard/static/i18n.js')
+          text = p.read_text()
+          marker = 'export const FRONTEND_TEXT = {'
+          imports = '''import { EXTRA_FRONTEND_TEXT as WESTERN_TEXT } from "./i18n-extra-west.js?v=0.5.53";
+          import { EXTRA_FRONTEND_TEXT as NORTHERN_TEXT } from "./i18n-extra-north.js?v=0.5.53";
+          import { EXTRA_FRONTEND_TEXT as EASTERN_TEXT } from "./i18n-extra-east.js?v=0.5.53";
+
+          '''
+          if imports not in text:
+              text = text.replace(marker, imports + marker, 1)
+
+          old_tail_start = text.index('export function languageFor(context) {')
+          old_text_for = text.index('export function textFor(context, namespace) {', old_tail_start)
+          new_resolver = '''const SUPPORTED_LANGUAGES = new Set([
+            "de", "en", "fr", "it", "es", "pt", "nl", "da", "nb", "sv", "fi", "pl", "cs", "sk", "hu", "ro", "sl", "hr",
+          ]);
+          const LOCALE_BY_LANGUAGE = {
+            de: "de-DE", en: "en-US", fr: "fr-FR", it: "it-IT", es: "es-ES", pt: "pt-PT", nl: "nl-NL", da: "da-DK",
+            nb: "nb-NO", sv: "sv-SE", fi: "fi-FI", pl: "pl-PL", cs: "cs-CZ", sk: "sk-SK", hu: "hu-HU", ro: "ro-RO",
+            sl: "sl-SI", hr: "hr-HR",
+          };
+
+          for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {
+            for (const [language, namespaces] of Object.entries(catalog)) {
+              for (const [namespace, translated] of Object.entries(namespaces)) {
+                FRONTEND_TEXT[namespace][language] = {
+                  ...FRONTEND_TEXT[namespace].en,
+                  ...translated,
+                };
+              }
+            }
+          }
+
+          function normalizeLanguage(value) {
+            const normalized = String(value || "").trim().toLowerCase().replaceAll("_", "-");
+            if (!normalized) return "";
+            const base = normalized.split("-")[0];
+            if (base === "no") return "nb";
+            return base;
+          }
+
+          export function languageFor(context) {
+            const explicit = normalizeLanguage(context?.language);
+            if (SUPPORTED_LANGUAGES.has(explicit)) return explicit;
+            const requested = normalizeLanguage(
+              context?.locale?.language || (typeof navigator !== "undefined" ? navigator.language : "en") || "en"
+            );
+            return SUPPORTED_LANGUAGES.has(requested) ? requested : "en";
+          }
+
+          export function localeFor(context) {
+            return LOCALE_BY_LANGUAGE[languageFor(context)] || "en-US";
+          }
+
+          '''
+          text = text[:old_tail_start] + new_resolver + text[old_text_for:]
+          p.write_text(text)
+
+          for file_name in ['trip-history-card.js', 'charge-history-card.js']:
+              q = Path('custom_components/e_c3_dashboard/static') / file_name
+              source = q.read_text()
+              old = '''        const explicit = String(this._config?.language || "").toLowerCase();
+                  return ["de", "en", "fr"].includes(explicit)
+                      ? { language: explicit }
+                      : (this._hass || this._config);'''
+              # Preserve file indentation exactly; both cards currently use 8 spaces.
+              old = old.replace('                  return', '        return').replace('                      ?', '            ?').replace('                      :', '            :')
+              new = '''        const explicit = String(this._config?.language || "").trim();
+                  return explicit ? { language: explicit } : (this._hass || this._config);'''
+              new = new.replace('                  return', '        return')
+              if old not in source:
+                  raise SystemExit(f'i18n context anchor missing in {file_name}')
+              q.write_text(source.replace(old, new, 1))
+
+          test_path = Path('tests/frontend-i18n.test.mjs')
+          tests = test_path.read_text()
+          tests = tests.replace(
+              'assert.match(source, /\\["de", "en", "fr"\\]\\.includes\\(explicit\\)/);',
+              'assert.match(source, /return explicit \\? \\{ language: explicit \\} : \\(this\\._hass \\|\\| this\\._config\\)/);'
+          )
+          test_path.write_text(tests)
+
+          Path('tests/language-matrix.test.mjs').write_text('''import assert from "node:assert/strict";\nimport fs from "node:fs";\nimport vm from "node:vm";\nimport test from "node:test";\n\nconst root = new URL("../custom_components/e_c3_dashboard/", import.meta.url);\nconst languages = ["de", "en", "fr", "it", "es", "pt", "nl", "da", "nb", "sv", "fi", "pl", "cs", "sk", "hu", "ro", "sl", "hr"];\nconst extraLanguages = languages.filter((language) => !["de", "en", "fr"].includes(language));\n\nfunction keyPaths(value, prefix = "") {\n  const result = [];\n  for (const [key, child] of Object.entries(value)) {\n    const path = prefix ? `${prefix}.${key}` : key;\n    if (child && typeof child === "object" && !Array.isArray(child)) result.push(...keyPaths(child, path));\n    else result.push(path);\n  }\n  return result.sort();\n}\n\nfunction readExtra(path) {\n  const source = fs.readFileSync(new URL(path, root), "utf8");\n  const sandbox = { catalog: null };\n  vm.runInNewContext(source.replace("export const EXTRA_FRONTEND_TEXT =", "catalog ="), sandbox);\n  return sandbox.catalog;\n}\n\ntest("Home Assistant translations cover the planned 18-language matrix with identical keys", () => {\n  const canonical = JSON.parse(fs.readFileSync(new URL("translations/en.json", root), "utf8"));\n  const canonicalKeys = keyPaths(canonical);\n  for (const language of languages) {\n    const path = new URL(`translations/${language}.json`, root);\n    assert.equal(fs.existsSync(path), true, `missing translations/${language}.json`);\n    const catalog = JSON.parse(fs.readFileSync(path, "utf8"));\n    assert.deepEqual(keyPaths(catalog), canonicalKeys, `${language} translation key mismatch`);\n  }\n});\n\ntest("frontend resolver exposes every planned locale and regional variants normalize to base languages", () => {\n  const source = fs.readFileSync(new URL("static/i18n.js", root), "utf8");\n  for (const language of languages) assert.match(source, new RegExp(`\\\\"${language}\\\\"`));\n  assert.match(source, /normalized\\.split\\("-"\\)\\[0\\]/);\n  assert.match(source, /if \\(base === "no"\\) return "nb"/);\n  assert.match(source, /pt: "pt-PT"/);\n  assert.match(source, /cs: "cs-CZ"/);\n  assert.match(source, /nb: "nb-NO"/);\n});\n\ntest("all additional frontend languages provide the four user-facing namespaces", () => {\n  const catalogs = Object.assign(\n    {},\n    readExtra("static/i18n-extra-west.js"),\n    readExtra("static/i18n-extra-north.js"),\n    readExtra("static/i18n-extra-east.js"),\n  );\n  for (const language of extraLanguages) {\n    assert.ok(catalogs[language], `missing frontend language ${language}`);\n    for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {\n      assert.ok(catalogs[language][namespace], `${language} missing ${namespace}`);\n      assert.ok(Object.keys(catalogs[language][namespace]).length >= 5, `${language}/${namespace} is unexpectedly sparse`);\n    }\n  }\n});\n''')
+
+          Path('.github/workflows/dev-expand-language-matrix.yml').unlink()
+          PY
+      - name: Validate expanded matrix
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          python -m json.tool custom_components/e_c3_dashboard/translations/it.json >/dev/null
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+      - name: Commit expanded language matrix
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "i18n: support planned 18-language matrix"
+          git push origin HEAD:develop
