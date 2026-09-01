@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Wstępna kontrola kart panelu",
+        "description": "e-C3 Dashboard wymaga Bubble Card, Button Card, ha-map-card i layout-card. Jest to orientacyjna kontrola zasobów Lovelace zarejestrowanych w Home Assistant:\n\n{card_status}\n\nZarejestrowany zasób nie oznacza, że przeglądarka go załadowała. Zainstaluj brakujące karty przez HACS, upewnij się, że każda jest zarejestrowana jako moduł JavaScript, uruchom ponownie Home Assistant i odśwież przeglądarkę. Panel wykonuje ostateczną kontrolę po stronie przeglądarki przed wyświetleniem.",
+        "data": {"dashboard_cards_confirmed": "Sprawdziłem wymagane karty panelu"}
+      },
+      "user": {
+        "title": "Wybierz pojazd",
+        "description": "Wybierz pojazd skonfigurowany wcześniej w Stellantis Vehicles. Identyfikator pojazdu jest opcjonalny; pozostawiony pusty zostanie utworzony na podstawie wybranego pojazdu i automatycznie ujednoznaczniony. Pojemność akumulatora jest wyłącznie awaryjną wartością dla danego pojazdu, gdy Stellantis nie udostępnia użytecznej wartości.",
+        "data": {
+          "vehicle_device_id": "Pojazd Stellantis",
+          "vehicle_slug": "Identyfikator pojazdu (opcjonalny)",
+          "battery_capacity_kwh": "Awaryjna pojemność akumulatora"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Wybrane urządzenie nie należy do Stellantis Vehicles.",
+      "upstream_not_ready": "Dokończ konfigurację Stellantis Vehicles i poczekaj na encje akumulatora, przebiegu oraz trackera pojazdu przed dodaniem tego panelu.",
+      "invalid_slug": "Wprowadź prawidłowy identyfikator pojazdu.",
+      "slug_in_use": "Ten identyfikator pojazdu jest już używany przez inny wpis panelu."
+    },
+    "abort": {
+      "missing_upstream": "Skonfiguruj Stellantis Vehicles i pojazd przed dodaniem tego panelu.",
+      "already_configured": "Ten pojazd ma już wpis e-C3 Dashboard.",
+      "unsupported_upstream_version": "Zaktualizuj Stellantis Vehicles do obsługiwanej wersji przed dodaniem tego panelu."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Moduły panelu",
+        "data": {
+          "dashboard_name": "Wyświetlana nazwa panelu (puste = automatyczna)",
+          "battery_capacity_kwh": "Awaryjna pojemność akumulatora",
+          "trips": "Historia przejazdów",
+          "charging": "Historia i krzywe ładowania",
+          "gps": "Historia GPS",
+          "wakeup": "Diagnostyka wybudzania",
+          "notifications": "Powiadomienia i odbiorcy",
+          "notification_recipients": "Wybieralni odbiorcy Notify",
+          "history_hours": "Zakres wyświetlanej historii"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Serwerowa historia przejazdów"},
+      "server_gps_history": {"name": "Serwerowa historia GPS"},
+      "server_charge_history": {"name": "Serwerowa historia ładowania"},
+      "vehicle_info": {"name": "Informacje o pojeździe"},
+      "trailing_consumption_500km": {"name": "Średnie zużycie (500 km)"},
+      "distance_since_charge": {"name": "Dystans od ostatniego ładowania"},
+      "current_trip_energy": {"name": "Energia bieżącego przejazdu"},
+      "current_charge_power": {"name": "Aktualna moc ładowania"},
+      "last_trip_result": {"name": "Wynik ostatniego lokalnego przejazdu"},
+      "last_charge_result": {"name": "Wynik ostatniego lokalnego ładowania"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Ostrzeżenie o niskim zasięgu"},
+      "range_reset_km": {"name": "Reset niskiego zasięgu"},
+      "home_soc_warning": {"name": "Ostrzeżenie SOC w domu"},
+      "home_soc_reset": {"name": "Reset SOC w domu"},
+      "home_delay_minutes": {"name": "Opóźnienie przypomnienia o ładowaniu w domu"},
+      "service_battery_warning": {"name": "Ostrzeżenie akumulatora 12 V"},
+      "service_battery_reset": {"name": "Reset akumulatora 12 V"},
+      "stale_home_hours": {"name": "Limit dostępności w domu"},
+      "stale_away_hours": {"name": "Limit dostępności poza domem"},
+      "probe_wait_minutes": {"name": "Czas oczekiwania testu dostępności"},
+      "charge_start_delay_minutes": {"name": "Opóźnienie powiadomienia o rozpoczęciu ładowania"}
+    },
+    "time": {
+      "quiet_start": {"name": "Początek godzin ciszy"},
+      "quiet_end": {"name": "Koniec godzin ciszy"}
+    },
+    "switch": {
+      "notifications": {"name": "Powiadomienia"},
+      "trip_reports": {"name": "Raporty przejazdów"},
+      "charge_reports": {"name": "Raporty ładowania"},
+      "alerts": {"name": "Alerty pojazdu"},
+      "wakeup_hourly": {"name": "Wybudzanie co godzinę"},
+      "wakeup_charging": {"name": "Wybudzanie podczas ładowania"},
+      "wakeup_probe": {"name": "Test dostępności z wybudzeniem"},
+      "notify_recipient": {"name": "Odbiorca Notify: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Wybudź pojazd teraz"},
+      "test_notification": {"name": "Powiadomienie testowe"},
+      "sync_server_history": {"name": "Synchronizuj historię serwera"}
+    }
+  }
+}
