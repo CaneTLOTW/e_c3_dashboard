@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Forhåndskontroll av dashboard-kort",
+        "description": "e-C3 Dashboard krever Bubble Card, Button Card, ha-map-card og layout-card. Dette er en veiledende kontroll av Lovelace-ressursene som er registrert i Home Assistant:\n\n{card_status}\n\nEn registrert ressurs betyr ikke nødvendigvis at nettleseren har lastet den. Installer manglende kort med HACS, kontroller at hvert kort er registrert som en JavaScript-modul, start Home Assistant på nytt og oppdater nettleseren. Dashboardet utfører den endelige nettleserkontrollen før visning.",
+        "data": {"dashboard_cards_confirmed": "Jeg har gjennomgått de nødvendige dashboard-kortene"}
+      },
+      "user": {
+        "title": "Velg kjøretøy",
+        "description": "Velg et kjøretøy som allerede er konfigurert av Stellantis Vehicles. Kjøretøyidentifikatoren er valgfri; hvis den står tom, avledes den fra det valgte kjøretøyet og gjøres automatisk unik. Batterikapasiteten brukes bare som en kjøretøyspesifikk reserveverdi når Stellantis ikke leverer en brukbar verdi.",
+        "data": {
+          "vehicle_device_id": "Stellantis-kjøretøy",
+          "vehicle_slug": "Kjøretøyidentifikator (valgfri)",
+          "battery_capacity_kwh": "Reserveverdi for batterikapasitet"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Den valgte enheten tilhører ikke Stellantis Vehicles.",
+      "upstream_not_ready": "Fullfør oppsettet av Stellantis Vehicles og vent til kjøretøyets batteri-, kjørelengde- og sporingsenheter er tilgjengelige før du legger til dette dashboardet.",
+      "invalid_slug": "Skriv inn en gyldig kjøretøyidentifikator.",
+      "slug_in_use": "Denne kjøretøyidentifikatoren brukes allerede av en annen dashboard-oppføring."
+    },
+    "abort": {
+      "missing_upstream": "Konfigurer Stellantis Vehicles og et kjøretøy før du legger til dette dashboardet.",
+      "already_configured": "Dette kjøretøyet har allerede en e-C3 Dashboard-oppføring.",
+      "unsupported_upstream_version": "Oppdater Stellantis Vehicles til en støttet versjon før du legger til dette dashboardet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dashboard-moduler",
+        "data": {
+          "dashboard_name": "Visningsnavn for dashboard (tomt = automatisk)",
+          "battery_capacity_kwh": "Reserveverdi for batterikapasitet",
+          "trips": "Turhistorikk",
+          "charging": "Ladehistorikk og kurver",
+          "gps": "GPS-historikk",
+          "wakeup": "Wake-up-diagnostikk",
+          "notifications": "Varsler og mottakere",
+          "notification_recipients": "Valgbare Notify-mottakere",
+          "history_hours": "Visningsvindu for historikk"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Server-turhistorikk"},
+      "server_gps_history": {"name": "Server-GPS-historikk"},
+      "server_charge_history": {"name": "Server-ladehistorikk"},
+      "vehicle_info": {"name": "Kjøretøyinformasjon"},
+      "trailing_consumption_500km": {"name": "Gjennomsnittlig forbruk (500 km)"},
+      "distance_since_charge": {"name": "Avstand siden siste lading"},
+      "current_trip_energy": {"name": "Energi for gjeldende tur"},
+      "current_charge_power": {"name": "Gjeldende ladeeffekt"},
+      "last_trip_result": {"name": "Resultat for siste lokale tur"},
+      "last_charge_result": {"name": "Resultat for siste lokale lading"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Advarsel om lav rekkevidde"},
+      "range_reset_km": {"name": "Tilbakestilling av lav rekkevidde"},
+      "home_soc_warning": {"name": "SOC-advarsel hjemme"},
+      "home_soc_reset": {"name": "SOC-tilbakestilling hjemme"},
+      "home_delay_minutes": {"name": "Forsinkelse for ladepåminnelse hjemme"},
+      "service_battery_warning": {"name": "Advarsel for 12 V-batteri"},
+      "service_battery_reset": {"name": "Tilbakestilling for 12 V-batteri"},
+      "stale_home_hours": {"name": "Tilgjengelighetstimeout hjemme"},
+      "stale_away_hours": {"name": "Tilgjengelighetstimeout borte"},
+      "probe_wait_minutes": {"name": "Ventetid for tilgjengelighetstest"},
+      "charge_start_delay_minutes": {"name": "Forsinkelse for varsel ved ladestart"}
+    },
+    "time": {
+      "quiet_start": {"name": "Start på stilleperiode"},
+      "quiet_end": {"name": "Slutt på stilleperiode"}
+    },
+    "switch": {
+      "notifications": {"name": "Varsler"},
+      "trip_reports": {"name": "Turrapporter"},
+      "charge_reports": {"name": "Laderapporter"},
+      "alerts": {"name": "Kjøretøyvarsler"},
+      "wakeup_hourly": {"name": "Wake-up hver time"},
+      "wakeup_charging": {"name": "Wake-up under lading"},
+      "wakeup_probe": {"name": "Tilgjengelighetstest med wake-up"},
+      "notify_recipient": {"name": "Notify-mottaker: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Vekk kjøretøyet nå"},
+      "test_notification": {"name": "Testvarsel"},
+      "sync_server_history": {"name": "Synkroniser serverhistorikk"}
+    }
+  }
+}
