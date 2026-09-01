@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Koontinäyttökorttien esitarkistus",
+        "description": "e-C3 Dashboard tarvitsee Bubble Card-, Button Card-, ha-map-card- ja layout-card-kortit. Tämä on suuntaa-antava tarkistus Home Assistantiin rekisteröidyistä Lovelace-resursseista:\n\n{card_status}\n\nRekisteröity resurssi ei takaa, että selain on ladannut sen. Asenna puuttuvat kortit HACSilla, varmista että jokainen on rekisteröity JavaScript-moduulina, käynnistä Home Assistant uudelleen ja päivitä selain. Koontinäyttö tekee lopullisen selainpuolen tarkistuksen ennen näyttämistä.",
+        "data": {"dashboard_cards_confirmed": "Olen tarkistanut vaaditut koontinäyttökortit"}
+      },
+      "user": {
+        "title": "Valitse ajoneuvo",
+        "description": "Valitse ajoneuvo, joka on jo määritetty Stellantis Vehicles -integraatiossa. Ajoneuvon tunniste on valinnainen; jos se jätetään tyhjäksi, se johdetaan valitusta ajoneuvosta ja tehdään automaattisesti yksilölliseksi. Akun kapasiteetti on vain ajoneuvokohtainen varatieto, jos Stellantis ei tarjoa käyttökelpoista arvoa.",
+        "data": {
+          "vehicle_device_id": "Stellantis-ajoneuvo",
+          "vehicle_slug": "Ajoneuvon tunniste (valinnainen)",
+          "battery_capacity_kwh": "Akun kapasiteetin varatieto"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Valittu laite ei kuulu Stellantis Vehicles -integraatioon.",
+      "upstream_not_ready": "Viimeistele Stellantis Vehicles -määritys ja odota, että ajoneuvon akku-, matkamittari- ja seurantaentiteetit ovat käytettävissä ennen tämän koontinäytön lisäämistä.",
+      "invalid_slug": "Anna kelvollinen ajoneuvon tunniste.",
+      "slug_in_use": "Tämä ajoneuvon tunniste on jo toisen koontinäyttömerkinnän käytössä."
+    },
+    "abort": {
+      "missing_upstream": "Määritä Stellantis Vehicles ja ajoneuvo ennen tämän koontinäytön lisäämistä.",
+      "already_configured": "Tällä ajoneuvolla on jo e-C3 Dashboard -merkintä.",
+      "unsupported_upstream_version": "Päivitä Stellantis Vehicles tuettuun versioon ennen tämän koontinäytön lisäämistä."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Koontinäytön moduulit",
+        "data": {
+          "dashboard_name": "Koontinäytön näyttönimi (tyhjä = automaattinen)",
+          "battery_capacity_kwh": "Akun kapasiteetin varatieto",
+          "trips": "Ajohistoria",
+          "charging": "Lataushistoria ja -käyrät",
+          "gps": "GPS-historia",
+          "wakeup": "Herätysdiagnostiikka",
+          "notifications": "Ilmoitukset ja vastaanottajat",
+          "notification_recipients": "Valittavat Notify-vastaanottajat",
+          "history_hours": "Historian näyttöaika"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Palvelimen ajohistoria"},
+      "server_gps_history": {"name": "Palvelimen GPS-historia"},
+      "server_charge_history": {"name": "Palvelimen lataushistoria"},
+      "vehicle_info": {"name": "Ajoneuvon tiedot"},
+      "trailing_consumption_500km": {"name": "Keskikulutus (500 km)"},
+      "distance_since_charge": {"name": "Matka viime latauksesta"},
+      "current_trip_energy": {"name": "Nykyisen ajon energia"},
+      "current_charge_power": {"name": "Nykyinen latausteho"},
+      "last_trip_result": {"name": "Viimeisimmän paikallisen ajon tulos"},
+      "last_charge_result": {"name": "Viimeisimmän paikallisen latauksen tulos"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Pienen toimintamatkan varoitus"},
+      "range_reset_km": {"name": "Pienen toimintamatkan palautus"},
+      "home_soc_warning": {"name": "SOC-varoitus kotona"},
+      "home_soc_reset": {"name": "SOC-palautus kotona"},
+      "home_delay_minutes": {"name": "Kotilatausmuistutuksen viive"},
+      "service_battery_warning": {"name": "12 V akun varoitus"},
+      "service_battery_reset": {"name": "12 V akun palautus"},
+      "stale_home_hours": {"name": "Saatavuuden aikakatkaisu kotona"},
+      "stale_away_hours": {"name": "Saatavuuden aikakatkaisu poissa"},
+      "probe_wait_minutes": {"name": "Saatavuustestin odotusaika"},
+      "charge_start_delay_minutes": {"name": "Latauksen aloitusilmoituksen viive"}
+    },
+    "time": {
+      "quiet_start": {"name": "Hiljaisen ajan alku"},
+      "quiet_end": {"name": "Hiljaisen ajan loppu"}
+    },
+    "switch": {
+      "notifications": {"name": "Ilmoitukset"},
+      "trip_reports": {"name": "Ajoraportit"},
+      "charge_reports": {"name": "Latausraportit"},
+      "alerts": {"name": "Ajoneuvon varoitukset"},
+      "wakeup_hourly": {"name": "Herätys tunnin välein"},
+      "wakeup_charging": {"name": "Herätys latauksen aikana"},
+      "wakeup_probe": {"name": "Saatavuustesti herätyksellä"},
+      "notify_recipient": {"name": "Notify-vastaanottaja: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Herätä ajoneuvo nyt"},
+      "test_notification": {"name": "Testi-ilmoitus"},
+      "sync_server_history": {"name": "Synkronoi palvelinhistoria"}
+    }
+  }
+}
