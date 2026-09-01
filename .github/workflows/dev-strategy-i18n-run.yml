@@ -1,0 +1,42 @@
+name: Dev strategy i18n run
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-strategy-i18n-run.yml
+
+permissions:
+  contents: write
+
+jobs:
+  localize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Apply pending localization
+        run: python .github/scripts/run_pending_strategy_i18n.py
+
+      - name: Remove temporary wrappers
+        run: |
+          rm -f .github/scripts/run_pending_strategy_i18n.py
+          rm -f .github/workflows/dev-strategy-i18n-run.yml
+
+      - name: Validate transformed source
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+
+      - name: Commit transformed source
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "i18n: localize dashboard strategy"
+          git push origin HEAD:develop
