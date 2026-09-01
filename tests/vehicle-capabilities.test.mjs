@@ -59,13 +59,31 @@ test("electric metrics are disabled by capability, not by guessed model", () => 
   assert.match(metrics, /capabilities\.get\("charge_history"/);
 });
 
-
-test("package-owned entity platforms do not load EV-only entities for Thermic", () => {
+test("package-owned entity platforms only load powertrain-relevant entities", () => {
+  assert.match(sensorPlatform, /Ec3ServerTripHistorySensor\(coordinator, entry\)/);
+  assert.match(sensorPlatform, /Ec3ServerGpsHistorySensor\(coordinator, entry\)/);
+  assert.match(sensorPlatform, /Ec3VehicleInfoSensor\(coordinator, entry\)/);
+  assert.match(sensorPlatform, /Ec3LastTripResultSensor\(coordinator, entry\)/);
   assert.match(sensorPlatform, /if electric:/);
+  assert.match(sensorPlatform, /Ec3TrailingConsumptionSensor/);
+  assert.match(sensorPlatform, /Ec3CurrentTripEnergySensor/);
   assert.match(sensorPlatform, /if charge_history:/);
+  assert.match(sensorPlatform, /Ec3ServerChargeHistorySensor/);
+  assert.match(sensorPlatform, /Ec3DistanceSinceChargeSensor/);
+  assert.match(sensorPlatform, /Ec3LastChargeResultSensor/);
   assert.match(sensorPlatform, /if charging:/);
+  assert.match(sensorPlatform, /Ec3CurrentChargePowerSensor/);
+
+  assert.match(numberPlatform, /"service_battery_warning"/);
+  assert.match(numberPlatform, /"stale_home_hours"/);
   assert.match(numberPlatform, /if electric:/);
+  assert.match(numberPlatform, /"home_soc_warning"/);
   assert.match(numberPlatform, /if charging:/);
+  assert.match(numberPlatform, /"charge_start_delay_minutes"/);
+
+  assert.match(switchPlatform, /SWITCH_TRIP_REPORTS/);
+  assert.match(switchPlatform, /SWITCH_WAKEUP_PROBE/);
   assert.match(switchPlatform, /if capabilities\.get\("charging", False\):/);
-  assert.match(switchPlatform, /allowed_switches/);
+  assert.match(switchPlatform, /SWITCH_CHARGE_REPORTS/);
+  assert.match(switchPlatform, /SWITCH_WAKEUP_CHARGING/);
 });
