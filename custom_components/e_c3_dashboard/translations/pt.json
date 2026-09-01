@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Verificação prévia dos cartões do painel",
+        "description": "O e-C3 Dashboard requer Bubble Card, Button Card, ha-map-card e layout-card. Esta é uma verificação indicativa dos recursos Lovelace registados no Home Assistant:\n\n{card_status}\n\nUm recurso registado não garante que o navegador o tenha carregado. Instale os cartões em falta com o HACS, confirme que cada um está registado como módulo JavaScript, reinicie o Home Assistant e atualize o navegador. O painel faz a verificação final no navegador antes da apresentação.",
+        "data": {"dashboard_cards_confirmed": "Revisei os cartões necessários do painel"}
+      },
+      "user": {
+        "title": "Selecionar veículo",
+        "description": "Escolha um veículo já configurado pelo Stellantis Vehicles. O identificador do veículo é opcional; se ficar vazio, é derivado do veículo selecionado e tornado único automaticamente. A capacidade da bateria é apenas um valor alternativo por veículo quando a Stellantis não fornece um valor utilizável.",
+        "data": {
+          "vehicle_device_id": "Veículo Stellantis",
+          "vehicle_slug": "Identificador do veículo (opcional)",
+          "battery_capacity_kwh": "Capacidade de bateria alternativa"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "O dispositivo selecionado não pertence ao Stellantis Vehicles.",
+      "upstream_not_ready": "Conclua a configuração do Stellantis Vehicles e aguarde pelas entidades de bateria, quilometragem e localização do veículo antes de adicionar este painel.",
+      "invalid_slug": "Introduza um identificador de veículo válido.",
+      "slug_in_use": "Este identificador de veículo já é utilizado por outra entrada do painel."
+    },
+    "abort": {
+      "missing_upstream": "Configure o Stellantis Vehicles e um veículo antes de adicionar este painel.",
+      "already_configured": "Este veículo já tem uma entrada do e-C3 Dashboard.",
+      "unsupported_upstream_version": "Atualize o Stellantis Vehicles para uma versão suportada antes de adicionar este painel."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Módulos do painel",
+        "data": {
+          "dashboard_name": "Nome apresentado do painel (vazio = automático)",
+          "battery_capacity_kwh": "Capacidade de bateria alternativa",
+          "trips": "Histórico de viagens",
+          "charging": "Histórico e curvas de carregamento",
+          "gps": "Histórico GPS",
+          "wakeup": "Diagnóstico de ativação",
+          "notifications": "Controlos de notificações e destinatários",
+          "notification_recipients": "Destinatários Notify selecionáveis",
+          "history_hours": "Janela de apresentação do histórico"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Histórico de viagens do servidor"},
+      "server_gps_history": {"name": "Histórico GPS do servidor"},
+      "server_charge_history": {"name": "Histórico de carregamentos do servidor"},
+      "vehicle_info": {"name": "Informações do veículo"},
+      "trailing_consumption_500km": {"name": "Consumo médio (500 km)"},
+      "distance_since_charge": {"name": "Distância desde o último carregamento"},
+      "current_trip_energy": {"name": "Energia da viagem atual"},
+      "current_charge_power": {"name": "Potência de carregamento atual"},
+      "last_trip_result": {"name": "Resultado da última viagem local"},
+      "last_charge_result": {"name": "Resultado do último carregamento local"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Aviso de autonomia baixa"},
+      "range_reset_km": {"name": "Reposição de autonomia baixa"},
+      "home_soc_warning": {"name": "Aviso de SOC em casa"},
+      "home_soc_reset": {"name": "Reposição de SOC em casa"},
+      "home_delay_minutes": {"name": "Atraso do lembrete de carregamento em casa"},
+      "service_battery_warning": {"name": "Aviso da bateria de 12 V"},
+      "service_battery_reset": {"name": "Reposição da bateria de 12 V"},
+      "stale_home_hours": {"name": "Tempo limite de disponibilidade em casa"},
+      "stale_away_hours": {"name": "Tempo limite de disponibilidade fora de casa"},
+      "probe_wait_minutes": {"name": "Espera da verificação de disponibilidade"},
+      "charge_start_delay_minutes": {"name": "Atraso da notificação de início de carregamento"}
+    },
+    "time": {
+      "quiet_start": {"name": "Início do período silencioso"},
+      "quiet_end": {"name": "Fim do período silencioso"}
+    },
+    "switch": {
+      "notifications": {"name": "Notificações"},
+      "trip_reports": {"name": "Relatórios de viagem"},
+      "charge_reports": {"name": "Relatórios de carregamento"},
+      "alerts": {"name": "Alertas do veículo"},
+      "wakeup_hourly": {"name": "Ativação horária"},
+      "wakeup_charging": {"name": "Ativação durante o carregamento"},
+      "wakeup_probe": {"name": "Verificação de disponibilidade com ativação"},
+      "notify_recipient": {"name": "Destinatário Notify: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Ativar veículo agora"},
+      "test_notification": {"name": "Notificação de teste"},
+      "sync_server_history": {"name": "Sincronizar histórico do servidor"}
+    }
+  }
+}
