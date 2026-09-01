@@ -8,6 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
+from .entity_identity import apply_vehicle_entity_identity
 from .notifications import SETTING_META
 
 
@@ -34,7 +35,13 @@ class NotificationSettingNumber(NumberEntity):
         self._attr_native_min_value, self._attr_native_max_value = minimum, maximum
         self._attr_native_step = step
         self._attr_native_unit_of_measurement = "min" if "minutes" in key else ("h" if "hours" in key else ("%" if "soc" in key or "battery" in key else "km"))
-        self._attr_unique_id = f"{entry.entry_id}_notification_setting_{key}"
+        apply_vehicle_entity_identity(
+            self,
+            coordinator.hass,
+            entry,
+            "number",
+            f"notification_setting_{key}",
+        )
 
     @property
     def native_value(self):
