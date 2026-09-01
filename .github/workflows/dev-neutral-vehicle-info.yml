@@ -1,0 +1,42 @@
+name: Dev neutral vehicle info
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-neutral-vehicle-info.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Apply neutral vehicle info contract
+        run: python .github/scripts/dev_neutral_vehicle_info.py
+
+      - name: Remove temporary wrappers
+        run: |
+          rm -f .github/scripts/dev_neutral_vehicle_info.py
+          rm -f .github/workflows/dev-neutral-vehicle-info.yml
+
+      - name: Validate transformed source
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+
+      - name: Commit transformed source
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "data: add neutral vehicle info attributes"
+          git push origin HEAD:develop
