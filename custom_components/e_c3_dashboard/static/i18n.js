@@ -5,6 +5,10 @@
  * use this small package-owned catalog and honour the browser/UI language (or
  * an explicit card ``language`` option) without relying on global HA state.
  */
+import { EXTRA_FRONTEND_TEXT as WESTERN_TEXT } from "./i18n-extra-west.js?v=0.5.53";
+import { EXTRA_FRONTEND_TEXT as NORTHERN_TEXT } from "./i18n-extra-north.js?v=0.5.53";
+import { EXTRA_FRONTEND_TEXT as EASTERN_TEXT } from "./i18n-extra-east.js?v=0.5.53";
+
 export const FRONTEND_TEXT = {
   tripHistory: {
     de: {
@@ -217,20 +221,39 @@ export const FRONTEND_TEXT = {
   },
 };
 
+const SUPPORTED_LANGUAGES = new Set([
+  "de", "en", "fr", "it", "es", "pt", "nl", "da", "nb", "sv", "fi", "pl", "cs", "sk", "hu", "ro", "sl", "hr",
+]);
+const LOCALE_BY_LANGUAGE = {
+  de: "de-DE", en: "en-US", fr: "fr-FR", it: "it-IT", es: "es-ES", pt: "pt-PT", nl: "nl-NL", da: "da-DK",
+  nb: "nb-NO", sv: "sv-SE", fi: "fi-FI", pl: "pl-PL", cs: "cs-CZ", sk: "sk-SK", hu: "hu-HU", ro: "ro-RO", sl: "sl-SI", hr: "hr-HR",
+};
+
+for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {
+  for (const [language, namespaces] of Object.entries(catalog)) {
+    for (const [namespace, translated] of Object.entries(namespaces)) {
+      FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace].en, ...translated };
+    }
+  }
+}
+
+function normalizeLanguage(value) {
+  const normalized = String(value || "").trim().toLowerCase().replaceAll("_", "-");
+  if (!normalized) return "";
+  const base = normalized.split("-")[0];
+  if (base === "no") return "nb";
+  return base;
+}
+
 export function languageFor(context) {
-  const explicit = String(context?.language || "").toLowerCase();
-  if (["de", "en", "fr"].includes(explicit)) return explicit;
-  const requested = String(context?.locale?.language || (typeof navigator !== "undefined" ? navigator.language : "en") || "en").toLowerCase();
-  if (requested.startsWith("de")) return "de";
-  if (requested.startsWith("fr")) return "fr";
-  return "en";
+  const explicit = normalizeLanguage(context?.language);
+  if (SUPPORTED_LANGUAGES.has(explicit)) return explicit;
+  const requested = normalizeLanguage(context?.locale?.language || (typeof navigator !== "undefined" ? navigator.language : "en") || "en");
+  return SUPPORTED_LANGUAGES.has(requested) ? requested : "en";
 }
 
 export function localeFor(context) {
-  const language = languageFor(context);
-  if (language === "de") return "de-DE";
-  if (language === "fr") return "fr-FR";
-  return "en";
+  return LOCALE_BY_LANGUAGE[languageFor(context)] || "en-US";
 }
 
 export function textFor(context, namespace) {

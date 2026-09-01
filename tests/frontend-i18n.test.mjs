@@ -9,19 +9,22 @@ const charge = read("../custom_components/e_c3_dashboard/static/charge-history-c
 const vehicle = read("../custom_components/e_c3_dashboard/static/vehicle-overview-card.js");
 const strategy = read("../custom_components/e_c3_dashboard/static/e_c3_dashboard.js");
 
-test("frontend catalog exposes German English and French namespaces", () => {
+test("frontend catalog exposes core namespaces and the expanded locale resolver", () => {
   for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {
     assert.ok(catalog.includes(`${namespace}: {`), `missing ${namespace} namespace`);
   }
   assert.ok(catalog.split("fr: {").length - 1 >= 4, "French catalog entries are incomplete");
-  assert.match(catalog, /requested\.startsWith\("fr"\)/);
-  assert.match(catalog, /if \(language === "fr"\) return "fr-FR"/);
+  assert.match(catalog, /const SUPPORTED_LANGUAGES = new Set/);
+  assert.match(catalog, /normalized\.split\("-"\)\[0\]/);
+  assert.match(catalog, /if \(base === "no"\) return "nb"/);
+  assert.match(catalog, /fr: "fr-FR"/);
+  assert.match(catalog, /nb: "nb-NO"/);
 });
 
 test("trip and charge cards use HA locale when language is automatic", () => {
   for (const source of [trip, charge]) {
     assert.match(source, /_i18nContext\(\)/);
-    assert.match(source, /\["de", "en", "fr"\]\.includes\(explicit\)/);
+    assert.match(source, /return explicit \? \{ language: explicit \} : \(this\._hass \|\| this\._config\)/);
     assert.match(source, /this\._hass \|\| this\._config/);
     assert.doesNotMatch(source, /const de =|\$\{de \?/);
   }

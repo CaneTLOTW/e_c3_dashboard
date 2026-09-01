@@ -180,10 +180,8 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
     }
 
     _i18nContext() {
-        const explicit = String(this._config?.language || "").toLowerCase();
-        return ["de", "en", "fr"].includes(explicit)
-            ? { language: explicit }
-            : (this._hass || this._config);
+        const explicit = String(this._config?.language || "").trim();
+        return explicit ? { language: explicit } : (this._hass || this._config);
     }
 
     _locale() {
