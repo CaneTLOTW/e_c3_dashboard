@@ -9,6 +9,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+from .entity_identity import apply_vehicle_entity_identity
 from .notifications import (
     BASE_SWITCHES,
     SWITCH_ALERTS,
@@ -83,7 +84,7 @@ class Ec3NotificationSwitch(SwitchEntity):
         if recipient:
             self._attr_translation_placeholders = {"recipient": recipient}
         self._attr_icon = icon
-        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        apply_vehicle_entity_identity(self, coordinator.hass, entry, "switch", key)
 
     @property
     def is_on(self) -> bool:
