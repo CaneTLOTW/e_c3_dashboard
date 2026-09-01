@@ -1,0 +1,97 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Vérification des cartes du tableau de bord",
+        "description": "e-C3 Dashboard nécessite Bubble Card, Button Card, ha-map-card et layout-card. Cette vérification des ressources Lovelace enregistrées par Home Assistant est indicative :\n\n{card_status}\n\nUne ressource enregistrée ne prouve pas qu’elle a été chargée par le navigateur. Installez les cartes manquantes avec HACS, vérifiez que chacune est enregistrée comme module JavaScript, puis redémarrez Home Assistant et actualisez le navigateur. Le tableau de bord effectue la vérification finale côté navigateur avant l’affichage.",
+        "data": {
+          "dashboard_cards_confirmed": "J’ai vérifié les cartes requises pour le tableau de bord"
+        }
+      },
+      "user": {
+        "title": "Sélectionner un véhicule",
+        "description": "Choisissez un véhicule déjà configuré par Stellantis Vehicles. La capacité de batterie facultative n’est utilisée comme valeur de secours propre au véhicule que si Stellantis ne fournit pas de capacité exploitable.",
+        "data": {
+          "vehicle_device_id": "Véhicule Stellantis",
+          "vehicle_slug": "Identifiant du véhicule",
+          "battery_capacity_kwh": "Capacité de batterie de secours"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "L’appareil sélectionné n’appartient pas à Stellantis Vehicles.",
+      "upstream_not_ready": "Terminez la configuration de Stellantis Vehicles et attendez que les entités batterie, kilométrage et tracker du véhicule soient disponibles avant d’ajouter ce tableau de bord.",
+      "invalid_slug": "Saisissez un identifiant de véhicule valide."
+    },
+    "abort": {
+      "missing_upstream": "Configurez Stellantis Vehicles et un véhicule avant d’ajouter ce tableau de bord.",
+      "already_configured": "Ce véhicule possède déjà une entrée e-C3 Dashboard.",
+      "unsupported_upstream_version": "Mettez Stellantis Vehicles à jour vers une version prise en charge avant d’ajouter ce tableau de bord."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Modules du tableau de bord",
+        "data": {
+          "dashboard_name": "Nom affiché du tableau de bord (vide = automatique)",
+          "battery_capacity_kwh": "Capacité de batterie de secours",
+          "trips": "Historique des trajets",
+          "charging": "Historique et courbes de recharge",
+          "gps": "Historique GPS",
+          "wakeup": "Diagnostic de réveil",
+          "notifications": "Notifications et gestion des destinataires",
+          "notification_recipients": "Destinataires Notify sélectionnables",
+          "history_hours": "Période d’historique affichée"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Historique serveur des trajets"},
+      "server_gps_history": {"name": "Historique GPS serveur"},
+      "server_charge_history": {"name": "Historique serveur des recharges"},
+      "vehicle_info": {"name": "Informations du véhicule"},
+      "trailing_consumption_500km": {"name": "Consommation moyenne (500 km)"},
+      "distance_since_charge": {"name": "Distance depuis la dernière recharge"},
+      "current_trip_energy": {"name": "Énergie du trajet en cours"},
+      "current_charge_power": {"name": "Puissance de recharge actuelle"},
+      "last_trip_result": {"name": "Dernier trajet local"},
+      "last_charge_result": {"name": "Dernière recharge locale"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Alerte d’autonomie faible"},
+      "range_reset_km": {"name": "Réarmement de l’alerte d’autonomie"},
+      "home_soc_warning": {"name": "Alerte SOC à domicile"},
+      "home_soc_reset": {"name": "Réarmement SOC à domicile"},
+      "home_delay_minutes": {"name": "Délai du rappel de recharge à domicile"},
+      "service_battery_warning": {"name": "Alerte batterie 12 V"},
+      "service_battery_reset": {"name": "Réarmement batterie 12 V"},
+      "stale_home_hours": {"name": "Délai de disponibilité à domicile"},
+      "stale_away_hours": {"name": "Délai de disponibilité hors domicile"},
+      "probe_wait_minutes": {"name": "Attente du test de disponibilité"},
+      "charge_start_delay_minutes": {"name": "Délai de notification du début de recharge"}
+    },
+    "time": {
+      "quiet_start": {"name": "Début des heures silencieuses"},
+      "quiet_end": {"name": "Fin des heures silencieuses"}
+    },
+    "switch": {
+      "notifications": {"name": "Notifications"},
+      "trip_reports": {"name": "Rapports de trajet"},
+      "charge_reports": {"name": "Rapports de recharge"},
+      "alerts": {"name": "Alertes du véhicule"},
+      "wakeup_hourly": {"name": "Réveil horaire"},
+      "wakeup_charging": {"name": "Réveil pendant la recharge"},
+      "wakeup_probe": {"name": "Test de disponibilité avec réveil"},
+      "notify_recipient": {"name": "Destinataire Notify : {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Réveiller le véhicule maintenant"},
+      "test_notification": {"name": "Tester la notification"},
+      "sync_server_history": {"name": "Synchroniser l’historique serveur"}
+    }
+  }
+}
