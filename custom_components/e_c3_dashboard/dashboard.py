@@ -9,18 +9,28 @@ from homeassistant.components import frontend
 from homeassistant.components.lovelace import dashboard as lovelace_dashboard
 from homeassistant.components.lovelace.const import LOVELACE_DATA, MODE_STORAGE
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import slugify
 
 from .const import (
     AUTO_DASHBOARD_STORAGE_VERSION,
     AUTO_DASHBOARD_STRATEGY,
+    CONF_VEHICLE_DEVICE_ID,
     DOMAIN,
     LEGACY_AUTO_DASHBOARD_STRATEGY,
     OPTION_DASHBOARD_NAME,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_BRAND_BY_MANUFACTURER = {
+    "mycitroen": "Citroën",
+    "mypeugeot": "Peugeot",
+    "myopel": "Opel",
+    "myds": "DS",
+    "myvauxhall": "Vauxhall",
+}
 
 
 def _store(hass, entry_id: str) -> Store[dict[str, Any]]:
@@ -32,22 +42,56 @@ def _store(hass, entry_id: str) -> Store[dict[str, Any]]:
     )
 
 
-def dashboard_title_for_entry(hass, entry) -> str:
-    """Return the visible title without exposing vehicle identity unnecessarily.
+def vehicle_brand_for_entry(hass, entry) -> str:
+    """Resolve the user-facing Stellantis brand from the upstream device.
 
-    One configured vehicle needs no disambiguation and therefore uses the
-    neutral ``e-C3`` title. With multiple entries, the upstream/entry title is
-    used only as the automatic differentiator. A user-provided option always
-    wins and can replace either default completely.
+    Stellantis Vehicles registers the selected mobile app (for example
+    ``MyCitroen`` or ``MyDS``) as the device manufacturer. That is a stable
+    source for dashboard naming and does not depend on localized entity IDs or
+    on a model-name lookup that is not consistently exposed by the API.
+    """
+    device_id = entry.data.get(CONF_VEHICLE_DEVICE_ID)
+    device = dr.async_get(hass).async_get(device_id) if device_id else None
+    raw = str(getattr(device, "manufacturer", "") or "").strip()
+    if not raw:
+        return "Stellantis"
+    known = _BRAND_BY_MANUFACTURER.get(raw.casefold())
+    if known:
+        return known
+    # Preserve a future upstream brand instead of hard-coding an e-C3 fallback.
+    return raw[2:] if raw.casefold().startswith("my") and len(raw) > 2 else raw
+
+
+def _brand_entries(hass, brand: str) -> list[Any]:
+    """Return package entries of the same resolved brand in stable order."""
+    entries = [
+        candidate
+        for candidate in hass.config_entries.async_entries(DOMAIN)
+        if vehicle_brand_for_entry(hass, candidate) == brand
+    ]
+    return sorted(entries, key=lambda candidate: candidate.entry_id)
+
+
+def dashboard_title_for_entry(hass, entry) -> str:
+    """Return the visible brand-aware title for one generated dashboard.
+
+    A user-provided name always wins. Otherwise a single vehicle uses just the
+    brand. Multiple package entries of the same brand are numbered without
+    changing their technical vehicle identity.
     """
     configured = str(entry.options.get(OPTION_DASHBOARD_NAME, "")).strip()
     if configured:
         return configured
-    entries = hass.config_entries.async_entries(DOMAIN)
-    if len(entries) <= 1:
-        return "e-C3"
-    fallback = str(entry.title or "").strip() or entry.entry_id[-6:]
-    return f"e-C3 · {fallback}"
+
+    brand = vehicle_brand_for_entry(hass, entry)
+    same_brand = _brand_entries(hass, brand)
+    if len(same_brand) <= 1:
+        return brand
+    try:
+        ordinal = same_brand.index(entry) + 1
+    except ValueError:
+        return brand
+    return f"{brand} ({ordinal})"
 
 
 async def async_remove_dashboard_marker(hass, entry_id: str) -> None:
@@ -157,7 +201,7 @@ async def _async_sync_generated_dashboard_metadata(
         config={"mode": MODE_STORAGE},
         update=True,
     )
-    _LOGGER.info("Updated e-C3 Dashboard title at /%s to %s", url_path, desired_title)
+    _LOGGER.info("Updated dashboard title at /%s to %s", url_path, desired_title)
 
 
 async def async_sync_generated_dashboard_metadata(hass) -> None:
@@ -178,7 +222,7 @@ async def async_ensure_dashboard(hass, entry) -> None:
 
     lovelace = hass.data.get(LOVELACE_DATA)
     if lovelace is None:
-        _LOGGER.warning("Lovelace is not ready; e-C3 Dashboard was not created yet")
+        _LOGGER.warning("Lovelace is not ready; dashboard was not created yet")
         return
 
     if await _async_has_matching_strategy(hass, entry.entry_id):
@@ -186,13 +230,16 @@ async def async_ensure_dashboard(hass, entry) -> None:
         await async_sync_generated_dashboard_metadata(hass)
         return
 
+    # URL migration is intentionally handled separately. Existing installations
+    # and the compact-card navigation still depend on the current stable path;
+    # brand-aware titles are safe to apply independently.
     vehicle_slug = entry.data["vehicle_slug"]
     url_path = slugify(f"e-c3-{vehicle_slug}", separator="-")
     title = dashboard_title_for_entry(hass, entry)
 
     if url_path in lovelace.dashboards:
         _LOGGER.warning(
-            "Cannot create e-C3 Dashboard at /%s because that dashboard already exists",
+            "Cannot create dashboard at /%s because that dashboard already exists",
             url_path,
         )
         await marker_store.async_save({"handled": True, "reason": "url_conflict"})
@@ -211,7 +258,7 @@ async def async_ensure_dashboard(hass, entry) -> None:
             }
         )
     except HomeAssistantError:
-        _LOGGER.exception("Could not create the e-C3 Dashboard storage entry")
+        _LOGGER.exception("Could not create the dashboard storage entry")
         return
 
     dashboard_config = lovelace_dashboard.LovelaceStorage(hass, item)
@@ -236,9 +283,9 @@ async def async_ensure_dashboard(hass, entry) -> None:
             config={"mode": MODE_STORAGE},
         )
     except (HomeAssistantError, ValueError):
-        _LOGGER.exception("Could not register the e-C3 Dashboard panel")
+        _LOGGER.exception("Could not register the dashboard panel")
         return
 
     await marker_store.async_save({"handled": True, "url_path": url_path})
     await async_sync_generated_dashboard_metadata(hass)
-    _LOGGER.info("Created e-C3 Dashboard at /%s for %s", url_path, entry.title)
+    _LOGGER.info("Created dashboard at /%s for %s", url_path, entry.title)
