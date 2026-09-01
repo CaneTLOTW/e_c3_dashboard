@@ -1,0 +1,39 @@
+name: Fix capacity refactor guard once
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/fix-capacity-refactor-guard-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Fix guarded caller count
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('.github/workflows/dev-capacity-refactor-once.yml')
+          text = path.read_text()
+          old = '''          replace_once(\n              card,\n              "                fallbackCapacity: Number(this._config.fallback_capacity_kwh),",\n              "                fallbackCapacity: this._config.fallback_capacity_kwh,",\n          )'''
+          new = '''          replace_all(\n              card,\n              "                fallbackCapacity: Number(this._config.fallback_capacity_kwh),",\n              "                fallbackCapacity: this._config.fallback_capacity_kwh,",\n              2,\n          )'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one guard anchor, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          Path('.github/workflows/fix-capacity-refactor-guard-once.yml').unlink()
+      - name: Commit guard fix
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A .github/workflows
+          git commit -m "ci: fix guarded capacity refactor caller count"
+          git push origin HEAD:develop
