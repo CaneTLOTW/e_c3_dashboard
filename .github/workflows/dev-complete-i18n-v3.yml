@@ -1,0 +1,285 @@
+name: Dev complete language matrix v3
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-complete-i18n-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Export frontend source catalogs
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { FRONTEND_TEXT } from './custom_components/e_c3_dashboard/static/i18n.js';
+          import { EXTRA_FRONTEND_TEXT as west } from './custom_components/e_c3_dashboard/static/i18n-extra-west.js';
+          import { EXTRA_FRONTEND_TEXT as north } from './custom_components/e_c3_dashboard/static/i18n-extra-north.js';
+          import { EXTRA_FRONTEND_TEXT as east } from './custom_components/e_c3_dashboard/static/i18n-extra-east.js';
+          fs.writeFileSync('/tmp/frontend-i18n-source.json', JSON.stringify({ canonical: {
+            tripHistory: FRONTEND_TEXT.tripHistory.en,
+            chargeHistory: FRONTEND_TEXT.chargeHistory.en,
+            vehicleOverview: FRONTEND_TEXT.vehicleOverview.en,
+            dashboard: FRONTEND_TEXT.dashboard.en,
+          }, extras: Object.assign({}, west, north, east) }));
+          JS
+      - name: Generate only missing translations by protected segments
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python <<'PY'
+          from __future__ import annotations
+          import ast
+          import json
+          import re
+          import time
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+          from string import Formatter
+
+          ROOT = Path('custom_components/e_c3_dashboard')
+          STATIC = ROOT / 'static'
+          LANGS = ['it','es','pt','nl','da','nb','sv','fi','pl','cs','sk','hu','ro','sl','hr']
+          GOOGLE_LANG = {'nb': 'no'}
+          PROTECTED_TERMS = sorted([
+              'e-C3 Dashboard', 'Home Assistant', 'Stellantis Vehicles', 'Stellantis',
+              'Recorder', 'HACS', 'ABRP', 'Notify', 'SOC', 'AC', 'DC', 'VIN',
+          ], key=len, reverse=True)
+          CACHE: dict[tuple[str, str], str] = {}
+
+          def fields(value: str) -> list[str]:
+              return sorted(
+                  field_name for _literal, field_name, _spec, _conversion in Formatter().parse(value)
+                  if field_name is not None
+              )
+
+          protected_pattern = re.compile(
+              '(' + '|'.join([
+                  r'\{[^{}]+\}',
+                  *(re.escape(term) for term in PROTECTED_TERMS),
+                  r'\*\*', r'###', r'##', r'`', r'\n',
+              ]) + ')'
+          )
+
+          def translate_plain(target: str, value: str) -> str:
+              if not value or not value.strip():
+                  return value
+              key = (target, value)
+              if key in CACHE:
+                  return CACHE[key]
+              data = urllib.parse.urlencode({
+                  'client': 'gtx', 'sl': 'en', 'tl': GOOGLE_LANG.get(target, target),
+                  'dt': 't', 'q': value,
+              }).encode()
+              request = urllib.request.Request(
+                  'https://translate.googleapis.com/translate_a/single',
+                  data=data,
+                  headers={'User-Agent': 'Mozilla/5.0 e-c3-dashboard-i18n/0.5.54'},
+                  method='POST',
+              )
+              error = None
+              for attempt in range(5):
+                  try:
+                      with urllib.request.urlopen(request, timeout=30) as response:
+                          parsed = json.loads(response.read().decode('utf-8'))
+                      translated = ''.join(segment[0] for segment in parsed[0] if segment and segment[0])
+                      CACHE[key] = translated
+                      time.sleep(0.03)
+                      return translated
+                  except Exception as exc:
+                      error = exc
+                      time.sleep(min(8, 2 ** attempt))
+              raise RuntimeError(f'translation failed for {target}: {error}')
+
+          def translate_value(target: str, value: str) -> str:
+              segments = protected_pattern.split(value)
+              translated = ''.join(
+                  segment if protected_pattern.fullmatch(segment or '') else translate_plain(target, segment)
+                  for segment in segments
+              )
+              if fields(translated) != fields(value):
+                  raise RuntimeError(f'{target}: placeholders changed: {fields(translated)} != {fields(value)} :: {value!r}')
+              for term in PROTECTED_TERMS:
+                  if value.count(term) != translated.count(term):
+                      raise RuntimeError(f'{target}: protected term changed: {term} :: {value!r}')
+              for syntax in ['**', '###', '##', '`', '\n']:
+                  if value.count(syntax) != translated.count(syntax):
+                      raise RuntimeError(f'{target}: protected syntax changed: {syntax!r} :: {value!r}')
+              return translated
+
+          source = json.loads(Path('/tmp/frontend-i18n-source.json').read_text())
+          canonical = source['canonical']
+          extras = source['extras']
+          completions: dict[str, dict[str, dict[str, str]]] = {}
+          for lang in LANGS:
+              count = 0
+              lang_completion: dict[str, dict[str, str]] = {}
+              for namespace in ['tripHistory','chargeHistory','vehicleOverview','dashboard']:
+                  existing = extras.get(lang, {}).get(namespace, {})
+                  for key, english in canonical[namespace].items():
+                      if key in existing:
+                          continue
+                      lang_completion.setdefault(namespace, {})[key] = translate_value(lang, english)
+                      count += 1
+              completions[lang] = lang_completion
+              print(f'frontend {lang}: generated {count} missing strings')
+
+          (STATIC / 'i18n-extra-completions.js').write_text(
+              '/* Machine-generated completion for supported frontend locales.\n'
+              ' * Existing human-reviewed translations are retained; this file contains only previously missing keys.\n'
+              ' */\nexport const FRONTEND_COMPLETIONS = '
+              + json.dumps(completions, ensure_ascii=False, indent=2)
+              + ';\n'
+          )
+
+          tree = ast.parse((ROOT / 'i18n.py').read_text())
+          messages = None
+          for node in tree.body:
+              if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == '_MESSAGES':
+                  messages = ast.literal_eval(node.value)
+                  break
+          if not messages:
+              raise RuntimeError('could not parse _MESSAGES')
+          english = messages['en']
+          server = {}
+          for lang in LANGS:
+              server[lang] = {key: translate_value(lang, value) for key, value in english.items()}
+              print(f'server {lang}: generated {len(server[lang])} strings')
+          (ROOT / 'server_translations.json').write_text(
+              json.dumps(server, ensure_ascii=False, indent=2) + '\n'
+          )
+          PY
+      - name: Wire strict frontend and backend locale resolvers
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('custom_components/e_c3_dashboard')
+          p = root / 'static/i18n.js'
+          text = p.read_text()
+          import_anchor = 'import { EXTRA_FRONTEND_TEXT as EASTERN_TEXT } from "./i18n-extra-east.js?v=0.5.54";\n'
+          completion_import = 'import { FRONTEND_COMPLETIONS } from "./i18n-extra-completions.js?v=0.5.54";\n'
+          if completion_import not in text:
+              if import_anchor not in text:
+                  raise SystemExit('i18n import anchor missing')
+              text = text.replace(import_anchor, import_anchor + completion_import, 1)
+          old = '      FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace].en, ...translated };'
+          new = '''      FRONTEND_TEXT[namespace][language] = {\n        ...translated,\n        ...(FRONTEND_COMPLETIONS[language]?.[namespace] || {}),\n      };'''
+          if old not in text:
+              raise SystemExit('English frontend fallback anchor missing')
+          text = text.replace(old, new, 1)
+          parity_anchor = '''for (const [language, [fuel, fuelRange, fuelConsumption]] of Object.entries(CAPABILITY_LABELS)) {\n  FRONTEND_TEXT.vehicleOverview[language] = { ...FRONTEND_TEXT.vehicleOverview.en, ...FRONTEND_TEXT.vehicleOverview[language], fuel };\n  FRONTEND_TEXT.dashboard[language] = { ...FRONTEND_TEXT.dashboard.en, ...FRONTEND_TEXT.dashboard[language], fuel, fuelRange, fuelConsumption };\n}\n'''
+          parity_new = '''for (const [language, [fuel, fuelRange, fuelConsumption]] of Object.entries(CAPABILITY_LABELS)) {\n  FRONTEND_TEXT.vehicleOverview[language] = { ...FRONTEND_TEXT.vehicleOverview[language], fuel };\n  FRONTEND_TEXT.dashboard[language] = { ...FRONTEND_TEXT.dashboard[language], fuel, fuelRange, fuelConsumption };\n}\n\nfor (const language of SUPPORTED_LANGUAGES) {\n  for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {\n    const canonicalKeys = Object.keys(FRONTEND_TEXT[namespace].en).sort();\n    const translatedKeys = Object.keys(FRONTEND_TEXT[namespace][language] || {}).sort();\n    if (canonicalKeys.length !== translatedKeys.length || canonicalKeys.some((key, index) => key !== translatedKeys[index])) {\n      throw new Error(`Incomplete e-C3 Dashboard frontend translation: ${language}/${namespace}`);\n    }\n  }\n}\n'''
+          if parity_anchor not in text:
+              raise SystemExit('capability label merge anchor missing')
+          text = text.replace(parity_anchor, parity_new, 1)
+          p.write_text(text)
+
+          for file_name in ['i18n-extra-west.js','i18n-extra-north.js','i18n-extra-east.js']:
+              q = root / 'static' / file_name
+              source = q.read_text().replace(
+                  ' * Missing keys deliberately inherit the canonical English catalog in i18n.js.\n',
+                  ' * Human-reviewed and previously supplied translations; missing keys are completed explicitly in i18n-extra-completions.js.\n',
+              )
+              q.write_text(source)
+
+          p = root / '__init__.py'
+          text = p.read_text()
+          anchor = '        "i18n-extra-east.js",\n'
+          if '        "i18n-extra-completions.js",\n' not in text:
+              if anchor not in text:
+                  raise SystemExit('static path anchor missing')
+              text = text.replace(anchor, anchor + '        "i18n-extra-completions.js",\n', 1)
+          p.write_text(text)
+
+          p = root / 'i18n.py'
+          text = p.read_text()
+          text = text.replace(
+              'from __future__ import annotations\n\nfrom typing import Any\n',
+              'from __future__ import annotations\n\nimport json\nfrom pathlib import Path\nfrom typing import Any\n',
+              1,
+          )
+          insert = '''_SUPPORTED_LANGUAGES = {\n    "de", "en", "fr", "it", "es", "pt", "nl", "da", "nb", "sv", "fi",\n    "pl", "cs", "sk", "hu", "ro", "sl", "hr",\n}\n_EXTRA_MESSAGES = json.loads(\n    Path(__file__).with_name("server_translations.json").read_text(encoding="utf-8")\n)\n_MESSAGES.update(_EXTRA_MESSAGES)\n_CANONICAL_MESSAGE_KEYS = set(_MESSAGES["en"])\nfor _language in _SUPPORTED_LANGUAGES:\n    if set(_MESSAGES.get(_language, {})) != _CANONICAL_MESSAGE_KEYS:\n        raise RuntimeError(f"Incomplete e-C3 Dashboard server translation: {_language}")\n\n\n'''
+          marker = '\n\ndef language_for(hass: HomeAssistant) -> str:\n'
+          if marker not in text:
+              raise SystemExit('language_for anchor missing')
+          text = text.replace(marker, '\n\n' + insert + 'def language_for(hass: HomeAssistant) -> str:\n', 1)
+          old = '''def language_for(hass: HomeAssistant) -> str:\n    """Return the supported language selected for this HA instance."""\n    requested = str(hass.config.language or "en").lower()\n    if requested.startswith("de"):\n        return "de"\n    if requested.startswith("fr"):\n        return "fr"\n    return "en"\n'''
+          new = '''def language_for(hass: HomeAssistant) -> str:\n    """Return the normalized supported language selected for this HA instance."""\n    requested = str(hass.config.language or "en").strip().lower().replace("_", "-")\n    base = requested.split("-", 1)[0]\n    if base == "no":\n        base = "nb"\n    return base if base in _SUPPORTED_LANGUAGES else "en"\n'''
+          if old not in text:
+              raise SystemExit('old server resolver missing')
+          text = text.replace(old, new, 1)
+          p.write_text(text)
+
+          p = Path('tests/language-matrix.test.mjs')
+          text = p.read_text()
+          text = text.replace(
+              '''function readExtra(path) {\n  const source = fs.readFileSync(new URL(path, root), "utf8");\n  const sandbox = { catalog: null };\n  vm.runInNewContext(source.replace("export const EXTRA_FRONTEND_TEXT =", "catalog ="), sandbox);\n  return sandbox.catalog;\n}\n''',
+              '''function readExport(path, declaration) {\n  const source = fs.readFileSync(new URL(path, root), "utf8");\n  const sandbox = { catalog: null };\n  vm.runInNewContext(source.replace(declaration, "catalog ="), sandbox);\n  return sandbox.catalog;\n}\n\nfunction readExtra(path) {\n  return readExport(path, "export const EXTRA_FRONTEND_TEXT =");\n}\n''',
+              1,
+          )
+          old_test = re.compile(r'test\("all fifteen additional frontend languages provide every user-facing namespace", \(\) => \{.*?\n\}\);', re.S)
+          new_test = '''test("all fifteen additional frontend languages are completed explicitly without English namespace fill", () => {\n  const catalogs = Object.assign({}, readExtra("static/i18n-extra-west.js"), readExtra("static/i18n-extra-north.js"), readExtra("static/i18n-extra-east.js"));\n  const completions = readExport("static/i18n-extra-completions.js", "export const FRONTEND_COMPLETIONS =");\n  const i18nSource = fs.readFileSync(new URL("static/i18n.js", root), "utf8");\n  for (const language of extraLanguages) {\n    for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {\n      const merged = { ...(catalogs[language]?.[namespace] || {}), ...(completions[language]?.[namespace] || {}) };\n      assert.ok(Object.keys(merged).length > 5, `${language}/${namespace} unexpectedly sparse`);\n    }\n  }\n  assert.doesNotMatch(i18nSource, /\.\.\.FRONTEND_TEXT\[namespace\]\.en/);\n  assert.match(i18nSource, /Incomplete e-C3 Dashboard frontend translation/);\n});'''
+          if not old_test.search(text):
+              raise SystemExit('old sparse frontend locale test missing')
+          text = old_test.sub(new_test, text, count=1)
+          p.write_text(text)
+
+          Path('tests/server-i18n.test.mjs').write_text('''import assert from "node:assert/strict";\nimport fs from "node:fs";\nimport test from "node:test";\n\nconst root = new URL("../custom_components/e_c3_dashboard/", import.meta.url);\nconst source = fs.readFileSync(new URL("i18n.py", root), "utf8");\nconst extra = JSON.parse(fs.readFileSync(new URL("server_translations.json", root), "utf8"));\nconst languages = ["it", "es", "pt", "nl", "da", "nb", "sv", "fi", "pl", "cs", "sk", "hu", "ro", "sl", "hr"];\nconst keys = [\n  "manual_wakeup", "test_title", "test_message", "trip_title", "trip_message", "trip_message_electric",\n  "charge_completed_title", "charge_completed_message", "range_low_title", "range_low_message",\n  "charge_recommended_title", "charge_recommended_message", "service_battery_low_title", "service_battery_low_message",\n  "availability_restored_title", "availability_restored_message", "availability_restored_message_electric",\n  "availability_probe", "availability_outage_title", "availability_outage_message", "charge_started_title",\n  "charge_started_message", "wakeup_charging", "wakeup_hourly", "today_at", "tomorrow_at", "unknown",\n].sort();\n\ntest("server notification translations cover all fifteen additional languages with exact key parity", () => {\n  for (const language of languages) {\n    assert.deepEqual(Object.keys(extra[language] || {}).sort(), keys, `${language} server key mismatch`);\n  }\n});\n\ntest("server resolver supports the full matrix and rejects partial supported catalogs", () => {\n  assert.match(source, /"de", "en", "fr", "it", "es", "pt", "nl", "da", "nb", "sv", "fi"/);\n  assert.match(source, /if base == "no":/);\n  assert.match(source, /base = "nb"/);\n  assert.match(source, /Incomplete e-C3 Dashboard server translation/);\n});\n''')
+          PY
+      - name: Strict language audit
+        run: |
+          node --input-type=module <<'JS'
+          import { FRONTEND_TEXT } from './custom_components/e_c3_dashboard/static/i18n.js';
+          const languages = ['de','en','fr','it','es','pt','nl','da','nb','sv','fi','pl','cs','sk','hu','ro','sl','hr'];
+          for (const namespace of ['tripHistory','chargeHistory','vehicleOverview','dashboard']) {
+            const canonical = Object.keys(FRONTEND_TEXT[namespace].en).sort();
+            for (const language of languages) {
+              const current = Object.keys(FRONTEND_TEXT[namespace][language] || {}).sort();
+              if (JSON.stringify(current) !== JSON.stringify(canonical)) throw new Error(`${language}/${namespace} key mismatch`);
+              for (const key of canonical) {
+                const value = FRONTEND_TEXT[namespace][language][key];
+                if (typeof value !== 'string' || !value.trim()) throw new Error(`${language}/${namespace}/${key} empty`);
+              }
+            }
+          }
+          JS
+          python <<'PY'
+          import ast, json
+          from pathlib import Path
+          root=Path('custom_components/e_c3_dashboard')
+          tree=ast.parse((root/'i18n.py').read_text())
+          base=None
+          for node in tree.body:
+              if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == '_MESSAGES':
+                  base=ast.literal_eval(node.value)
+          extra=json.loads((root/'server_translations.json').read_text())
+          canonical=set(base['en'])
+          for lang,data in extra.items():
+              assert set(data)==canonical, (lang, sorted(canonical-set(data)), sorted(set(data)-canonical))
+          PY
+      - name: Validate completed matrix
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          python -m json.tool custom_components/e_c3_dashboard/server_translations.json >/dev/null
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+      - name: Commit completed language matrix
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "i18n: complete supported language matrix"
+          git push origin HEAD:develop
