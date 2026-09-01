@@ -1,0 +1,204 @@
+name: Dev finalize LLM i18n
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-finalize-llm-i18n.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Wire advanced catalogs and harden tests
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          i18n = Path('custom_components/e_c3_dashboard/static/i18n.js')
+          text = i18n.read_text()
+          anchor = 'import { EXTRA_FRONTEND_TEXT as EASTERN_TEXT } from "./i18n-extra-east.js?v=0.5.54";\n'
+          imports = (
+              anchor
+              + 'import { ADVANCED_FRONTEND_TEXT as ADVANCED_WESTERN_TEXT } from "./i18n-advanced-west.js?v=0.5.54";\n'
+              + 'import { ADVANCED_FRONTEND_TEXT as ADVANCED_NORTHERN_TEXT } from "./i18n-advanced-north.js?v=0.5.54";\n'
+              + 'import { ADVANCED_FRONTEND_TEXT as ADVANCED_EASTERN_TEXT } from "./i18n-advanced-east.js?v=0.5.54";\n'
+          )
+          if 'ADVANCED_WESTERN_TEXT' not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit('i18n advanced import anchor mismatch')
+              text = text.replace(anchor, imports, 1)
+
+          merge_anchor = '''for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {
+            for (const [language, namespaces] of Object.entries(catalog)) {
+              for (const [namespace, translated] of Object.entries(namespaces)) {
+                FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace].en, ...translated };
+              }
+            }
+          }
+
+          const CAPABILITY_LABELS = {'''
+          merge_replacement = '''for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {
+            for (const [language, namespaces] of Object.entries(catalog)) {
+              for (const [namespace, translated] of Object.entries(namespaces)) {
+                FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace].en, ...translated };
+              }
+            }
+          }
+
+          for (const catalog of [ADVANCED_WESTERN_TEXT, ADVANCED_NORTHERN_TEXT, ADVANCED_EASTERN_TEXT]) {
+            for (const [language, namespaces] of Object.entries(catalog)) {
+              for (const [namespace, translated] of Object.entries(namespaces)) {
+                FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace][language], ...translated };
+              }
+            }
+          }
+
+          const CAPABILITY_LABELS = {'''
+          # normalize workflow indentation before matching source file
+          merge_anchor = '\n'.join(line.strip() if False else line for line in merge_anchor.splitlines())
+          merge_replacement = '\n'.join(line.strip() if False else line for line in merge_replacement.splitlines())
+          # source uses no leading workflow indentation
+          merge_anchor = merge_anchor.replace('          ', '')
+          merge_replacement = merge_replacement.replace('          ', '')
+          if 'for (const catalog of [ADVANCED_WESTERN_TEXT' not in text:
+              if text.count(merge_anchor) != 1:
+                  raise SystemExit('i18n advanced merge anchor mismatch')
+              text = text.replace(merge_anchor, merge_replacement, 1)
+          i18n.write_text(text)
+
+          Path('tests/language-matrix.test.mjs').write_text(r'''import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import vm from "node:vm";
+          import test from "node:test";
+
+          const root = new URL("../custom_components/e_c3_dashboard/", import.meta.url);
+          const languages = ["de", "en", "fr", "it", "es", "pt", "nl", "da", "nb", "sv", "fi", "pl", "cs", "sk", "hu", "ro", "sl", "hr"];
+          const extraLanguages = languages.filter((language) => !["de", "en", "fr"].includes(language));
+
+          function keyPaths(value, prefix = "") {
+            const result = [];
+            for (const [key, child] of Object.entries(value)) {
+              const path = prefix ? `${prefix}.${key}` : key;
+              if (child && typeof child === "object" && !Array.isArray(child)) result.push(...keyPaths(child, path));
+              else result.push(path);
+            }
+            return result.sort();
+          }
+
+          function readCatalog(path, exportName) {
+            const source = fs.readFileSync(new URL(path, root), "utf8");
+            const sandbox = { catalog: null };
+            vm.runInNewContext(source.replace(`export const ${exportName} =`, "catalog ="), sandbox);
+            return sandbox.catalog;
+          }
+
+          function placeholders(value) {
+            return [...String(value).matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((match) => match[1]).sort();
+          }
+
+          const baseCatalogs = Object.assign(
+            {},
+            readCatalog("static/i18n-extra-west.js", "EXTRA_FRONTEND_TEXT"),
+            readCatalog("static/i18n-extra-north.js", "EXTRA_FRONTEND_TEXT"),
+            readCatalog("static/i18n-extra-east.js", "EXTRA_FRONTEND_TEXT"),
+          );
+          const advancedCatalogs = Object.assign(
+            {},
+            readCatalog("static/i18n-advanced-west.js", "ADVANCED_FRONTEND_TEXT"),
+            readCatalog("static/i18n-advanced-north.js", "ADVANCED_FRONTEND_TEXT"),
+            readCatalog("static/i18n-advanced-east.js", "ADVANCED_FRONTEND_TEXT"),
+          );
+
+          test("Home Assistant translations cover the planned 18-language matrix with identical keys", () => {
+            const canonical = JSON.parse(fs.readFileSync(new URL("translations/en.json", root), "utf8"));
+            const canonicalKeys = keyPaths(canonical);
+            for (const language of languages) {
+              const path = new URL(`translations/${language}.json`, root);
+              assert.equal(fs.existsSync(path), true, `missing translations/${language}.json`);
+              const catalog = JSON.parse(fs.readFileSync(path, "utf8"));
+              assert.deepEqual(keyPaths(catalog), canonicalKeys, `${language} translation key mismatch`);
+            }
+          });
+
+          test("frontend resolver contains every planned locale and normalizes regional variants", () => {
+            const source = fs.readFileSync(new URL("static/i18n.js", root), "utf8");
+            for (const language of languages) assert.ok(source.includes(`"${language}"`), `resolver missing ${language}`);
+            assert.match(source, /normalized\.split\("-"\)\[0\]/);
+            assert.match(source, /if \(base === "no"\) return "nb"/);
+            assert.match(source, /pt: "pt-PT"/);
+            assert.match(source, /cs: "cs-CZ"/);
+            assert.match(source, /nb: "nb-NO"/);
+            assert.match(source, /return SUPPORTED_LANGUAGES\.has\(requested\) \? requested : "en"/);
+          });
+
+          test("all fifteen additional frontend languages have exact key and placeholder parity", async () => {
+            const { FRONTEND_TEXT } = await import(new URL("static/i18n.js", root));
+            for (const language of extraLanguages) {
+              for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {
+                const combined = {
+                  ...(baseCatalogs[language]?.[namespace] || {}),
+                  ...(advancedCatalogs[language]?.[namespace] || {}),
+                };
+                // Fuel labels are injected centrally from CAPABILITY_LABELS, so compare the final runtime catalog.
+                const runtime = FRONTEND_TEXT[namespace][language];
+                const canonical = FRONTEND_TEXT[namespace].en;
+                assert.deepEqual(Object.keys(runtime).sort(), Object.keys(canonical).sort(), `${language}/${namespace} key mismatch`);
+                for (const key of Object.keys(canonical)) {
+                  assert.deepEqual(placeholders(runtime[key]), placeholders(canonical[key]), `${language}/${namespace}/${key} placeholder mismatch`);
+                  assert.notEqual(String(runtime[key]).trim(), "", `${language}/${namespace}/${key} is empty`);
+                }
+                // Ensure non-capability keys are supplied by actual language catalogs rather than silently inherited English.
+                for (const key of Object.keys(canonical).filter((key) => !["fuel", "fuelRange", "fuelConsumption"].includes(key))) {
+                  assert.ok(Object.hasOwn(combined, key), `${language}/${namespace}/${key} missing from translated catalogs`);
+                }
+              }
+            }
+          });
+
+          test("long-label smoke locales remain explicitly translated", () => {
+            const polish = { ...baseCatalogs.pl.dashboard, ...advancedCatalogs.pl.dashboard };
+            assert.ok(polish.notificationRecipients.length > 5);
+            assert.ok(polish.helpContent.includes("##"));
+            assert.ok(polish.tripHistoryIntro.includes("**—**"));
+          });
+          '''.replace(/^          /gm, ''))
+
+          validate = Path('.github/workflows/validate.yaml')
+          v = validate.read_text()
+          anchor = '''          node --check custom_components/e_c3_dashboard/static/i18n.js
+          node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js'''
+          replacement = '''          node --check custom_components/e_c3_dashboard/static/i18n.js
+          for file in custom_components/e_c3_dashboard/static/i18n-extra-*.js custom_components/e_c3_dashboard/static/i18n-advanced-*.js; do
+            node --check "$file"
+          done
+          node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js'''
+          if v.count(anchor) != 1:
+              raise SystemExit('validate i18n syntax anchor mismatch')
+          validate.write_text(v.replace(anchor, replacement, 1))
+
+          gap = Path('tests/i18n-gap-report.test.mjs')
+          if gap.exists(): gap.unlink()
+          workflow = Path('.github/workflows/dev-finalize-llm-i18n.yml')
+          workflow.unlink()
+          PY
+      - name: Validate completed catalogs
+        run: |
+          python3 -m py_compile custom_components/e_c3_dashboard/*.py
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+      - name: Commit completed catalogs
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "i18n: complete LLM translation matrix"
+          git push origin HEAD:develop
