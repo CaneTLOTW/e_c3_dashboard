@@ -15,18 +15,28 @@ const constSource = fs.readFileSync(
   "utf8",
 );
 
-test("single vehicle uses a neutral dashboard title and multiple entries are disambiguated", () => {
-  assert.match(dashboardSource, /if len\(entries\) <= 1:\n        return "e-C3"/);
-  assert.match(dashboardSource, /return f"e-C3 · \{fallback\}"/);
+test("dashboard title is derived from the upstream Stellantis mobile-app brand", () => {
+  assert.match(dashboardSource, /"mycitroen": "Citroën"/);
+  assert.match(dashboardSource, /"mypeugeot": "Peugeot"/);
+  assert.match(dashboardSource, /"myopel": "Opel"/);
+  assert.match(dashboardSource, /"myds": "DS"/);
+  assert.match(dashboardSource, /"myvauxhall": "Vauxhall"/);
+  assert.match(dashboardSource, /getattr\(device, "manufacturer"/);
+  assert.match(dashboardSource, /return f"\{brand\} \(\{ordinal\}\)"/);
   assert.match(dashboardSource, /entry\.options\.get\(OPTION_DASHBOARD_NAME/);
 });
 
-test("dashboard rename keeps the existing url path and only updates package-owned metadata", () => {
+test("brand title update keeps the existing url path and only updates package-owned metadata", () => {
   assert.match(dashboardSource, /marker\.get\("url_path"\)/);
   assert.match(dashboardSource, /async_update_item\(item\["id"\], \{"title": desired_title\}\)/);
   assert.match(dashboardSource, /frontend_url_path=url_path/);
   assert.match(dashboardSource, /update=True/);
   assert.doesNotMatch(dashboardSource, /async_update_item\([^\n]*url_path/);
+});
+
+test("dashboard URL migration remains explicitly separate from brand-title work", () => {
+  assert.match(dashboardSource, /URL migration is intentionally handled separately/);
+  assert.match(dashboardSource, /url_path = slugify\(f"e-c3-\{vehicle_slug\}"/);
 });
 
 test("dashboard display name is a per-entry option and 0.5.53 cache version", () => {
