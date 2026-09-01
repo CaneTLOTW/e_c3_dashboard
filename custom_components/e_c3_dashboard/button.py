@@ -9,6 +9,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
+from .entity_identity import apply_vehicle_entity_identity
 
 
 async def async_setup_entry(
@@ -35,7 +36,7 @@ class Ec3ActionButton(ButtonEntity):
         self.key = key
         self._attr_translation_key = key
         self._attr_icon = icon
-        self._attr_unique_id = f"{entry.entry_id}_{key}"
+        apply_vehicle_entity_identity(self, coordinator.hass, entry, "button", key)
 
     async def async_press(self) -> None:
         if self.key == "manual_wakeup":
