@@ -1,0 +1,219 @@
+name: Dev i18n cards once
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-i18n-cards-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  localize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Localize bundled custom cards
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one anchor, found {count}: {old[:100]!r}")
+              file.write_text(text.replace(old, new, 1))
+
+          # Keep internal imports on the same cache-busting generation as the
+          # package frontend resource. This matters especially when only the
+          # translation catalog changes on a develop deployment.
+          static = Path("custom_components/e_c3_dashboard/static")
+          for file in static.glob("*.js"):
+              text = file.read_text()
+              text = re.sub(r'(\./i18n\.js\?v=)0\.5\.[0-9]+', r'\g<1>0.5.53', text)
+              file.write_text(text)
+
+          trip = "custom_components/e_c3_dashboard/static/trip-history-card.js"
+          replace_once(
+              trip,
+              '    _locale() {\n        return localeFor(this._config);\n    }\n\n    _text() {\n        return textFor(this._config, "tripHistory");\n    }',
+              '    _i18nContext() {\n        const explicit = String(this._config?.language || "").toLowerCase();\n        return ["de", "en", "fr"].includes(explicit)\n            ? { language: explicit }\n            : (this._hass || this._config);\n    }\n\n    _locale() {\n        return localeFor(this._i18nContext());\n    }\n\n    _text() {\n        return textFor(this._i18nContext(), "tripHistory");\n    }',
+          )
+          replace_once(trip, '        const de = this._locale().startsWith("de");\n', '')
+          replacements = {
+              '${de ? "Letzte 30 Tage; Kurzstrecken ≤ 1 km und 0-km-Ereignisse ausgeblendet." : "Last 30 days; trips ≤ 1 km and 0 km events are hidden."}': '${text.compactFilterNote}',
+              '${de ? "Zeitraum" : "Period"}': '${text.period}',
+              '${de ? "Alle" : "All"}': '${text.all}',
+              '7 ${de ? "Tage" : "days"}': '7 ${text.days}',
+              '30 ${de ? "Tage" : "days"}': '30 ${text.days}',
+              '90 ${de ? "Tage" : "days"}': '90 ${text.days}',
+              '${de ? "≤ 1 km ausblenden" : "Hide ≤ 1 km"}': '${text.hideShort}',
+              '${de ? "nur Verbrauch" : "Consumption only"}': '${text.consumptionOnly}',
+              '${de ? "0-km-Ereignisse" : "0 km events"}': '${text.zeroEvents}',
+              '<strong>SOC Start:</strong>': '<strong>${text.socStart}:</strong>',
+              '<strong>SOC Ende:</strong>': '<strong>${text.socEnd}:</strong>',
+              '${de ? `${trips.length} von ${this._allTrips.length} Fahrten sichtbar` : `${trips.length} of ${this._allTrips.length} trips visible`}': '${text.visibleTrips.replace("{visible}", String(trips.length)).replace("{total}", String(this._allTrips.length))}',
+              '${de ? "Weitere Fahrten laden" : "Load more trips"}': '${text.loadMore}',
+          }
+          trip_path = Path(trip)
+          trip_text = trip_path.read_text()
+          for old, new in replacements.items():
+              count = trip_text.count(old)
+              if count != 1:
+                  raise SystemExit(f"trip-history-card.js: expected one localization anchor, found {count}: {old[:80]!r}")
+              trip_text = trip_text.replace(old, new, 1)
+          if 'const de =' in trip_text or '${de ?' in trip_text:
+              raise SystemExit("trip-history-card.js still contains direct German/English branching")
+          trip_path.write_text(trip_text)
+
+          charge = "custom_components/e_c3_dashboard/static/charge-history-card.js"
+          replace_once(
+              charge,
+              '    _locale() {\n        return localeFor(this._config);\n    }\n\n    _text() {\n        return textFor(this._config, "chargeHistory");\n    }',
+              '    _i18nContext() {\n        const explicit = String(this._config?.language || "").toLowerCase();\n        return ["de", "en", "fr"].includes(explicit)\n            ? { language: explicit }\n            : (this._hass || this._config);\n    }\n\n    _locale() {\n        return localeFor(this._i18nContext());\n    }\n\n    _text() {\n        return textFor(this._i18nContext(), "chargeHistory");\n    }',
+          )
+          replace_once(
+              charge,
+              '        const observed = session.quality === "observed";\n        const de = this._locale().startsWith("de");',
+              '        const observed = session.quality === "observed";\n        const text = this._text();',
+          )
+          charge_replacements = {
+              '${de ? "Geladen" : "Battery energy"}': '${text.batteryEnergy}',
+              '${de ? "Ladebeginn" : "Start"}': '${text.chargeStartDetail}',
+              '${de ? "Ladeende" : "End"}': '${text.chargeEndDetail}',
+              '${de ? "Ladedauer" : "Duration"}': '${text.chargeDurationDetail}',
+              '${de ? "Ø Leistung" : "Average power"}': '${text.averagePowerDetail}',
+              '${de ? "Standzeit" : "Standstill"}': '${text.standstill}',
+              '${de ? "Ladezeit" : "Charging duration"}': '${text.chargingDuration}',
+              '${de ? "Typ" : "Type"}': '${text.type}',
+              '${de ? "Ladekurve anzeigen" : "Show charge curve"}': '${text.showCurve}',
+              '${de ? "Dieser Ladevorgang wurde aus der SOC-Änderung zwischen zwei Fahrten rekonstruiert. Eine Ladezeit oder Ladekurve ist nicht verfügbar." : "This event was reconstructed from the SOC change between two trips. Charging duration and curve are unavailable."}': '${text.reconstructedHint}',
+          }
+          charge_path = Path(charge)
+          charge_text = charge_path.read_text()
+          for old, new in charge_replacements.items():
+              count = charge_text.count(old)
+              if count != 1:
+                  raise SystemExit(f"charge-history-card.js: expected one localization anchor, found {count}: {old[:80]!r}")
+              charge_text = charge_text.replace(old, new, 1)
+          if 'const de =' in charge_text or '${de ?' in charge_text:
+              raise SystemExit("charge-history-card.js still contains direct German/English branching")
+          charge_path.write_text(charge_text)
+
+          vehicle = "custom_components/e_c3_dashboard/static/vehicle-overview-card.js"
+          replace_once(
+              vehicle,
+              ' */\nconst STATUS_DOMAIN = "e_c3_dashboard";',
+              ' */\nimport { languageFor, textFor } from "./i18n.js?v=0.5.53";\n\nconst STATUS_DOMAIN = "e_c3_dashboard";',
+          )
+          replace_once(
+              vehicle,
+              'const candidateLabel = (hass, candidate, index = 0) => {\n  const [, state] = candidate || [];\n  const attributes = state?.attributes || {};\n  const vehicleEntity = attributes.entity_mapping?.vehicle;\n  const vehicle = vehicleEntity ? hass?.states?.[vehicleEntity] : undefined;\n  return String(\n    vehicle?.attributes?.friendly_name ||\n    attributes.vehicle_slug ||\n    `e-C3 ${index + 1}`\n  );\n};',
+              'const candidateLabel = (hass, candidate, index = 0) => {\n  const [, state] = candidate || [];\n  const attributes = state?.attributes || {};\n  const vehicleEntity = attributes.entity_mapping?.vehicle;\n  const vehicle = vehicleEntity ? hass?.states?.[vehicleEntity] : undefined;\n  const strings = textFor(hass, "vehicleOverview");\n  return String(\n    vehicle?.attributes?.friendly_name ||\n    attributes.vehicle_slug ||\n    strings.vehicleFallback.replace("{number}", String(index + 1))\n  );\n};',
+          )
+          replace_once(
+              vehicle,
+              'function buildConfig(hass, config, statusState) {\n  const attributes = statusState.attributes || {};',
+              'function buildConfig(hass, config, statusState) {\n  const strings = textFor(hass, "vehicleOverview");\n  const attributes = statusState.attributes || {};',
+          )
+          vehicle_replacements = {
+              "                return 'bis ' + end;": "                return ${literal(strings.chargingUntil)}.replace('{time}', end);",
+              "              return 'Lädt';": "              return ${literal(strings.charging)};",
+              "                return 'Wird geladen · ' + Number(power.state).toFixed(1).replace('.', ',') + ' kW';": "                return ${literal(strings.charging)} + ' · ' + Number(power.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kW';",
+              "              return 'Wird geladen';": "              return ${literal(strings.charging)};",
+              "                return 'In Fahrt · ' + Number(energy.state).toFixed(1).replace('.', ',') + ' kWh';": "                return ${literal(strings.driving)} + ' · ' + Number(energy.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';",
+              "              return 'In Fahrt';": "              return ${literal(strings.driving)};",
+              "              return 'Batterie · ' + Number(residual.state).toFixed(1).replace('.', ',') + ' kWh';": "              return ${literal(strings.battery)} + ' · ' + Number(residual.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';",
+              "            return 'Batterie';": "            return ${literal(strings.battery)};",
+              '        heading: config.heading || "Mobilität",': '        heading: config.heading || strings.heading,',
+          }
+          vehicle_path = Path(vehicle)
+          vehicle_text = vehicle_path.read_text()
+          for old, new in vehicle_replacements.items():
+              count = vehicle_text.count(old)
+              if count != 1:
+                  raise SystemExit(f"vehicle-overview-card.js: expected one localization anchor, found {count}: {old[:80]!r}")
+              vehicle_text = vehicle_text.replace(old, new, 1)
+          vehicle_path.write_text(vehicle_text)
+          replace_once(
+              vehicle,
+              '    return JSON.stringify([\n      entityId,',
+              '    return JSON.stringify([\n      languageFor(this._hass),\n      entityId,',
+          )
+          replace_once(
+              vehicle,
+              '  async _rebuild() {\n    if (!this.isConnected || !this._hass || this._building) return;\n    const selected = this._selected();\n    if (!selected) {\n      const all = statusCandidates(this._hass);\n      const message = all.length > 1 && !this._config.entry_id\n        ? "e-C3 Dashboard: mehrere Fahrzeuge gefunden. Bitte im Karteneditor ein Fahrzeug auswählen."\n        : this._config.entry_id\n          ? "e-C3 Dashboard: das konfigurierte Fahrzeug ist nicht verfügbar."\n          : "e-C3 Dashboard: kein eindeutig zugeordnetes Fahrzeug gefunden.";',
+              '  async _rebuild() {\n    if (!this.isConnected || !this._hass || this._building) return;\n    const strings = textFor(this._hass, "vehicleOverview");\n    const selected = this._selected();\n    if (!selected) {\n      const all = statusCandidates(this._hass);\n      const message = all.length > 1 && !this._config.entry_id\n        ? strings.multipleVehicles\n        : this._config.entry_id\n          ? strings.configuredUnavailable\n          : strings.noUniqueVehicle;',
+          )
+          replace_once(
+              vehicle,
+              '  _render() {\n    if (!this.isConnected || !this._hass) return;\n    const candidates = statusCandidates(this._hass);\n    if (candidates.length === 0) {\n      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">Keine e-C3-Dashboard-Instanz verfügbar.</div>`;\n      return;\n    }\n    if (candidates.length === 1) {\n      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">Fahrzeug: automatisch · ${candidateLabel(this._hass, candidates[0], 0)}</div>`;\n      return;\n    }',
+              '  _render() {\n    if (!this.isConnected || !this._hass) return;\n    const strings = textFor(this._hass, "vehicleOverview");\n    const candidates = statusCandidates(this._hass);\n    if (candidates.length === 0) {\n      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">${strings.noInstance}</div>`;\n      return;\n    }\n    if (candidates.length === 1) {\n      const label = candidateLabel(this._hass, candidates[0], 0);\n      this.innerHTML = `<div style="padding:12px 0;color:var(--secondary-text-color)">${strings.vehicleAuto.replace("{vehicle}", label)}</div>`;\n      return;\n    }',
+          )
+          replace_once(
+              vehicle,
+              '      <label style="display:block;padding:8px 0;font-weight:500">Fahrzeug</label>\n      <select id="vehicle" style="box-sizing:border-box;width:100%;min-height:42px;padding:0 10px;border:1px solid var(--divider-color);border-radius:10px;background:var(--card-background-color);color:var(--primary-text-color)">\n        <option value=""${this._config.entry_id ? "" : " selected"}>Fahrzeug auswählen …</option>\n        ${options}\n      </select>\n      <div style="padding:8px 0;color:var(--secondary-text-color);font-size:12px">Die Auswahl wird als e-C3-Config-Entry gespeichert und bleibt fest diesem Fahrzeug zugeordnet.</div>`;',
+              '      <label style="display:block;padding:8px 0;font-weight:500">${strings.vehicle}</label>\n      <select id="vehicle" style="box-sizing:border-box;width:100%;min-height:42px;padding:0 10px;border:1px solid var(--divider-color);border-radius:10px;background:var(--card-background-color);color:var(--primary-text-color)">\n        <option value=""${this._config.entry_id ? "" : " selected"}>${strings.selectVehicle}</option>\n        ${options}\n      </select>\n      <div style="padding:8px 0;color:var(--secondary-text-color);font-size:12px">${strings.selectionHint}</div>`;',
+          )
+          replace_once(
+              vehicle,
+              'window.customCards = window.customCards || [];\nif (!window.customCards.some((card) => card.type === CARD_TAG)) {\n  window.customCards.push({\n    type: CARD_TAG,\n    name: "e-C3 Fahrzeugübersicht",\n    description: "Kompakte e-C3 Live-Karte für die Home-Assistant-Startseite",',
+              'const registrationStrings = textFor(\n  { locale: { language: typeof navigator !== "undefined" ? navigator.language : "en" } },\n  "vehicleOverview",\n);\nwindow.customCards = window.customCards || [];\nif (!window.customCards.some((card) => card.type === CARD_TAG)) {\n  window.customCards.push({\n    type: CARD_TAG,\n    name: registrationStrings.cardName,\n    description: registrationStrings.cardDescription,',
+          )
+
+          vehicle_text = Path(vehicle).read_text()
+          for forbidden in [
+              '"Mobilität"',
+              'Wird geladen',
+              'In Fahrt',
+              'mehrere Fahrzeuge gefunden',
+              'Keine e-C3-Dashboard-Instanz verfügbar',
+              'Fahrzeug auswählen …',
+              'e-C3 Fahrzeugübersicht',
+          ]:
+              if forbidden in vehicle_text:
+                  raise SystemExit(f"vehicle-overview-card.js still contains hard-coded UI text: {forbidden}")
+
+          test_path = Path("tests/vehicle-overview-card.test.mjs")
+          test_text = test_path.read_text()
+          test_replacements = {
+              '  assert.match(source, /heading: config\\.heading \\|\\| "Mobilität"/);': '  assert.match(source, /heading: config\\.heading \\|\\| strings\\.heading/);',
+              '  assert.match(source, /if \\(isCharging\\)[\\s\\S]*Wird geladen ·/);\n  assert.match(source, /if \\(isDriving\\)[\\s\\S]*In Fahrt ·/);\n  assert.match(source, /const residual = states\\[/);\n  assert.match(source, /return \'Batterie · \' \\+ Number\\(residual\\.state\\).*\' kWh\'/);\n  assert.match(source, /return \'Batterie\';/);': '  assert.match(source, /if \\(isCharging\\)[\\s\\S]*literal\\(strings\\.charging\\)/);\n  assert.match(source, /if \\(isDriving\\)[\\s\\S]*literal\\(strings\\.driving\\)/);\n  assert.match(source, /const residual = states\\[/);\n  assert.match(source, /literal\\(strings\\.battery\\)/);',
+              '  assert.match(source, /mehrere Fahrzeuge gefunden/);\n  assert.match(source, /Bitte im Karteneditor ein Fahrzeug auswählen/);': '  assert.match(source, /strings\\.multipleVehicles/);\n  assert.match(source, /strings\\.configuredUnavailable/);\n  assert.match(source, /strings\\.noUniqueVehicle/);',
+              '  assert.match(source, /Fahrzeug auswählen/);': '  assert.match(source, /strings\\.selectVehicle/);',
+          }
+          for old, new in test_replacements.items():
+              count = test_text.count(old)
+              if count != 1:
+                  raise SystemExit(f"vehicle-overview-card.test.mjs: expected one anchor, found {count}: {old[:80]!r}")
+              test_text = test_text.replace(old, new, 1)
+          test_text += '''\n\ntest("vehicle overview localizes runtime and editor text through the shared catalog", () => {\n  assert.match(source, /import \\{ languageFor, textFor \\} from "\\.\\/i18n\\.js\\?v=0\\.5\\.53"/);\n  assert.match(source, /textFor\\(hass, "vehicleOverview"\\)/);\n  assert.match(source, /languageFor\\(this\\._hass\\)/);\n  assert.match(source, /registrationStrings\\.cardName/);\n  assert.doesNotMatch(source, /Wird geladen|In Fahrt|mehrere Fahrzeuge gefunden|Fahrzeug auswählen/);\n});\n'''
+          test_path.write_text(test_text)
+
+          Path("tests/frontend-i18n.test.mjs").write_text('''import assert from "node:assert/strict";\nimport fs from "node:fs";\nimport test from "node:test";\n\nconst read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");\nconst catalog = read("../custom_components/e_c3_dashboard/static/i18n.js");\nconst trip = read("../custom_components/e_c3_dashboard/static/trip-history-card.js");\nconst charge = read("../custom_components/e_c3_dashboard/static/charge-history-card.js");\nconst vehicle = read("../custom_components/e_c3_dashboard/static/vehicle-overview-card.js");\n\ntest("frontend catalog exposes German English and French namespaces", () => {\n  for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {\n    assert.match(catalog, new RegExp(`${namespace}: \\{[\\s\\S]*?de: \\{[\\s\\S]*?en: \\{[\\s\\S]*?fr: \\{`));\n  }\n  assert.match(catalog, /requested\\.startsWith\\("fr"\\)/);\n  assert.match(catalog, /if \\(language === "fr"\\) return "fr-FR"/);\n});\n\ntest("trip and charge cards use HA locale when language is automatic", () => {\n  for (const source of [trip, charge]) {\n    assert.match(source, /_i18nContext\\(\\)/);\n    assert.match(source, /\\["de", "en", "fr"\\]\\.includes\\(explicit\\)/);\n    assert.match(source, /this\\._hass \\|\\| this\\._config/);\n    assert.doesNotMatch(source, /const de =|\\$\\{de \\?/);\n  }\n});\n\ntest("localized custom cards consume catalog keys instead of hard-coded German UI text", () => {\n  assert.match(trip, /text\\.compactFilterNote/);\n  assert.match(trip, /text\\.visibleTrips/);\n  assert.match(charge, /text\\.batteryEnergy/);\n  assert.match(charge, /text\\.reconstructedHint/);\n  assert.match(vehicle, /textFor\\(hass, "vehicleOverview"\\)/);\n  assert.doesNotMatch(vehicle, /Wird geladen|In Fahrt|mehrere Fahrzeuge gefunden|Fahrzeug auswählen/);\n});\n''')
+
+          # One-shot workflow deletes itself in the resulting source commit.
+          Path(".github/workflows/dev-i18n-cards-once.yml").unlink()
+
+      - name: Validate transformed source
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+
+      - name: Commit transformed source
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "i18n: localize bundled custom cards"
+          git push origin HEAD:develop
