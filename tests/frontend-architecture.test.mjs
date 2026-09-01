@@ -9,7 +9,7 @@ const frontend = read("static/frontend.js");
 const strategy = read("static/e_c3_dashboard.js");
 const overview = read("static/vehicle-overview-card.js");
 const gps = read("static/gps-history-card.js");
-const i18n = read("static/i18n.js");
+const i18n = read("static/i18n-core.js");
 const constants = read("const.py");
 const init = read("__init__.py");
 const switches = read("switch.py");
@@ -192,7 +192,6 @@ test("wake-up action stays a real button press, shows command status, and views 
   assert.match(strategy, /const mappedEntityCount = Object\.keys\(mapped\)\.length/);
   assert.match(strategy, /target\.innerText='\$\{mappedEntityCount\}'/);
 });
-
 
 test("vehicle information popup uses neutral attributes and HA-native relative time", () => {
   assert.match(strategy, /attribute: "maintenance_days_remaining", name: strings\.daysRemaining/);
