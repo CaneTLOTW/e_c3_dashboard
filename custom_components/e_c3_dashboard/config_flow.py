@@ -6,6 +6,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.components.lovelace.const import LOVELACE_DATA
+from homeassistant.const import UnitOfEnergy
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -14,6 +15,7 @@ from homeassistant.util import slugify
 
 from .compatibility import async_check_upstream_compatibility
 from .const import (
+    CONF_BATTERY_CAPACITY_KWH,
     CONF_VEHICLE_DEVICE_ID,
     CONF_VEHICLE_SLUG,
     DEFAULT_OPTIONS,
@@ -29,6 +31,19 @@ from .const import (
     REQUIRED_DASHBOARD_CARDS,
     UPSTREAM_DOMAIN,
 )
+
+
+def _battery_capacity_selector() -> selector.NumberSelector:
+    """Return the per-vehicle manual battery-capacity fallback selector."""
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=1,
+            max=250,
+            step=0.1,
+            unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            mode=selector.NumberSelectorMode.BOX,
+        )
+    )
 
 
 class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -62,12 +77,16 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     await self.async_set_unique_id(f"{DOMAIN}_{device_id}")
                     self._abort_if_unique_id_configured()
+                    data = {
+                        CONF_VEHICLE_DEVICE_ID: device_id,
+                        CONF_VEHICLE_SLUG: vehicle_slug,
+                    }
+                    capacity = user_input.get(CONF_BATTERY_CAPACITY_KWH)
+                    if capacity is not None:
+                        data[CONF_BATTERY_CAPACITY_KWH] = float(capacity)
                     return self.async_create_entry(
                         title=self._vehicle_name(device_id),
-                        data={
-                            CONF_VEHICLE_DEVICE_ID: device_id,
-                            CONF_VEHICLE_SLUG: vehicle_slug,
-                        },
+                        data=data,
                     )
 
         schema = vol.Schema(
@@ -76,6 +95,7 @@ class Ec3DashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.DeviceSelectorConfig(integration=UPSTREAM_DOMAIN)
                 ),
                 vol.Required(CONF_VEHICLE_SLUG, default="e_c3"): str,
+                vol.Optional(CONF_BATTERY_CAPACITY_KWH): _battery_capacity_selector(),
             }
         )
         return self.async_show_form(
@@ -171,12 +191,28 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
     """Configure one vehicle dashboard without changing its identity."""
 
     async def async_step_init(self, user_input=None):
-        """Configure title and portable modules."""
+        """Configure title, capacity fallback and portable modules."""
         if user_input is not None:
             normalized = dict(user_input)
             normalized[OPTION_DASHBOARD_NAME] = str(
                 normalized.get(OPTION_DASHBOARD_NAME, "")
             ).strip()
+
+            # Battery capacity is vehicle setup data, not a runtime module
+            # toggle. Keep one canonical value in ConfigEntry.data while still
+            # allowing an existing entry to maintain or clear it from Options.
+            capacity = normalized.pop(CONF_BATTERY_CAPACITY_KWH, None)
+            entry_data = dict(self.config_entry.data)
+            if capacity is None:
+                entry_data.pop(CONF_BATTERY_CAPACITY_KWH, None)
+            else:
+                entry_data[CONF_BATTERY_CAPACITY_KWH] = float(capacity)
+            if entry_data != dict(self.config_entry.data):
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    data=entry_data,
+                )
+
             return self.async_create_entry(title="", data=normalized)
 
         options = dict(DEFAULT_OPTIONS)
@@ -194,12 +230,20 @@ class Ec3DashboardOptionsFlow(config_entries.OptionsFlow):
                 mode=selector.SelectSelectorMode.DROPDOWN,
             )
         )
+
+        current_capacity = self.config_entry.data.get(CONF_BATTERY_CAPACITY_KWH)
+        capacity_key = (
+            vol.Optional(CONF_BATTERY_CAPACITY_KWH, default=float(current_capacity))
+            if current_capacity is not None
+            else vol.Optional(CONF_BATTERY_CAPACITY_KWH)
+        )
         schema = vol.Schema(
             {
                 vol.Optional(
                     OPTION_DASHBOARD_NAME,
                     default=options[OPTION_DASHBOARD_NAME],
                 ): str,
+                capacity_key: _battery_capacity_selector(),
                 vol.Required(OPTION_TRIPS, default=options[OPTION_TRIPS]): bool,
                 vol.Required(
                     OPTION_CHARGING, default=options[OPTION_CHARGING]
