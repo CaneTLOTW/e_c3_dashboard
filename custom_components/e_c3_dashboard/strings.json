@@ -11,10 +11,11 @@
       },
       "user": {
         "title": "Select vehicle",
-        "description": "Choose a vehicle that is already configured by Stellantis Vehicles.",
+        "description": "Choose a vehicle that is already configured by Stellantis Vehicles. The optional battery capacity is only a per-vehicle fallback when Stellantis does not provide a usable capacity value.",
         "data": {
           "vehicle_device_id": "Stellantis vehicle",
-          "vehicle_slug": "Vehicle identifier"
+          "vehicle_slug": "Vehicle identifier",
+          "battery_capacity_kwh": "Battery capacity fallback"
         }
       }
     },
@@ -35,6 +36,7 @@
         "title": "Dashboard modules",
         "data": {
           "dashboard_name": "Dashboard display name (empty = automatic)",
+          "battery_capacity_kwh": "Battery capacity fallback",
           "trips": "Trip history",
           "charging": "Charging history and curves",
           "gps": "GPS history",
