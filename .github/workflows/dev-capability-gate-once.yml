@@ -1,0 +1,220 @@
+name: Dev vehicle capability gate once
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-capability-gate-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  capability-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Apply guarded capability refactor
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one anchor, found {count}: {old[:120]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          # Serve all internal i18n modules through the package static path.
+          replace_once(
+              "custom_components/e_c3_dashboard/__init__.py",
+              '        "i18n.js",\n    ]',
+              '        "i18n.js",\n        "i18n-extra-west.js",\n        "i18n-extra-north.js",\n        "i18n-extra-east.js",\n    ]',
+          )
+          replace_once(
+              "custom_components/e_c3_dashboard/__init__.py",
+              '    metrics = VehicleMetricsManager(hass, entry, coordinator.data["entity_mapping"])',
+              '    metrics = VehicleMetricsManager(\n        hass,\n        entry,\n        coordinator.data["entity_mapping"],\n        coordinator.data.get("capabilities"),\n    )',
+          )
+
+          # Publish powertrain/capabilities to the status contract used by all cards.
+          replace_once(
+              "custom_components/e_c3_dashboard/sensor.py",
+              '            "vehicle_tracker": self.coordinator.data["vehicle_tracker"],\n            "entity_mapping": self.coordinator.data["entity_mapping"],',
+              '            "vehicle_tracker": self.coordinator.data["vehicle_tracker"],\n            "powertrain": self.coordinator.data.get("powertrain", "unknown"),\n            "capabilities": self.coordinator.data.get("capabilities", {}),\n            "entity_mapping": self.coordinator.data["entity_mapping"],',
+          )
+
+          # Metrics may only derive electric kWh when the vehicle actually has
+          # an electric traction capability.
+          replace_once(
+              "custom_components/e_c3_dashboard/metrics.py",
+              '    def __init__(self, hass: HomeAssistant, entry, entity_mapping: dict[str, str]):\n        self.hass = hass\n        self.entry = entry\n        self.mapping = entity_mapping',
+              '    def __init__(\n        self,\n        hass: HomeAssistant,\n        entry,\n        entity_mapping: dict[str, str],\n        capabilities: dict[str, bool] | None = None,\n    ):\n        self.hass = hass\n        self.entry = entry\n        self.mapping = entity_mapping\n        self.capabilities = capabilities or {}',
+          )
+          replace_once(
+              "custom_components/e_c3_dashboard/metrics.py",
+              '    def current_trip_energy(self) -> float | None:\n        active = self.data.get("active_trip")',
+              '    def current_trip_energy(self) -> float | None:\n        if not self.capabilities.get("electric_trip_metrics", bool(self.mapping.get("battery"))):\n            return None\n        active = self.data.get("active_trip")',
+          )
+          replace_once(
+              "custom_components/e_c3_dashboard/metrics.py",
+              '    def trailing_consumption(self) -> dict[str, Any]:\n        remaining = _WINDOW_KM',
+              '    def trailing_consumption(self) -> dict[str, Any]:\n        if not self.capabilities.get("electric_trip_metrics", bool(self.mapping.get("battery"))):\n            return {\n                "value": None,\n                "distance_km": 0.0,\n                "energy_kwh": 0.0,\n                "trip_count": 0,\n                "complete": False,\n            }\n        remaining = _WINDOW_KM',
+          )
+          replace_once(
+              "custom_components/e_c3_dashboard/metrics.py",
+              '    def distance_since_charge(self) -> float | None:\n        baseline = self._as_float(self.data.get("charge_odometer_km"))',
+              '    def distance_since_charge(self) -> float | None:\n        if not self.capabilities.get("charge_history", bool(self.mapping.get("battery_charging"))):\n            return None\n        baseline = self._as_float(self.data.get("charge_odometer_km"))',
+          )
+          replace_once(
+              "custom_components/e_c3_dashboard/metrics.py",
+              '    def battery_capacity(self) -> tuple[float | None, str | None]:\n        """Return capacity and provenance without inventing a vehicle default."""\n        current = self._number("battery_capacity")',
+              '    def battery_capacity(self) -> tuple[float | None, str | None]:\n        """Return capacity and provenance without inventing a vehicle default."""\n        if not self.capabilities.get("battery_capacity", bool(self.mapping.get("battery"))):\n            return None, None\n        current = self._number("battery_capacity")',
+          )
+          replace_once(
+              "custom_components/e_c3_dashboard/metrics.py",
+              '    async def _async_capture_capacity(self) -> None:\n        """Persist only a valid upstream/API capacity for later temporary gaps."""\n        current = self._number("battery_capacity")',
+              '    async def _async_capture_capacity(self) -> None:\n        """Persist only a valid upstream/API capacity for later temporary gaps."""\n        if not self.capabilities.get("battery_capacity", bool(self.mapping.get("battery"))):\n            return\n        current = self._number("battery_capacity")',
+          )
+
+          # Config flow: Thermic/Hydrogen no longer require battery entities and
+          # never see/store the traction-battery fallback. Electric/Hybrid get
+          # a second render of the same translated step with the optional kWh field.
+          p = Path("custom_components/e_c3_dashboard/config_flow.py")
+          text = p.read_text()
+          import_anchor = 'from .compatibility import async_check_upstream_compatibility\n'
+          if text.count(import_anchor) != 1:
+              raise SystemExit("config_flow import anchor mismatch")
+          text = text.replace(
+              import_anchor,
+              'from .capabilities import capability_map, mapping_from_registry_entries, powertrain_from_mapping\n' + import_anchor,
+              1,
+          )
+          method_start = text.index('    async def async_step_user(self, user_input=None):')
+          method_end = text.index('    async def async_step_dashboard_cards', method_start)
+          new_user = '''    async def async_step_user(self, user_input=None):\n        """Select one vehicle; request traction capacity only when relevant."""\n        if not self.context.get("dashboard_card_preflight_seen"):\n            return await self.async_step_dashboard_cards()\n\n        if not self.hass.config_entries.async_entries(UPSTREAM_DOMAIN):\n            return self.async_abort(reason="missing_upstream")\n\n        compatibility = await async_check_upstream_compatibility(self.hass)\n        if not compatibility["version_supported"]:\n            return self.async_abort(reason="unsupported_upstream_version")\n\n        errors: dict[str, str] = {}\n        if user_input is not None:\n            device_id = user_input[CONF_VEHICLE_DEVICE_ID]\n            if not self._is_upstream_vehicle(device_id):\n                errors[CONF_VEHICLE_DEVICE_ID] = "invalid_vehicle"\n            elif not self._has_required_upstream_entities(device_id):\n                errors[CONF_VEHICLE_DEVICE_ID] = "upstream_not_ready"\n            else:\n                await self.async_set_unique_id(f"{DOMAIN}_{device_id}")\n                self._abort_if_unique_id_configured()\n\n                requested_slug = str(user_input.get(CONF_VEHICLE_SLUG, "") or "").strip()\n                if requested_slug:\n                    vehicle_slug = slugify(requested_slug)\n                    if not vehicle_slug:\n                        errors[CONF_VEHICLE_SLUG] = "invalid_slug"\n                    elif self._slug_in_use(vehicle_slug):\n                        errors[CONF_VEHICLE_SLUG] = "slug_in_use"\n                else:\n                    base_slug = slugify(self._vehicle_name(device_id)) or "vehicle"\n                    vehicle_slug = self._available_vehicle_slug(base_slug)\n\n                if CONF_VEHICLE_SLUG not in errors:\n                    capabilities = _vehicle_capabilities_for_device(self.hass, device_id)\n                    needs_capacity = capabilities.get("battery_capacity", False)\n                    if needs_capacity and self.context.get("capacity_prompt_for") != device_id:\n                        self.context["capacity_prompt_for"] = device_id\n                        self.context["capacity_prompt_slug"] = vehicle_slug\n                    else:\n                        data = {\n                            CONF_VEHICLE_DEVICE_ID: device_id,\n                            CONF_VEHICLE_SLUG: vehicle_slug,\n                        }\n                        if needs_capacity:\n                            capacity = user_input.get(CONF_BATTERY_CAPACITY_KWH)\n                            if capacity is not None:\n                                data[CONF_BATTERY_CAPACITY_KWH] = float(capacity)\n                        return self.async_create_entry(\n                            title=self._vehicle_name(device_id),\n                            data=data,\n                        )\n\n        prompt_device = self.context.get("capacity_prompt_for")\n        fields = {}\n        if prompt_device:\n            fields[vol.Required(CONF_VEHICLE_DEVICE_ID, default=prompt_device)] = selector.DeviceSelector(\n                selector.DeviceSelectorConfig(integration=UPSTREAM_DOMAIN)\n            )\n            fields[vol.Optional(\n                CONF_VEHICLE_SLUG,\n                default=self.context.get("capacity_prompt_slug", ""),\n            )] = str\n            fields[vol.Optional(CONF_BATTERY_CAPACITY_KWH)] = _battery_capacity_selector()\n        else:\n            fields[vol.Required(CONF_VEHICLE_DEVICE_ID)] = selector.DeviceSelector(\n                selector.DeviceSelectorConfig(integration=UPSTREAM_DOMAIN)\n            )\n            fields[vol.Optional(CONF_VEHICLE_SLUG)] = str\n\n        return self.async_show_form(\n            step_id="user",\n            data_schema=vol.Schema(fields),\n            errors=errors,\n        )\n\n'''
+          text = text[:method_start] + new_user + text[method_end:]
+
+          helper_anchor = '\ndef _battery_capacity_selector() -> selector.NumberSelector:\n'
+          helper_pos = text.index(helper_anchor)
+          helper_code = '''\ndef _upstream_vehicle_entries(hass, device_id: str):\n    upstream_entry_ids = {\n        entry.entry_id\n        for entry in hass.config_entries.async_entries(UPSTREAM_DOMAIN)\n    }\n    entity_registry = er.async_get(hass)\n    return [\n        registry_entry\n        for registry_entry in er.async_entries_for_device(entity_registry, device_id)\n        if registry_entry.config_entry_id in upstream_entry_ids\n    ]\n\n\ndef _vehicle_capabilities_for_device(hass, device_id: str) -> dict[str, bool]:\n    mapping = mapping_from_registry_entries(_upstream_vehicle_entries(hass, device_id))\n    powertrain = powertrain_from_mapping(hass, mapping)\n    return capability_map(powertrain, mapping)\n\n'''
+          text = text[:helper_pos] + helper_code + text[helper_pos:]
+
+          old_required_start = text.index('    def _has_required_upstream_entities(self, device_id: str) -> bool:')
+          old_required_end = text.index('    def _slug_in_use', old_required_start)
+          new_required = '''    def _has_required_upstream_entities(self, device_id: str) -> bool:\n        """Require universal vehicle basics; battery is capability-specific."""\n        entries = _upstream_vehicle_entries(self.hass, device_id)\n        keys = {registry_entry.translation_key for registry_entry in entries}\n        return (\n            {"vehicle", "mileage"}.issubset(keys)\n            and any(entry.entity_id.startswith("device_tracker.") for entry in entries)\n        )\n\n'''
+          text = text[:old_required_start] + new_required + text[old_required_end:]
+
+          # Options schema: only Electric/Hybrid present the capacity fallback.
+          old_schema = '''        schema = vol.Schema(\n            {\n                vol.Optional(\n                    OPTION_DASHBOARD_NAME,\n                    default=options[OPTION_DASHBOARD_NAME],\n                ): str,\n                capacity_key: _battery_capacity_selector(),'''
+          new_schema = '''        fields = {\n            vol.Optional(\n                OPTION_DASHBOARD_NAME,\n                default=options[OPTION_DASHBOARD_NAME],\n            ): str,\n        }\n        capabilities = _vehicle_capabilities_for_device(\n            self.hass, self.config_entry.data[CONF_VEHICLE_DEVICE_ID]\n        )\n        if capabilities.get("battery_capacity", False):\n            fields[capacity_key] = _battery_capacity_selector()\n        fields.update(\n            {'''
+          if text.count(old_schema) != 1:
+              raise SystemExit("config_flow options schema anchor mismatch")
+          text = text.replace(old_schema, new_schema, 1)
+          old_schema_end = '''                ),\n            }\n        )\n        return self.async_show_form(step_id="init", data_schema=schema)'''
+          new_schema_end = '''                ),\n            }\n        )\n        schema = vol.Schema(fields)\n        return self.async_show_form(step_id="init", data_schema=schema)'''
+          if text.count(old_schema_end) != 1:
+              raise SystemExit("config_flow options schema end anchor mismatch")
+          text = text.replace(old_schema_end, new_schema_end, 1)
+          p.write_text(text)
+
+          # Central frontend labels for the new fuel capability; additional
+          # languages inherit their existing catalog and receive these labels.
+          p = Path("custom_components/e_c3_dashboard/static/i18n.js")
+          text = p.read_text()
+          insert_anchor = '''for (const catalog of [WESTERN_TEXT, NORTHERN_TEXT, EASTERN_TEXT]) {\n  for (const [language, namespaces] of Object.entries(catalog)) {\n    for (const [namespace, translated] of Object.entries(namespaces)) {\n      FRONTEND_TEXT[namespace][language] = { ...FRONTEND_TEXT[namespace].en, ...translated };\n    }\n  }\n}\n'''
+          labels = '''\nconst CAPABILITY_LABELS = {\n  de: ["Kraftstoff", "Kraftstoffreichweite", "Kraftstoffverbrauch"], en: ["Fuel", "Fuel range", "Fuel consumption"],\n  fr: ["Carburant", "Autonomie carburant", "Consommation carburant"], it: ["Carburante", "Autonomia carburante", "Consumo carburante"],\n  es: ["Combustible", "Autonomía de combustible", "Consumo de combustible"], pt: ["Combustível", "Autonomia de combustível", "Consumo de combustível"],\n  nl: ["Brandstof", "Brandstofbereik", "Brandstofverbruik"], da: ["Brændstof", "Brændstofrækkevidde", "Brændstofforbrug"],\n  nb: ["Drivstoff", "Drivstoffrekkevidde", "Drivstofforbruk"], sv: ["Bränsle", "Bränsleräckvidd", "Bränsleförbrukning"],\n  fi: ["Polttoaine", "Polttoaineen toimintamatka", "Polttoaineenkulutus"], pl: ["Paliwo", "Zasięg na paliwie", "Zużycie paliwa"],\n  cs: ["Palivo", "Dojezd na palivo", "Spotřeba paliva"], sk: ["Palivo", "Dojazd na palivo", "Spotreba paliva"],\n  hu: ["Üzemanyag", "Üzemanyag-hatótáv", "Üzemanyag-fogyasztás"], ro: ["Combustibil", "Autonomie combustibil", "Consum combustibil"],\n  sl: ["Gorivo", "Doseg z gorivom", "Poraba goriva"], hr: ["Gorivo", "Doseg goriva", "Potrošnja goriva"],\n};\nfor (const [language, [fuel, fuelRange, fuelConsumption]] of Object.entries(CAPABILITY_LABELS)) {\n  FRONTEND_TEXT.vehicleOverview[language] = { ...FRONTEND_TEXT.vehicleOverview.en, ...FRONTEND_TEXT.vehicleOverview[language], fuel };\n  FRONTEND_TEXT.dashboard[language] = { ...FRONTEND_TEXT.dashboard.en, ...FRONTEND_TEXT.dashboard[language], fuel, fuelRange, fuelConsumption };\n}\n'''
+          if text.count(insert_anchor) != 1:
+              raise SystemExit("i18n catalog merge anchor mismatch")
+          p.write_text(text.replace(insert_anchor, insert_anchor + labels, 1))
+
+          # Shared Hero: Electric/Hybrid keep battery semantics; Thermic uses
+          # fuel level/range and never renders charging or residual-kWh states.
+          p = Path("custom_components/e_c3_dashboard/static/vehicle-overview-card.js")
+          text = p.read_text()
+          text = text.replace(
+              '''  const battery = mapped.battery;\n  const batteryResidual = mapped.battery_residual;\n  const autonomy = mapped.autonomy;''',
+              '''  const capabilities = attributes.capabilities || {};\n  const battery = mapped.battery;\n  const batteryResidual = mapped.battery_residual;\n  const autonomy = mapped.autonomy;\n  const fuel = mapped.fuel;\n  const fuelAutonomy = mapped.fuel_autonomy;\n  const supportsElectric = capabilities.electric_energy ?? Boolean(battery);\n  const supportsFuel = capabilities.fuel ?? Boolean(fuel);\n  const primaryLevel = supportsElectric && battery ? battery : supportsFuel ? fuel : battery || fuel;\n  const rangeEntity = supportsElectric && autonomy ? autonomy : supportsFuel ? fuelAutonomy : autonomy || fuelAutonomy;''',
+              1,
+          )
+          text = text.replace('  const chargingState = charging ? hass.states?.[charging]?.state === "on" : false;', '  const chargingState = supportsElectric && charging ? hass.states?.[charging]?.state === "on" : false;', 1)
+          text = text.replace('    battery,\n    batteryResidual,\n    autonomy,', '    primaryLevel,\n    battery,\n    batteryResidual,\n    rangeEntity,\n    autonomy,\n    fuel,\n    fuelAutonomy,', 1)
+          text = text.replace('    entity: battery,', '    entity: primaryLevel,', 1)
+          text = text.replace('          entity: autonomy,', '          entity: rangeEntity,', 1)
+          text = text.replace('const value = states[${literal(autonomy)}];', 'const value = states[${literal(rangeEntity)}];', 1)
+          text = text.replace('          entity: battery,\n          show_name: true,', '          entity: primaryLevel,\n          show_name: true,', 1)
+          text = text.replace('          triggers_update: [battery, batteryResidual, charging, engine, chargePower, tripEnergy].filter(Boolean),', '          triggers_update: [primaryLevel, battery, batteryResidual, fuel, charging, engine, chargePower, tripEnergy].filter(Boolean),', 1)
+          text = text.replace(
+              '''            const residual = states[${literal(batteryResidual)}];\n            if (residual && !['unknown','unavailable','none',''].includes(String(residual.state).toLowerCase()) && Number.isFinite(Number(residual.state))) {\n              return ${literal(strings.battery)} + ' · ' + Number(residual.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';\n            }\n            return ${literal(strings.battery)};''',
+              '''            if (${supportsElectric ? "true" : "false"}) {\n              const residual = states[${literal(batteryResidual)}];\n              if (residual && !['unknown','unavailable','none',''].includes(String(residual.state).toLowerCase()) && Number.isFinite(Number(residual.state))) {\n                return ${literal(strings.battery)} + ' · ' + Number(residual.state).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kWh';\n              }\n              return ${literal(strings.battery)};\n            }\n            return ${literal(strings.fuel || "Fuel")};''',
+              1,
+          )
+          p.write_text(text)
+
+          # Strategy: derive all vehicle sections from one capability contract.
+          p = Path("custom_components/e_c3_dashboard/static/e_c3_dashboard.js")
+          text = p.read_text()
+          entity_anchor = '    const entity = (key) => mapped[key];\n'
+          capability_js = '''    const capabilities = attributes.capabilities || {};\n    const powertrain = attributes.powertrain || "unknown";\n    const supportsElectric = capabilities.electric_energy ?? Boolean(entity("battery"));\n    const supportsFuel = capabilities.fuel ?? Boolean(entity("fuel"));\n    const supportsCharging = capabilities.charging ?? Boolean(entity("battery_charging"));\n    const supportsChargeHistory = capabilities.charge_history ?? (supportsCharging && Boolean(entity("battery")));\n'''
+          if text.count(entity_anchor) != 1:
+              raise SystemExit("strategy entity anchor mismatch")
+          text = text.replace(entity_anchor, entity_anchor + capability_js, 1)
+          text = text.replace('    const hero = tracker && entity("battery") ? {', '    const hero = tracker && (entity("battery") || entity("fuel")) ? {', 1)
+          text = text.replace('        metric("trailing_consumption_500km") ? {', '        supportsElectric && metric("trailing_consumption_500km") ? {', 1)
+          text = text.replace('        metric("distance_since_charge") ? {', '        supportsChargeHistory && metric("distance_since_charge") ? {', 1)
+          text = text.replace('        metric("current_trip_energy") ? {', '        supportsElectric && metric("current_trip_energy") ? {', 1)
+          consumption_anchor = '        supportsElectric && metric("current_trip_energy") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("current_trip_energy"), name: strings.currentTripEnergy, icon: "mdi:battery-minus", force_icon: true, card_layout: "large" } : null,\n'
+          fuel_cards = '''        supportsFuel ? bubble("fuel", strings.fuel, "mdi:gas-station", [], 6) : null,\n        supportsFuel ? bubble("fuel_autonomy", strings.fuelRange, "mdi:map-marker-distance", [], 6) : null,\n        supportsFuel ? bubble("fuel_consumption_instant", strings.fuelConsumption, "mdi:gas-station-outline") : null,\n'''
+          if text.count(consumption_anchor) != 1:
+              raise SystemExit("strategy consumption anchor mismatch")
+          text = text.replace(consumption_anchor, consumption_anchor + fuel_cards, 1)
+          text = text.replace('        separator(strings.chargingRange, "mdi:battery-charging"),', '        supportsCharging ? separator(strings.chargingRange, "mdi:battery-charging") : null,', 1)
+          text = text.replace('        chargingCard,', '        supportsCharging ? chargingCard : null,', 1)
+          text = text.replace('        entity("battery_charging_limit_number") ? {', '        supportsCharging && entity("battery_charging_limit_number") ? {', 1)
+          text = text.replace('        entity("battery_charging_limit_switch") ? {', '        supportsCharging && entity("battery_charging_limit_switch") ? {', 1)
+          text = text.replace('        bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),', '        supportsCharging ? bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6) : null,', 1)
+          text = text.replace('        entity("battery_charging") ? { type: "conditional"', '        supportsCharging && entity("battery_charging") ? { type: "conditional"', 1)
+          text = text.replace('        separator(strings.batteryHealth, "mdi:battery-heart-variant"),', '        supportsElectric ? separator(strings.batteryHealth, "mdi:battery-heart-variant") : serviceBatteryEntity ? separator(strings.serviceBattery, "mdi:car-battery") : null,', 1)
+          text = text.replace('        entity("battery_health_capacity") ? {', '        supportsElectric && entity("battery_health_capacity") ? {', 1)
+          text = text.replace('        entity("battery_health_resistance") ? {', '        supportsElectric && entity("battery_health_resistance") ? {', 1)
+          text = text.replace('        bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery", [], 6),', '        supportsElectric ? bubble("battery_capacity", strings.highVoltageBattery, "mdi:car-battery", [], 6) : null,', 1)
+          text = text.replace('        lastChargeDisplayEntity ? { ...bubble("last_charge"', '        supportsCharging && lastChargeDisplayEntity ? { ...bubble("last_charge"', 1)
+          text = text.replace('energy_entities: [lastTripResult].filter(Boolean)', 'energy_entities: supportsElectric ? [lastTripResult].filter(Boolean) : []', 2)
+          text = text.replace('        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card"', '        modules.charging && supportsChargeHistory ? { type: "custom:e-c3-dashboard-charge-history-card"', 1)
+          text = text.replace('    ];\n\n    const views = [{', '    ].filter((section) => section.cards.length);\n\n    const views = [{', 1)
+          text = text.replace('        entity("battery_health_capacity") ? { type: "statistics-graph"', '        supportsElectric && entity("battery_health_capacity") ? { type: "statistics-graph"', 1)
+          text = text.replace('        entity("battery_health_resistance") ? { type: "statistics-graph"', '        supportsElectric && entity("battery_health_resistance") ? { type: "statistics-graph"', 1)
+          text = text.replace('        metric("trailing_consumption_500km") ? { type: "statistics-graph"', '        supportsElectric && metric("trailing_consumption_500km") ? { type: "statistics-graph"', 1)
+          stats_anchor = '        supportsElectric && metric("trailing_consumption_500km") ? { type: "statistics-graph", title: strings.consumptionHistory, entities: [metric("trailing_consumption_500km")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,\n'
+          if text.count(stats_anchor) != 1:
+              raise SystemExit("statistics consumption anchor mismatch")
+          text = text.replace(stats_anchor, stats_anchor + '        supportsFuel && entity("fuel_consumption_instant") ? { type: "statistics-graph", title: strings.fuelConsumption, entities: [entity("fuel_consumption_instant")], days_to_show: LONG_TERM_STATISTICS_DAYS, period: "week", stat_types: ["mean"], chart_type: "line", hide_legend: true, grid_options: { columns: "full", rows: 5 } } : null,\n', 1)
+          text = text.replace('    if (modules.charging && entity("battery_charging") && entity("battery")) {', '    if (modules.charging && supportsChargeHistory) {', 1)
+          text = text.replace('            controlSwitch("wakeup_charging", strings.chargeWakeup, "mdi:battery-sync-outline", "full"),', '            supportsCharging ? controlSwitch("wakeup_charging", strings.chargeWakeup, "mdi:battery-sync-outline", "full") : null,', 1)
+          text = text.replace('            controlSwitch("charge_reports", strings.chargeReports, "mdi:ev-station", "full"),', '            supportsCharging ? controlSwitch("charge_reports", strings.chargeReports, "mdi:ev-station", "full") : null,', 1)
+          p.write_text(text)
+
+          # Tests pin the new contract rather than any one model.
+          Path("tests/vehicle-capabilities.test.mjs").write_text('''import assert from "node:assert/strict";\nimport fs from "node:fs";\nimport test from "node:test";\n\nconst strategy = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/static/e_c3_dashboard.js", import.meta.url), "utf8");\nconst hero = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/static/vehicle-overview-card.js", import.meta.url), "utf8");\nconst coordinator = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/coordinator.py", import.meta.url), "utf8");\nconst configFlow = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/config_flow.py", import.meta.url), "utf8");\nconst metrics = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/metrics.py", import.meta.url), "utf8");\n\ntest("backend publishes powertrain capability contract without requiring a battery", () => {\n  assert.match(coordinator, /_REQUIRED_ENTITY_KEYS = \\{"vehicle", "mileage"\\}/);\n  assert.match(coordinator, /"powertrain": powertrain/);\n  assert.match(coordinator, /"capabilities": capabilities/);\n});\n\ntest("config flow only prompts for traction capacity on capable vehicles", () => {\n  assert.match(configFlow, /needs_capacity = capabilities\\.get\\("battery_capacity", False\\)/);\n  assert.match(configFlow, /if capabilities\\.get\\("battery_capacity", False\\):/);\n  assert.doesNotMatch(configFlow, /\\{"vehicle", "battery", "mileage"\\}\\.issubset/);\n});\n\ntest("thermic dashboard hides electric sections and exposes fuel cards", () => {\n  assert.match(strategy, /supportsCharging \\? separator\\(strings\\.chargingRange/);\n  assert.match(strategy, /supportsFuel \\? bubble\\("fuel"/);\n  assert.match(strategy, /supportsFuel \\? bubble\\("fuel_autonomy"/);\n  assert.match(strategy, /modules\\.charging && supportsChargeHistory/);\n  assert.match(strategy, /supportsCharging \\? controlSwitch\\("charge_reports"/);\n});\n\ntest("shared hero supports either traction battery or fuel level", () => {\n  assert.match(hero, /const primaryLevel = supportsElectric && battery \\? battery : supportsFuel \\? fuel/);\n  assert.match(hero, /entity: primaryLevel/);\n  assert.match(hero, /return \\${literal\\(strings\\.fuel \\|\\| "Fuel"\\)}/);\n});\n\ntest("electric metrics are disabled by capability, not by guessed model", () => {\n  assert.match(metrics, /capabilities\\.get\\("electric_trip_metrics"/);\n  assert.match(metrics, /capabilities\\.get\\("battery_capacity"/);\n  assert.match(metrics, /capabilities\\.get\\("charge_history"/);\n});\n''')
+
+          Path(".github/workflows/dev-capability-gate-once.yml").unlink()
+
+      - name: Validate capability refactor
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+
+      - name: Commit capability refactor
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "vehicle: gate dashboard by powertrain capabilities"
+          git push origin HEAD:develop
