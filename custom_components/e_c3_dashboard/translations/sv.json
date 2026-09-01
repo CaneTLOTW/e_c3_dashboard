@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Förkontroll av dashboard-kort",
+        "description": "e-C3 Dashboard kräver Bubble Card, Button Card, ha-map-card och layout-card. Detta är en vägledande kontroll av Lovelace-resurser som är registrerade i Home Assistant:\n\n{card_status}\n\nEn registrerad resurs är inte ett bevis på att webbläsaren har laddat den. Installera saknade kort med HACS, kontrollera att varje kort är registrerat som en JavaScript-modul, starta om Home Assistant och uppdatera webbläsaren. Dashboarden utför den slutliga webbläsarkontrollen före visning.",
+        "data": {"dashboard_cards_confirmed": "Jag har granskat de nödvändiga dashboard-korten"}
+      },
+      "user": {
+        "title": "Välj fordon",
+        "description": "Välj ett fordon som redan är konfigurerat av Stellantis Vehicles. Fordonsidentifieraren är valfri; om den lämnas tom skapas den från det valda fordonet och görs automatiskt unik. Batterikapaciteten används endast som en fordonsspecifik reserv när Stellantis inte tillhandahåller ett användbart värde.",
+        "data": {
+          "vehicle_device_id": "Stellantis-fordon",
+          "vehicle_slug": "Fordonsidentifierare (valfri)",
+          "battery_capacity_kwh": "Reservvärde för batterikapacitet"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Den valda enheten tillhör inte Stellantis Vehicles.",
+      "upstream_not_ready": "Slutför konfigurationen av Stellantis Vehicles och vänta tills fordonets batteri-, mätarställnings- och spårningsentiteter är tillgängliga innan du lägger till denna dashboard.",
+      "invalid_slug": "Ange en giltig fordonsidentifierare.",
+      "slug_in_use": "Den här fordonsidentifieraren används redan av en annan dashboard-post."
+    },
+    "abort": {
+      "missing_upstream": "Konfigurera Stellantis Vehicles och ett fordon innan du lägger till denna dashboard.",
+      "already_configured": "Det här fordonet har redan en e-C3 Dashboard-post.",
+      "unsupported_upstream_version": "Uppdatera Stellantis Vehicles till en version som stöds innan du lägger till denna dashboard."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dashboard-moduler",
+        "data": {
+          "dashboard_name": "Dashboardens visningsnamn (tomt = automatiskt)",
+          "battery_capacity_kwh": "Reservvärde för batterikapacitet",
+          "trips": "Resehistorik",
+          "charging": "Laddhistorik och kurvor",
+          "gps": "GPS-historik",
+          "wakeup": "Wake-up-diagnostik",
+          "notifications": "Aviseringar och mottagare",
+          "notification_recipients": "Valbara Notify-mottagare",
+          "history_hours": "Visningsfönster för historik"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Server-resehistorik"},
+      "server_gps_history": {"name": "Server-GPS-historik"},
+      "server_charge_history": {"name": "Server-laddhistorik"},
+      "vehicle_info": {"name": "Fordonsinformation"},
+      "trailing_consumption_500km": {"name": "Genomsnittlig förbrukning (500 km)"},
+      "distance_since_charge": {"name": "Avstånd sedan senaste laddning"},
+      "current_trip_energy": {"name": "Energi för aktuell resa"},
+      "current_charge_power": {"name": "Aktuell laddeffekt"},
+      "last_trip_result": {"name": "Resultat för senaste lokala resa"},
+      "last_charge_result": {"name": "Resultat för senaste lokala laddning"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Varning för låg räckvidd"},
+      "range_reset_km": {"name": "Återställning av låg räckvidd"},
+      "home_soc_warning": {"name": "SOC-varning hemma"},
+      "home_soc_reset": {"name": "SOC-återställning hemma"},
+      "home_delay_minutes": {"name": "Fördröjning av laddpåminnelse hemma"},
+      "service_battery_warning": {"name": "Varning för 12 V-batteri"},
+      "service_battery_reset": {"name": "Återställning för 12 V-batteri"},
+      "stale_home_hours": {"name": "Timeout för tillgänglighet hemma"},
+      "stale_away_hours": {"name": "Timeout för tillgänglighet borta"},
+      "probe_wait_minutes": {"name": "Väntetid för tillgänglighetskontroll"},
+      "charge_start_delay_minutes": {"name": "Fördröjning av avisering vid laddstart"}
+    },
+    "time": {
+      "quiet_start": {"name": "Start för tysta timmar"},
+      "quiet_end": {"name": "Slut för tysta timmar"}
+    },
+    "switch": {
+      "notifications": {"name": "Aviseringar"},
+      "trip_reports": {"name": "Reserapporter"},
+      "charge_reports": {"name": "Laddrapporter"},
+      "alerts": {"name": "Fordonsvarningar"},
+      "wakeup_hourly": {"name": "Wake-up varje timme"},
+      "wakeup_charging": {"name": "Wake-up under laddning"},
+      "wakeup_probe": {"name": "Tillgänglighetskontroll med wake-up"},
+      "notify_recipient": {"name": "Notify-mottagare: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Väck fordonet nu"},
+      "test_notification": {"name": "Testavisering"},
+      "sync_server_history": {"name": "Synkronisera serverhistorik"}
+    }
+  }
+}
