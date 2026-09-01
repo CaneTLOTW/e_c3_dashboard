@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Predhodno preverjanje kart nadzorne plošče",
+        "description": "e-C3 Dashboard zahteva Bubble Card, Button Card, ha-map-card in layout-card. To je okvirno preverjanje virov Lovelace, registriranih v Home Assistant:\n\n{card_status}\n\nRegistriran vir še ne pomeni, da ga je brskalnik naložil. Manjkajoče kartice namestite prek HACS, preverite, da je vsaka registrirana kot modul JavaScript, nato ponovno zaženite Home Assistant in osvežite brskalnik. Nadzorna plošča pred prikazom izvede končno preverjanje v brskalniku.",
+        "data": {"dashboard_cards_confirmed": "Pregledal sem zahtevane kartice nadzorne plošče"}
+      },
+      "user": {
+        "title": "Izberite vozilo",
+        "description": "Izberite vozilo, ki je že nastavljeno v Stellantis Vehicles. Identifikator vozila je neobvezen; če ostane prazen, se izpelje iz izbranega vozila in samodejno naredi enoličen. Kapaciteta baterije je le nadomestna vrednost za posamezno vozilo, kadar Stellantis ne poda uporabne vrednosti.",
+        "data": {
+          "vehicle_device_id": "Vozilo Stellantis",
+          "vehicle_slug": "Identifikator vozila (neobvezno)",
+          "battery_capacity_kwh": "Nadomestna kapaciteta baterije"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Izbrana naprava ne pripada Stellantis Vehicles.",
+      "upstream_not_ready": "Dokončajte nastavitev Stellantis Vehicles in počakajte na entitete baterije, kilometrine ter sledilnika vozila, preden dodate to nadzorno ploščo.",
+      "invalid_slug": "Vnesite veljaven identifikator vozila.",
+      "slug_in_use": "Ta identifikator vozila že uporablja drug vnos nadzorne plošče."
+    },
+    "abort": {
+      "missing_upstream": "Pred dodajanjem te nadzorne plošče nastavite Stellantis Vehicles in vozilo.",
+      "already_configured": "To vozilo že ima vnos e-C3 Dashboard.",
+      "unsupported_upstream_version": "Pred dodajanjem te nadzorne plošče posodobite Stellantis Vehicles na podprto različico."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Moduli nadzorne plošče",
+        "data": {
+          "dashboard_name": "Prikazno ime nadzorne plošče (prazno = samodejno)",
+          "battery_capacity_kwh": "Nadomestna kapaciteta baterije",
+          "trips": "Zgodovina voženj",
+          "charging": "Zgodovina in krivulje polnjenja",
+          "gps": "Zgodovina GPS",
+          "wakeup": "Diagnostika prebujanja",
+          "notifications": "Obvestila in prejemniki",
+          "notification_recipients": "Izbirni prejemniki Notify",
+          "history_hours": "Časovno okno prikaza zgodovine"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Strežniška zgodovina voženj"},
+      "server_gps_history": {"name": "Strežniška zgodovina GPS"},
+      "server_charge_history": {"name": "Strežniška zgodovina polnjenja"},
+      "vehicle_info": {"name": "Podatki o vozilu"},
+      "trailing_consumption_500km": {"name": "Povprečna poraba (500 km)"},
+      "distance_since_charge": {"name": "Razdalja od zadnjega polnjenja"},
+      "current_trip_energy": {"name": "Energija trenutne vožnje"},
+      "current_charge_power": {"name": "Trenutna moč polnjenja"},
+      "last_trip_result": {"name": "Rezultat zadnje lokalne vožnje"},
+      "last_charge_result": {"name": "Rezultat zadnjega lokalnega polnjenja"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Opozorilo za nizek doseg"},
+      "range_reset_km": {"name": "Ponastavitev nizkega dosega"},
+      "home_soc_warning": {"name": "Opozorilo SOC doma"},
+      "home_soc_reset": {"name": "Ponastavitev SOC doma"},
+      "home_delay_minutes": {"name": "Zamik opomnika za polnjenje doma"},
+      "service_battery_warning": {"name": "Opozorilo za 12 V baterijo"},
+      "service_battery_reset": {"name": "Ponastavitev 12 V baterije"},
+      "stale_home_hours": {"name": "Časovna omejitev dosegljivosti doma"},
+      "stale_away_hours": {"name": "Časovna omejitev dosegljivosti zdoma"},
+      "probe_wait_minutes": {"name": "Čakanje preverjanja dosegljivosti"},
+      "charge_start_delay_minutes": {"name": "Zamik obvestila o začetku polnjenja"}
+    },
+    "time": {
+      "quiet_start": {"name": "Začetek časa tišine"},
+      "quiet_end": {"name": "Konec časa tišine"}
+    },
+    "switch": {
+      "notifications": {"name": "Obvestila"},
+      "trip_reports": {"name": "Poročila o vožnjah"},
+      "charge_reports": {"name": "Poročila o polnjenju"},
+      "alerts": {"name": "Opozorila vozila"},
+      "wakeup_hourly": {"name": "Prebujanje vsako uro"},
+      "wakeup_charging": {"name": "Prebujanje med polnjenjem"},
+      "wakeup_probe": {"name": "Preverjanje dosegljivosti s prebujanjem"},
+      "notify_recipient": {"name": "Prejemnik Notify: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Prebudi vozilo zdaj"},
+      "test_notification": {"name": "Preizkusno obvestilo"},
+      "sync_server_history": {"name": "Sinhroniziraj strežniško zgodovino"}
+    }
+  }
+}
