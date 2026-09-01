@@ -1,0 +1,219 @@
+name: Dev generate language matrix v6
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-generate-i18n-v6.yml
+
+permissions:
+  contents: read
+
+jobs:
+  translate:
+    name: Translate ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 15
+      matrix:
+        language: [it, es, pt, nl, da, nb, sv, fi, pl, cs, sk, hu, ro, sl, hr]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Export canonical frontend catalog
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import { FRONTEND_TEXT } from './custom_components/e_c3_dashboard/static/i18n.js';
+          import { EXTRA_FRONTEND_TEXT as west } from './custom_components/e_c3_dashboard/static/i18n-extra-west.js';
+          import { EXTRA_FRONTEND_TEXT as north } from './custom_components/e_c3_dashboard/static/i18n-extra-north.js';
+          import { EXTRA_FRONTEND_TEXT as east } from './custom_components/e_c3_dashboard/static/i18n-extra-east.js';
+          fs.writeFileSync('/tmp/frontend-i18n-source.json', JSON.stringify({ canonical: {
+            tripHistory: FRONTEND_TEXT.tripHistory.en,
+            chargeHistory: FRONTEND_TEXT.chargeHistory.en,
+            vehicleOverview: FRONTEND_TEXT.vehicleOverview.en,
+            dashboard: FRONTEND_TEXT.dashboard.en,
+          }, extras: Object.assign({}, west, north, east) }));
+          JS
+      - name: Generate HTML-protected batched translations
+        env:
+          LANG_CODE: ${{ matrix.language }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python <<'PY'
+          from __future__ import annotations
+          import ast
+          import html
+          import json
+          import os
+          import re
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+          from string import Formatter
+
+          ROOT = Path('custom_components/e_c3_dashboard')
+          lang = os.environ['LANG_CODE']
+          target = 'no' if lang == 'nb' else lang
+          BATCH_LIMIT = 3200
+          protected_terms = sorted([
+              'e-C3 Dashboard', 'Home Assistant', 'Stellantis Vehicles', 'Stellantis',
+              'Recorder', 'HACS', 'ABRP', 'Notify', 'SOC', 'AC', 'DC', 'VIN',
+          ], key=len, reverse=True)
+          protected_re = re.compile('(' + '|'.join([
+              r'\{[^{}]+\}', *(re.escape(term) for term in protected_terms),
+              r'\*\*', r'###', r'##', r'`', r'\n',
+          ]) + ')')
+          marker_re = re.compile(r'EC3P\d{4}X')
+          record_re = re.compile(r'EC3R\d{4}X')
+
+          def placeholders(value: str) -> list[str]:
+              return sorted(
+                  field for _literal, field, _spec, _conversion in Formatter().parse(value)
+                  if field is not None
+              )
+
+          def protect_record(value: str):
+              mapping = {}
+              cursor = 0
+              pieces = []
+              for index, match in enumerate(protected_re.finditer(value)):
+                  pieces.append(html.escape(value[cursor:match.start()]))
+                  marker = f'EC3P{index:04d}X'
+                  original = match.group(0)
+                  left_tight = match.start() > 0 and not value[match.start()-1].isspace()
+                  right_tight = match.end() < len(value) and not value[match.end()].isspace()
+                  mapping[marker] = (original, left_tight, right_tight)
+                  pieces.append(f'<span translate="no">{marker}</span>')
+                  cursor = match.end()
+              pieces.append(html.escape(value[cursor:]))
+              return ''.join(pieces), mapping
+
+          def restore_record(value: str, mapping: dict[str, tuple[str, bool, bool]], original: str) -> str:
+              for marker, (replacement, left_tight, right_tight) in mapping.items():
+                  if value.count(marker) != 1:
+                      raise RuntimeError(f'{lang}: marker count {value.count(marker)} for {marker} in {original!r}: {value!r}')
+                  if left_tight:
+                      value = re.sub(rf'\s*{re.escape(marker)}', marker, value, count=1)
+                  if right_tight:
+                      value = re.sub(rf'{re.escape(marker)}\s*', marker, value, count=1)
+                  value = value.replace(marker, replacement, 1)
+              if marker_re.search(value):
+                  raise RuntimeError(f'{lang}: unresolved marker in {original!r}: {value!r}')
+              value = html.unescape(value).strip()
+              if placeholders(value) != placeholders(original):
+                  raise RuntimeError(f'{lang}: placeholder mismatch: {original!r} -> {value!r}')
+              for term in protected_terms:
+                  if value.count(term) != original.count(term):
+                      raise RuntimeError(f'{lang}: protected term changed: {term}: {original!r} -> {value!r}')
+              for token in ['**', '###', '##', '`', '\n']:
+                  if value.count(token) != original.count(token):
+                      raise RuntimeError(f'{lang}: protected syntax changed: {token!r}: {original!r} -> {value!r}')
+              return value
+
+          def request_translation(payload: str) -> str:
+              encoded = urllib.parse.urlencode({
+                  'client': 'gtx', 'sl': 'en', 'tl': target, 'dt': 't', 'format': 'html', 'q': payload,
+              }).encode()
+              error = None
+              for attempt in range(8):
+                  req = urllib.request.Request(
+                      'https://translate.googleapis.com/translate_a/single',
+                      data=encoded,
+                      headers={'User-Agent': 'Mozilla/5.0 e-c3-dashboard-i18n/0.5.54'},
+                      method='POST',
+                  )
+                  try:
+                      with urllib.request.urlopen(req, timeout=45) as response:
+                          data = json.loads(response.read().decode('utf-8'))
+                      return ''.join(part[0] for part in data[0] if part and part[0])
+                  except urllib.error.HTTPError as exc:
+                      error = exc
+                      time.sleep(4 + attempt * 4 if exc.code == 429 else min(12, 2 ** attempt))
+                  except Exception as exc:
+                      error = exc
+                      time.sleep(min(12, 2 ** attempt))
+              raise RuntimeError(f'{lang}: translation request failed: {error}')
+
+          def translate_unique(values: list[str]) -> dict[str, str]:
+              unique = list(dict.fromkeys(values))
+              translated = {}
+              batches = []
+              current = []
+              current_len = 0
+              for value in unique:
+                  protected, _mapping = protect_record(value)
+                  estimate = len(protected) + 40
+                  if current and current_len + estimate > BATCH_LIMIT:
+                      batches.append(current)
+                      current = []
+                      current_len = 0
+                  current.append(value)
+                  current_len += estimate
+              if current:
+                  batches.append(current)
+
+              for batch_index, batch in enumerate(batches):
+                  records = []
+                  mappings = []
+                  for index, value in enumerate(batch):
+                      protected, mapping = protect_record(value)
+                      marker = f'EC3R{index:04d}X'
+                      records.append(f'<span translate="no">{marker}</span>{protected}')
+                      mappings.append(mapping)
+                  payload = ''.join(records)
+                  output = request_translation(payload)
+                  matches = list(record_re.finditer(output))
+                  if len(matches) != len(batch):
+                      raise RuntimeError(f'{lang}: record marker mismatch {len(matches)} != {len(batch)} in batch {batch_index}: {output!r}')
+                  seen = [int(match.group(0)[4:8]) for match in matches]
+                  if seen != list(range(len(batch))):
+                      raise RuntimeError(f'{lang}: record order mismatch {seen}')
+                  for pos, match in enumerate(matches):
+                      start = match.end()
+                      end = matches[pos+1].start() if pos + 1 < len(matches) else len(output)
+                      raw = output[start:end]
+                      source = batch[pos]
+                      translated[source] = restore_record(raw, mappings[pos], source)
+                  print(f'{lang}: translated batch {batch_index+1}/{len(batches)} with {len(batch)} strings')
+                  time.sleep(0.4)
+              return translated
+
+          source = json.loads(Path('/tmp/frontend-i18n-source.json').read_text())
+          frontend_sources = []
+          frontend_keys = []
+          for namespace in ['tripHistory','chargeHistory','vehicleOverview','dashboard']:
+              current = source['extras'].get(lang, {}).get(namespace, {})
+              for key, english in source['canonical'][namespace].items():
+                  if key not in current:
+                      frontend_keys.append((namespace, key, english))
+                      frontend_sources.append(english)
+
+          tree = ast.parse((ROOT / 'i18n.py').read_text())
+          base = None
+          for node in tree.body:
+              if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == '_MESSAGES':
+                  base = ast.literal_eval(node.value)
+                  break
+          if not base:
+              raise RuntimeError('could not parse server message catalog')
+
+          translations = translate_unique(frontend_sources + list(base['en'].values()))
+          frontend = {}
+          for namespace, key, english in frontend_keys:
+              frontend.setdefault(namespace, {})[key] = translations[english]
+          server = {key: translations[value] for key, value in base['en'].items()}
+          out = {'language': lang, 'frontend': frontend, 'server': server}
+          path = Path(f'/tmp/translation-{lang}.json')
+          path.write_text(json.dumps(out, ensure_ascii=False, indent=2) + '\n')
+          print(f'{lang}: {sum(len(v) for v in frontend.values())} frontend completions, {len(server)} server strings')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: translation-v6-${{ matrix.language }}
+          path: /tmp/translation-${{ matrix.language }}.json
+          retention-days: 1
