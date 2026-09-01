@@ -1,0 +1,59 @@
+name: Dev i18n cards finish
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-i18n-cards-finish.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Reapply reviewed transformation
+        shell: python
+        run: |
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/dev-i18n-cards-once.yml').read_text()
+          start_marker = '      - name: Localize bundled custom cards\n        shell: python\n        run: |\n'
+          end_marker = '\n      - name: Validate transformed source\n'
+          if source.count(start_marker) != 1 or source.count(end_marker) != 1:
+              raise SystemExit('Could not locate one-shot transform body')
+          body = textwrap.dedent(source.split(start_marker, 1)[1].split(end_marker, 1)[0])
+          exec(compile(body, '<reviewed-i18n-transform>', 'exec'), {'__name__': '__main__'})
+
+          # The transformation itself was clean; the diagnostic run showed one
+          # over-escaped dynamic RegExp in the newly generated guard test. Use
+          # deliberately simple structural checks instead.
+          Path('tests/frontend-i18n.test.mjs').write_text('''import assert from "node:assert/strict";\nimport fs from "node:fs";\nimport test from "node:test";\n\nconst read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");\nconst catalog = read("../custom_components/e_c3_dashboard/static/i18n.js");\nconst trip = read("../custom_components/e_c3_dashboard/static/trip-history-card.js");\nconst charge = read("../custom_components/e_c3_dashboard/static/charge-history-card.js");\nconst vehicle = read("../custom_components/e_c3_dashboard/static/vehicle-overview-card.js");\n\ntest("frontend catalog exposes German English and French namespaces", () => {\n  for (const namespace of ["tripHistory", "chargeHistory", "vehicleOverview", "dashboard"]) {\n    assert.ok(catalog.includes(`${namespace}: {`), `missing ${namespace} namespace`);\n  }\n  assert.ok(catalog.split("fr: {").length - 1 >= 4, "French catalog entries are incomplete");\n  assert.match(catalog, /requested\\.startsWith\\("fr"\\)/);\n  assert.match(catalog, /if \\(language === "fr"\\) return "fr-FR"/);\n});\n\ntest("trip and charge cards use HA locale when language is automatic", () => {\n  for (const source of [trip, charge]) {\n    assert.match(source, /_i18nContext\\(\\)/);\n    assert.match(source, /\\["de", "en", "fr"\\]\\.includes\\(explicit\\)/);\n    assert.match(source, /this\\._hass \\|\\| this\\._config/);\n    assert.doesNotMatch(source, /const de =|\\$\\{de \\?/);\n  }\n});\n\ntest("localized custom cards consume catalog keys instead of hard-coded German UI text", () => {\n  assert.match(trip, /text\\.compactFilterNote/);\n  assert.match(trip, /text\\.visibleTrips/);\n  assert.match(charge, /text\\.batteryEnergy/);\n  assert.match(charge, /text\\.reconstructedHint/);\n  assert.match(vehicle, /textFor\\(hass, "vehicleOverview"\\)/);\n  assert.doesNotMatch(vehicle, /Wird geladen|In Fahrt|mehrere Fahrzeuge gefunden|Fahrzeug auswählen/);\n});\n''')
+
+          for temporary in [
+              '.github/workflows/dev-i18n-cards-diagnose.yml',
+              '.github/workflows/dev-i18n-cards-finish.yml',
+          ]:
+              Path(temporary).unlink(missing_ok=True)
+
+      - name: Validate transformed source
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+
+      - name: Commit transformed source
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "i18n: localize bundled custom cards"
+          git push origin HEAD:develop
