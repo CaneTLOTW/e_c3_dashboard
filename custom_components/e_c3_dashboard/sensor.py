@@ -24,6 +24,11 @@ from .const import (
     METRIC_LAST_TRIP,
     METRIC_TRAILING_CONSUMPTION,
 )
+from .entity_identity import (
+    apply_vehicle_entity_identity,
+    registry_technical_key,
+    vehicle_vin,
+)
 
 
 def _compact_curve_samples(samples: Any, limit: int = 12) -> list[dict[str, Any]]:
@@ -226,7 +231,9 @@ class Ec3DashboardStatusSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_status"
+        apply_vehicle_entity_identity(
+            self, coordinator.hass, entry, "sensor", "status"
+        )
 
     @property
     def native_value(self) -> str:
@@ -236,27 +243,30 @@ class Ec3DashboardStatusSensor(CoordinatorEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Expose only non-sensitive mapping data."""
-        metric_entities = {
-            registry_entry.unique_id.removeprefix(
-                f"{self._entry.entry_id}_"
-            ): registry_entry.entity_id
-            for registry_entry in er.async_entries_for_config_entry(
-                er.async_get(self.coordinator.hass), self._entry.entry_id
+        registry = er.async_get(self.coordinator.hass)
+        vin = vehicle_vin(self.coordinator.hass, self._entry)
+        registry_entries = er.async_entries_for_config_entry(
+            registry, self._entry.entry_id
+        )
+
+        metric_entities: dict[str, str] = {}
+        control_entities: dict[str, str] = {}
+        server_history_entities: dict[str, str] = {}
+        for registry_entry in registry_entries:
+            if registry_entry.platform != DOMAIN:
+                continue
+            technical_key = registry_technical_key(
+                registry_entry, self._entry, vin
             )
-            if registry_entry.domain == "sensor"
-            and registry_entry.platform == DOMAIN
-            and registry_entry.unique_id != f"{self._entry.entry_id}_status"
-        }
-        control_entities = {
-            registry_entry.unique_id.removeprefix(
-                f"{self._entry.entry_id}_"
-            ): registry_entry.entity_id
-            for registry_entry in er.async_entries_for_config_entry(
-                er.async_get(self.coordinator.hass), self._entry.entry_id
-            )
-            if registry_entry.domain in {"switch", "button", "number", "time"}
-            and registry_entry.platform == DOMAIN
-        }
+            if not technical_key or technical_key == "status":
+                continue
+            if registry_entry.domain == "sensor":
+                metric_entities[technical_key] = registry_entry.entity_id
+                if technical_key.startswith("server_"):
+                    server_history_entities[technical_key] = registry_entry.entity_id
+            elif registry_entry.domain in {"switch", "button", "number", "time"}:
+                control_entities[technical_key] = registry_entry.entity_id
+
         return {
             "integration_domain": DOMAIN,
             "entry_id": self._entry.entry_id,
@@ -265,19 +275,7 @@ class Ec3DashboardStatusSensor(CoordinatorEntity, SensorEntity):
             "entity_mapping": self.coordinator.data["entity_mapping"],
             "metric_entities": metric_entities,
             "control_entities": control_entities,
-            "server_history_entities": {
-                registry_entry.unique_id.removeprefix(
-                    f"{self._entry.entry_id}_"
-                ): registry_entry.entity_id
-                for registry_entry in er.async_entries_for_config_entry(
-                    er.async_get(self.coordinator.hass), self._entry.entry_id
-                )
-                if registry_entry.domain == "sensor"
-                and registry_entry.platform == DOMAIN
-                and registry_entry.unique_id.removeprefix(
-                    f"{self._entry.entry_id}_"
-                ).startswith("server_")
-            },
+            "server_history_entities": server_history_entities,
             "notification_status": self.coordinator.notifications.data.get(
                 "last_notification"
             ),
@@ -318,7 +316,9 @@ class Ec3MetricSensor(SensorEntity):
         self.metrics = coordinator.metrics
         self.entry = entry
         self.metric_key = metric_key
-        self._attr_unique_id = f"{entry.entry_id}_{metric_key}"
+        apply_vehicle_entity_identity(
+            self, coordinator.hass, entry, "sensor", metric_key
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
