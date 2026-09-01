@@ -2,7 +2,7 @@
 
 Home Assistant loads ``translations/*.json`` for config and options flows.
 Notifications and Logbook messages run on the backend, however, and must be
-rendered before they are handed to the Notify service.  Keeping those strings
+rendered before they are handed to the Notify service. Keeping those strings
 here avoids scattering language branches through the business logic.
 """
 
@@ -68,12 +68,44 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "tomorrow_at": "tomorrow {time}",
         "unknown": "Unknown",
     },
+    "fr": {
+        "manual_wakeup": "Réveil manuel demandé",
+        "test_title": "Test e-C3 Dashboard",
+        "test_message": "Ce test confirme les destinataires de notification sélectionnés pour e-C3 Dashboard.",
+        "trip_title": "Trajet terminé",
+        "trip_message": "{distance} km en {duration}, moy. {average_speed} km/h. SOC {soc_start} → {soc_end} %, énergie estimée {energy} kWh, soit {consumption} kWh/100 km.",
+        "charge_completed_title": "Recharge terminée",
+        "charge_completed_message": "{duration}, SOC {soc_start} → {soc_end} %, énergie estimée {energy} kWh. Puissance moy. {average_power} kW, max. {maximum_power} kW, {charge_type}.",
+        "range_low_title": "Autonomie faible",
+        "range_low_message": "Autonomie restante {range} km avec {soc} % de SOC.",
+        "charge_recommended_title": "Recharge recommandée",
+        "charge_recommended_message": "Le véhicule est à domicile avec {soc} % de SOC et {range} km d’autonomie.",
+        "service_battery_low_title": "Batterie 12 V faible",
+        "service_battery_low_message": "La batterie de service Stellantis indique {level} %. Vérifiez la fréquence des réveils et l’état du véhicule.",
+        "availability_restored_title": "Véhicule de nouveau connecté",
+        "availability_restored_message": "Des données récentes du véhicule sont de nouveau disponibles après environ {minutes} minutes. SOC {soc} %, autonomie {range} km.",
+        "availability_probe": "Test de disponibilité demandé",
+        "availability_outage_title": "Véhicule indisponible",
+        "availability_outage_message": "Aucune donnée récente du véhicule n’est disponible depuis environ {hours} heures. Un essai de réveil n’a produit aucune nouvelle donnée.",
+        "charge_started_title": "Recharge démarrée",
+        "charge_started_message": "Départ à {start_soc} %, actuellement {soc} %. Temps restant estimé {duration}, fin {end} (historique SOC, {charge_type}).",
+        "wakeup_charging": "Réveil pendant la recharge demandé",
+        "wakeup_hourly": "Réveil horaire demandé",
+        "today_at": "aujourd’hui à {time}",
+        "tomorrow_at": "demain à {time}",
+        "unknown": "Inconnu",
+    },
 }
 
 
 def language_for(hass: HomeAssistant) -> str:
     """Return the supported language selected for this HA instance."""
-    return "de" if str(hass.config.language or "en").lower().startswith("de") else "en"
+    requested = str(hass.config.language or "en").lower()
+    if requested.startswith("de"):
+        return "de"
+    if requested.startswith("fr"):
+        return "fr"
+    return "en"
 
 
 def text(hass: HomeAssistant, key: str, **values: Any) -> str:
