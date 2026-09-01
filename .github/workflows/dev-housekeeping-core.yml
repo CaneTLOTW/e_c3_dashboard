@@ -1,0 +1,219 @@
+name: Dev capability housekeeping
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-housekeeping-core.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Apply capability and dashboard housekeeping
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('custom_components/e_c3_dashboard')
+
+          # 1) Notification runtime: capability gates must exist in the business
+          # logic, not merely in the dashboard/UI entity selection.
+          p = root / 'notifications.py'
+          text = p.read_text()
+          text = text.replace(
+              '        self.metrics = metrics\n',
+              '        self.metrics = metrics\n        self.capabilities = dict(getattr(metrics, "capabilities", {}) or {})\n',
+              1,
+          )
+          old = '''    async def _evaluate(self) -> None:\n        """Run the same low-frequency checks as the reference dashboard."""\n        await self._reset_daily_wakeup_counter()\n        await self._evaluate_range()\n        await self._evaluate_home_charge_reminder()\n        await self._evaluate_service_battery()\n        await self._evaluate_availability()\n        await self._evaluate_charge_start()\n        await self._evaluate_scheduled_wakeup()\n'''
+          new = '''    async def _evaluate(self) -> None:\n        """Run only checks supported by this vehicle's capability contract."""\n        await self._reset_daily_wakeup_counter()\n        if self.capabilities.get("electric_energy", False):\n            await self._evaluate_range()\n            await self._evaluate_home_charge_reminder()\n        await self._evaluate_service_battery()\n        await self._evaluate_availability()\n        if self.capabilities.get("charging", False):\n            await self._evaluate_charge_start()\n        await self._evaluate_scheduled_wakeup()\n'''
+          if old not in text:
+              raise SystemExit('notification evaluate anchor missing')
+          text = text.replace(old, new, 1)
+
+          old = '''    async def _async_trip_notification(self, trip: dict[str, Any]) -> None:\n        if not self.is_enabled(SWITCH_TRIP_REPORTS):\n            return\n        duration = self._duration(int(trip.get("duration_seconds") or 0))\n        title = text(self.hass, "trip_title")\n        message = text(\n            self.hass,\n            "trip_message",\n            distance=self._number(trip.get("distance_km"), 1),\n            duration=duration,\n            average_speed=self._number(trip.get("average_speed"), 1),\n            soc_start=self._number(trip.get("soc_start"), 0),\n            soc_end=self._number(trip.get("soc_end"), 0),\n            energy=self._number(trip.get("energy_kwh"), 2),\n            consumption=self._number(trip.get("energy_per_100_km"), 2),\n        )\n'''
+          new = '''    async def _async_trip_notification(self, trip: dict[str, Any]) -> None:\n        if not self.is_enabled(SWITCH_TRIP_REPORTS):\n            return\n        duration = self._duration(int(trip.get("duration_seconds") or 0))\n        title = text(self.hass, "trip_title")\n        common = {\n            "distance": self._number(trip.get("distance_km"), 1),\n            "duration": duration,\n            "average_speed": self._number(trip.get("average_speed"), 1),\n        }\n        electric_values = (\n            trip.get("soc_start"),\n            trip.get("soc_end"),\n            trip.get("energy_kwh"),\n            trip.get("energy_per_100_km"),\n        )\n        has_electric_trip_data = (\n            self.capabilities.get("electric_trip_metrics", False)\n            and all(self._as_float(value) is not None for value in electric_values)\n        )\n        if has_electric_trip_data:\n            message = text(\n                self.hass,\n                "trip_message_electric",\n                **common,\n                soc_start=self._number(trip.get("soc_start"), 0),\n                soc_end=self._number(trip.get("soc_end"), 0),\n                energy=self._number(trip.get("energy_kwh"), 2),\n                consumption=self._number(trip.get("energy_per_100_km"), 2),\n            )\n        else:\n            message = text(self.hass, "trip_message", **common)\n'''
+          if old not in text:
+              raise SystemExit('trip notification anchor missing')
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              '''    async def _async_charge_notification(self, charge: dict[str, Any]) -> None:\n        if not self.is_enabled(SWITCH_CHARGE_REPORTS):\n            return\n''',
+              '''    async def _async_charge_notification(self, charge: dict[str, Any]) -> None:\n        if (\n            not self.capabilities.get("charging", False)\n            or not self.is_enabled(SWITCH_CHARGE_REPORTS)\n        ):\n            return\n''',
+              1,
+          )
+
+          old = '''                if self.data["markers"].get("outage_reported"):\n                    await self._async_notify(\n                        text(self.hass, "availability_restored_title"),\n                        text(\n                            self.hass,\n                            "availability_restored_message",\n                            minutes=round((now - outage).total_seconds() / 60),\n                            soc=self._number(self._state_number("battery"), 0),\n                            range=self._number(self._state_number("autonomy", "range"), 0),\n                        ),\n                        "availability_restored",\n                        SWITCH_ALERTS,\n                    )\n'''
+          new = '''                if self.data["markers"].get("outage_reported"):\n                    minutes = round((now - outage).total_seconds() / 60)\n                    soc = self._state_number("battery")\n                    electric_range = self._state_number("autonomy", "range")\n                    if (\n                        self.capabilities.get("electric_energy", False)\n                        and soc is not None\n                        and electric_range is not None\n                    ):\n                        restored_message = text(\n                            self.hass,\n                            "availability_restored_message_electric",\n                            minutes=minutes,\n                            soc=self._number(soc, 0),\n                            range=self._number(electric_range, 0),\n                        )\n                    else:\n                        restored_message = text(\n                            self.hass,\n                            "availability_restored_message",\n                            minutes=minutes,\n                        )\n                    await self._async_notify(\n                        text(self.hass, "availability_restored_title"),\n                        restored_message,\n                        "availability_restored",\n                        SWITCH_ALERTS,\n                    )\n'''
+          if old not in text:
+              raise SystemExit('availability restored anchor missing')
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              '''    async def _evaluate_charge_start(self) -> None:\n        active = self.metrics.data.get("active_charge")\n''',
+              '''    async def _evaluate_charge_start(self) -> None:\n        if not self.capabilities.get("charging", False):\n            return\n        active = self.metrics.data.get("active_charge")\n''',
+              1,
+          )
+          old = '''    async def _evaluate_scheduled_wakeup(self) -> None:\n        now = dt_util.utcnow()\n        last = self._parse_time(self.data.get("last_wakeup"))\n        if self.is_enabled(SWITCH_WAKEUP_CHARGING) and self._is_on("battery_charging"):\n            if last is None or now - last >= timedelta(minutes=5):\n                await self._async_wakeup(text(self.hass, "wakeup_charging"))\n            return\n        if (\n            self.is_enabled(SWITCH_WAKEUP_HOURLY)\n            and self._is_off("engine")\n            and self._is_off("battery_charging")\n            and not self._parse_time(self.data["markers"].get("outage_since"))\n            and (last is None or now - last >= timedelta(hours=1))\n        ):\n'''
+          new = '''    async def _evaluate_scheduled_wakeup(self) -> None:\n        now = dt_util.utcnow()\n        last = self._parse_time(self.data.get("last_wakeup"))\n        supports_charging = self.capabilities.get("charging", False)\n        if (\n            supports_charging\n            and self.is_enabled(SWITCH_WAKEUP_CHARGING)\n            and self._is_on("battery_charging")\n        ):\n            if last is None or now - last >= timedelta(minutes=5):\n                await self._async_wakeup(text(self.hass, "wakeup_charging"))\n            return\n        charging_inactive = not supports_charging or self._is_off("battery_charging")\n        if (\n            self.is_enabled(SWITCH_WAKEUP_HOURLY)\n            and self._is_off("engine")\n            and charging_inactive\n            and not self._parse_time(self.data["markers"].get("outage_since"))\n            and (last is None or now - last >= timedelta(hours=1))\n        ):\n'''
+          if old not in text:
+              raise SystemExit('scheduled wakeup anchor missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              '        return formatted.replace(".", ",") if language_for(self.hass) == "de" else formatted\n',
+              '        return formatted if language_for(self.hass) == "en" else formatted.replace(".", ",")\n',
+              1,
+          )
+          p.write_text(text)
+
+          # 2) Server message schema: universal notifications must have a
+          # non-EV form; Electric/Hybrid can opt into the richer form.
+          p = root / 'i18n.py'
+          text = p.read_text()
+          replacements = {
+              '"trip_message": "{distance} km in {duration}, Ø {average_speed} km/h. SOC {soc_start} → {soc_end} %, geschätzt {energy} kWh bzw. {consumption} kWh/100 km.",':
+              '"trip_message": "{distance} km in {duration}, Ø {average_speed} km/h.",\n        "trip_message_electric": "{distance} km in {duration}, Ø {average_speed} km/h. SOC {soc_start} → {soc_end} %, geschätzt {energy} kWh bzw. {consumption} kWh/100 km.",',
+              '"availability_restored_message": "Nach etwa {minutes} Minuten liegen wieder frische Fahrzeugdaten vor. SOC {soc} %, Reichweite {range} km.",':
+              '"availability_restored_message": "Nach etwa {minutes} Minuten liegen wieder frische Fahrzeugdaten vor.",\n        "availability_restored_message_electric": "Nach etwa {minutes} Minuten liegen wieder frische Fahrzeugdaten vor. SOC {soc} %, Reichweite {range} km.",',
+              '"trip_message": "{distance} km in {duration}, avg. {average_speed} km/h. SOC {soc_start} → {soc_end} %, estimated {energy} kWh or {consumption} kWh/100 km.",':
+              '"trip_message": "{distance} km in {duration}, avg. {average_speed} km/h.",\n        "trip_message_electric": "{distance} km in {duration}, avg. {average_speed} km/h. SOC {soc_start} → {soc_end} %, estimated {energy} kWh or {consumption} kWh/100 km.",',
+              '"availability_restored_message": "Fresh vehicle data is available again after about {minutes} minutes. SOC {soc}%, range {range} km.",':
+              '"availability_restored_message": "Fresh vehicle data is available again after about {minutes} minutes.",\n        "availability_restored_message_electric": "Fresh vehicle data is available again after about {minutes} minutes. SOC {soc}%, range {range} km.",',
+              '"trip_message": "{distance} km en {duration}, moy. {average_speed} km/h. SOC {soc_start} → {soc_end} %, énergie estimée {energy} kWh, soit {consumption} kWh/100 km.",':
+              '"trip_message": "{distance} km en {duration}, moy. {average_speed} km/h.",\n        "trip_message_electric": "{distance} km en {duration}, moy. {average_speed} km/h. SOC {soc_start} → {soc_end} %, énergie estimée {energy} kWh, soit {consumption} kWh/100 km.",',
+              '"availability_restored_message": "Des données récentes du véhicule sont de nouveau disponibles après environ {minutes} minutes. SOC {soc} %, autonomie {range} km.",':
+              '"availability_restored_message": "Des données récentes du véhicule sont de nouveau disponibles après environ {minutes} minutes.",\n        "availability_restored_message_electric": "Des données récentes du véhicule sont de nouveau disponibles après environ {minutes} minutes. SOC {soc} %, autonomie {range} km.",',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'i18n message anchor missing: {old[:50]}')
+              text = text.replace(old, new, 1)
+          p.write_text(text)
+
+          # 3) Existing package-created dashboard URLs are identity. New
+          # installs use brand paths, but old /e-c3-* paths are never renamed.
+          p = root / 'dashboard.py'
+          text = p.read_text()
+          text = text.replace(
+              'from .const import (\n',
+              'from .capabilities import POWERTRAIN_ELECTRIC, POWERTRAIN_HYBRID\nfrom .const import (\n',
+              1,
+          )
+          migration = re.compile(
+              r'\nasync def _async_migrate_generated_dashboard_url\(.*?\n\nasync def _async_sync_generated_dashboard_metadata',
+              re.S,
+          )
+          if not migration.search(text):
+              raise SystemExit('legacy URL migration function not found')
+          text = migration.sub('\n\nasync def _async_sync_generated_dashboard_metadata', text, count=1)
+
+          insert_after = '''def _dashboard_url_base_for_entry(hass, entry) -> str:\n    """Return a generic brand-based base path for package dashboards."""\n    brand = slugify(vehicle_brand_for_entry(hass, entry), separator="-") or "stellantis"\n    return f"{brand}-dashboard"\n\n\n'''
+          icon_fn = '''def dashboard_icon_for_entry(hass, entry) -> str:\n    """Return an icon matching the resolved vehicle powertrain."""\n    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)\n    powertrain = getattr(coordinator, "data", {}).get("powertrain") if coordinator else None\n    return (\n        "mdi:car-electric"\n        if powertrain in {POWERTRAIN_ELECTRIC, POWERTRAIN_HYBRID}\n        else "mdi:car"\n    )\n\n\n'''
+          if insert_after not in text:
+              raise SystemExit('dashboard URL helper anchor missing')
+          text = text.replace(insert_after, insert_after + icon_fn, 1)
+
+          old = '''    desired_title = dashboard_title_for_entry(hass, entry)\n    current = dashboard_config.config\n    if current.get("title") == desired_title:\n        return\n\n    dashboards = lovelace_dashboard.DashboardsCollection(hass)\n'''
+          new = '''    desired_title = dashboard_title_for_entry(hass, entry)\n    desired_icon = dashboard_icon_for_entry(hass, entry)\n    current = dashboard_config.config\n    if current.get("title") == desired_title and current.get("icon") == desired_icon:\n        return\n\n    dashboards = lovelace_dashboard.DashboardsCollection(hass)\n'''
+          if old not in text:
+              raise SystemExit('dashboard metadata compare anchor missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              '    updated = await dashboards.async_update_item(item["id"], {"title": desired_title})\n',
+              '    updated = await dashboards.async_update_item(\n        item["id"], {"title": desired_title, "icon": desired_icon}\n    )\n',
+              1,
+          )
+          old = '''    if marker.get("handled"):\n        migrated = await _async_migrate_generated_dashboard_url(hass, entry, marker)\n        if migrated != marker:\n            marker = migrated\n            await marker_store.async_save(marker)\n        await _async_repair_legacy_generated_dashboard(hass, entry, marker)\n'''
+          new = '''    if marker.get("handled"):\n        await _async_repair_legacy_generated_dashboard(hass, entry, marker)\n'''
+          if old not in text:
+              raise SystemExit('handled dashboard migration anchor missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              '''    url_path = _available_dashboard_url_path(hass, entry)\n    title = dashboard_title_for_entry(hass, entry)\n\n    dashboards = lovelace_dashboard.DashboardsCollection(hass)\n''',
+              '''    url_path = _available_dashboard_url_path(hass, entry)\n    title = dashboard_title_for_entry(hass, entry)\n    icon = dashboard_icon_for_entry(hass, entry)\n\n    dashboards = lovelace_dashboard.DashboardsCollection(hass)\n''',
+              1,
+          )
+          text = text.replace('                "icon": "mdi:car-electric",\n', '                "icon": icon,\n', 1)
+          text = text.replace('            sidebar_icon="mdi:car-electric",\n', '            sidebar_icon=icon,\n', 1)
+          p.write_text(text)
+
+          # 4) Frontend Strategy uses the same powertrain-neutral/electric icon
+          # decision. Setup/create suggestions have no vehicle context -> car.
+          p = root / 'static/e_c3_dashboard.js'
+          text = p.read_text()
+          text = text.replace('    icon: "mdi:car-electric",\n    views: [{', '    icon: "mdi:car",\n    views: [{', 1)
+          text = text.replace('return { title: "e-C3 Dashboard", icon: "mdi:car-electric" };', 'return { title: "e-C3 Dashboard", icon: "mdi:car" };', 1)
+          anchor = '''    const supportsChargeHistory = capabilities.charge_history ?? (supportsCharging && Boolean(entity("battery")));\n    const control = (key) => controls[key];\n'''
+          replacement = '''    const supportsChargeHistory = capabilities.charge_history ?? (supportsCharging && Boolean(entity("battery")));\n    const vehicleIcon = supportsElectric ? "mdi:car-electric" : "mdi:car";\n    const control = (key) => controls[key];\n'''
+          if anchor not in text:
+              raise SystemExit('frontend capability icon anchor missing')
+          text = text.replace(anchor, replacement, 1)
+          text = text.replace('icon: "mdi:car-electric",\n      type: "custom:horizontal-layout"', 'icon: vehicleIcon,\n      type: "custom:horizontal-layout"', 1)
+          text = text.replace('[subState("engine", "", "mdi:car-electric")]', '[subState("engine", "", vehicleIcon)]', 1)
+          text = text.replace('return { title: strings.name, icon: "mdi:car-electric", views };', 'return { title: strings.name, icon: vehicleIcon, views };', 1)
+          p.write_text(text)
+
+          # 5) Bump the develop test candidate/cache key. Do not rewrite docs:
+          # stable README/release documentation remains 0.5.53 until promotion.
+          for path in [
+              root / 'const.py',
+              root / 'manifest.json',
+              *list((root / 'static').glob('*.js')),
+          ]:
+              content = path.read_text()
+              if '0.5.53' in content:
+                  path.write_text(content.replace('0.5.53', '0.5.54'))
+
+          # Tests that intentionally pin the runtime cache key follow develop.
+          for path in Path('tests').glob('*.test.mjs'):
+              content = path.read_text()
+              content = content.replace('0\\.5\\.53', '0\\.5\\.54')
+              path.write_text(content)
+
+          # Replace the now-invalid URL migration test and add explicit icon /
+          # notification business-logic regression assertions.
+          p = Path('tests/dashboard-naming.test.mjs')
+          text = p.read_text()
+          old = re.compile(r'test\("legacy URL migration is package-owned, conflict-safe and copy-before-delete", \(\) => \{.*?\n\}\);', re.S)
+          new = '''test("existing package dashboard URLs remain stable while new installs use brand paths", () => {\n  assert.doesNotMatch(dashboardSource, /_async_migrate_generated_dashboard_url/);\n  assert.doesNotMatch(dashboardSource, /current_url_path\\.startswith\\("e-c3-"\\)/);\n  assert.match(dashboardSource, /if marker\\.get\\("handled"\\):/);\n  assert.match(dashboardSource, /url_path = marker\\.get\\("url_path"\\)/);\n});'''
+          if not old.search(text):
+              raise SystemExit('dashboard migration test block missing')
+          text = old.sub(new, text, count=1)
+          text = text.replace('0.5.53 cache version', '0.5.54 cache version')
+          text += '''\n\ntest("dashboard icon follows powertrain without changing brand naming", () => {\n  assert.match(dashboardSource, /powertrain in \\{POWERTRAIN_ELECTRIC, POWERTRAIN_HYBRID\\}/);\n  assert.match(dashboardSource, /"mdi:car-electric"/);\n  assert.match(dashboardSource, /else "mdi:car"/);\n  assert.match(dashboardSource, /\\{"title": desired_title, "icon": desired_icon\\}/);\n});\n'''
+          p.write_text(text)
+
+          p = Path('tests/vehicle-capabilities.test.mjs')
+          text = p.read_text()
+          if 'const notifications =' not in text:
+              text = text.replace(
+                  'const switchPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/switch.py", import.meta.url), "utf8");\n',
+                  'const switchPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/switch.py", import.meta.url), "utf8");\nconst notifications = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/notifications.py", import.meta.url), "utf8");\n',
+                  1,
+              )
+          text += '''\n\ntest("notification business logic is capability-gated, not only hidden in UI", () => {\n  assert.match(notifications, /if self\\.capabilities\\.get\\("electric_energy", False\\):/);\n  assert.match(notifications, /if self\\.capabilities\\.get\\("charging", False\\):/);\n  assert.match(notifications, /trip_message_electric/);\n  assert.match(notifications, /has_electric_trip_data/);\n  assert.match(notifications, /availability_restored_message_electric/);\n  assert.match(notifications, /charging_inactive = not supports_charging or self\\._is_off\\("battery_charging"\\)/);\n});\n'''
+          p.write_text(text)
+          PY
+      - name: Validate core housekeeping
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          python -m json.tool custom_components/e_c3_dashboard/manifest.json >/dev/null
+          git diff --check
+      - name: Commit core housekeeping
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor: harden powertrain housekeeping"
+          git push origin HEAD:develop
