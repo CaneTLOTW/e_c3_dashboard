@@ -11,10 +11,11 @@
       },
       "user": {
         "title": "Select vehicle",
-        "description": "Choose a vehicle that is already configured by Stellantis Vehicles.",
+        "description": "Choose a vehicle that is already configured by Stellantis Vehicles. The optional battery capacity is only a per-vehicle fallback when Stellantis does not provide a usable capacity value.",
         "data": {
           "vehicle_device_id": "Stellantis vehicle",
-          "vehicle_slug": "Vehicle identifier"
+          "vehicle_slug": "Vehicle identifier",
+          "battery_capacity_kwh": "Battery capacity fallback"
         }
       }
     },
@@ -35,6 +36,7 @@
         "title": "Dashboard modules",
         "data": {
           "dashboard_name": "Dashboard display name (empty = automatic)",
+          "battery_capacity_kwh": "Battery capacity fallback",
           "trips": "Trip history",
           "charging": "Charging history and curves",
           "gps": "GPS history",
@@ -44,6 +46,52 @@
           "history_hours": "History display window"
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Server trip history"},
+      "server_gps_history": {"name": "Server GPS history"},
+      "server_charge_history": {"name": "Server charge history"},
+      "vehicle_info": {"name": "Vehicle information"},
+      "trailing_consumption_500km": {"name": "Average consumption (500 km)"},
+      "distance_since_charge": {"name": "Distance since last charge"},
+      "current_trip_energy": {"name": "Current trip energy"},
+      "current_charge_power": {"name": "Current charge power"},
+      "last_trip_result": {"name": "Last local trip result"},
+      "last_charge_result": {"name": "Last local charge result"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Low range warning"},
+      "range_reset_km": {"name": "Low range reset"},
+      "home_soc_warning": {"name": "Home SOC warning"},
+      "home_soc_reset": {"name": "Home SOC reset"},
+      "home_delay_minutes": {"name": "Home charge reminder delay"},
+      "service_battery_warning": {"name": "12 V battery warning"},
+      "service_battery_reset": {"name": "12 V battery reset"},
+      "stale_home_hours": {"name": "Availability timeout at home"},
+      "stale_away_hours": {"name": "Availability timeout away"},
+      "probe_wait_minutes": {"name": "Availability probe wait"},
+      "charge_start_delay_minutes": {"name": "Charge start notification delay"}
+    },
+    "time": {
+      "quiet_start": {"name": "Quiet hours start"},
+      "quiet_end": {"name": "Quiet hours end"}
+    },
+    "switch": {
+      "notifications": {"name": "Notifications"},
+      "trip_reports": {"name": "Trip reports"},
+      "charge_reports": {"name": "Charge reports"},
+      "alerts": {"name": "Vehicle alerts"},
+      "wakeup_hourly": {"name": "Hourly wake-up"},
+      "wakeup_charging": {"name": "Wake-up while charging"},
+      "wakeup_probe": {"name": "Availability wake-up probe"},
+      "notify_recipient": {"name": "Notify recipient: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Wake vehicle now"},
+      "test_notification": {"name": "Test notification"},
+      "sync_server_history": {"name": "Sync server history"}
     }
   }
 }
