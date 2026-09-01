@@ -15,6 +15,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_BATTERY_CAPACITY_KWH,
     CONF_VEHICLE_SLUG,
     DEFAULT_OPTIONS,
     DOMAIN,
@@ -28,7 +29,6 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-_FALLBACK_CAPACITY_KWH = 43.4
 _FINALIZE_DELAY = timedelta(minutes=5)
 _CHARGE_FINALIZE_DELAY = timedelta(minutes=2)
 _RETRY_DELAY = timedelta(minutes=2)
@@ -58,6 +58,7 @@ class VehicleMetricsManager:
             "last_trip": None,
             "last_charge": None,
             "current_charge_power_kw": None,
+            "last_valid_battery_capacity_kwh": None,
             "updated_at": None,
         }
         self._entities: list[Any] = []
@@ -109,11 +110,13 @@ class VehicleMetricsManager:
             await self._save_and_refresh()
         self._normalise_trips()
         self._normalise_charges()
+        await self._async_capture_capacity()
 
         watched = [
             self.mapping.get("engine"),
             self.mapping.get("battery_charging"),
             self.mapping.get("battery"),
+            self.mapping.get("battery_capacity"),
             self.mapping.get("mileage"),
             self.mapping.get("last_trip"),
         ]
@@ -184,6 +187,8 @@ class VehicleMetricsManager:
                 self._schedule_charge_finalize(_CHARGE_FINALIZE_DELAY)
         elif entity_id == self.mapping.get("battery") and self._is_on("battery_charging"):
             self.hass.async_create_task(self.async_track_charge_sample())
+        elif entity_id == self.mapping.get("battery_capacity"):
+            self.hass.async_create_task(self._async_capture_capacity())
         elif entity_id == self.mapping.get("mileage"):
             self.hass.async_create_task(self.async_capture_pending_trip_mileage(new_state.state))
         elif entity_id == self.mapping.get("last_trip"):
@@ -197,11 +202,13 @@ class VehicleMetricsManager:
         if mileage is None:
             _LOGGER.debug("Not starting local e-C3 trip: mileage is unavailable")
             return
+        capacity, capacity_source = self.battery_capacity()
         self.data["active_trip"] = {
             "start_time": dt_util.utcnow().isoformat(),
             "start_mileage": mileage,
             "start_soc": self._number("battery"),
-            "capacity_kwh": self._capacity(),
+            "capacity_kwh": capacity,
+            "capacity_source": capacity_source,
         }
         await self._save_and_refresh()
 
@@ -273,12 +280,12 @@ class VehicleMetricsManager:
                 _LOGGER.warning("Discarding implausible local e-C3 trip candidate")
                 continue
 
-            capacity = self._as_float(candidate.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
+            capacity = self._as_float(candidate.get("capacity_kwh"))
             start_soc = self._as_float(candidate.get("start_soc"))
             end_soc = self._as_float(candidate.get("end_soc"))
             energy_kwh = (
                 round(max(0, start_soc - end_soc) * capacity / 100, 3)
-                if start_soc is not None and end_soc is not None
+                if capacity is not None and start_soc is not None and end_soc is not None
                 else None
             )
             consumption = (
@@ -298,10 +305,11 @@ class VehicleMetricsManager:
                 "average_speed": round(distance_km / (duration_seconds / 3600), 1),
                 "soc_start": start_soc,
                 "soc_end": end_soc,
-                "capacity_kwh": round(capacity, 2),
+                "capacity_kwh": round(capacity, 2) if capacity is not None else None,
+                "capacity_source": candidate.get("capacity_source"),
                 "energy_kwh": energy_kwh,
                 "energy_per_100_km": consumption,
-                "estimated": True,
+                "estimated": energy_kwh is not None,
             })
 
         self.data["pending_trips"] = remaining
@@ -365,6 +373,7 @@ class VehicleMetricsManager:
             "start_soc": soc,
             "start_mileage": self._number("mileage"),
             "capacity_kwh": first_sample["capacity_kwh"],
+            "capacity_source": first_sample.get("capacity_source"),
             "charge_type": first_sample.get("charge_type") or "Unknown",
             "location": location,
             "location_source": "live_tracker" if location else None,
@@ -394,9 +403,10 @@ class VehicleMetricsManager:
             power = (residual - previous_residual) * 3600 / seconds
             power_source = "residual_energy_delta"
         elif seconds is not None and seconds > 30 and previous_soc is not None and soc > previous_soc:
-            capacity = self._as_float(sample.get("capacity_kwh")) or self._as_float(active.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
-            power = (soc - previous_soc) * capacity / 100 * 3600 / seconds
-            power_source = "soc_delta"
+            capacity = self._as_float(sample.get("capacity_kwh")) or self._as_float(active.get("capacity_kwh"))
+            if capacity is not None:
+                power = (soc - previous_soc) * capacity / 100 * 3600 / seconds
+                power_source = "soc_delta"
         if power is not None and 0 < power <= 250:
             sample["derived_power_kw"] = round(power, 2)
             sample["power_source"] = power_source
@@ -440,7 +450,7 @@ class VehicleMetricsManager:
             self.data["current_charge_power_kw"] = None
             await self._save_and_refresh()
             return
-        capacity = self._as_float(active.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
+        capacity = self._as_float(active.get("capacity_kwh"))
         start_soc = self._as_float(active.get("start_soc"))
         end_soc = self._number("battery")
         samples = [item for item in active.get("samples", []) if isinstance(item, dict)]
@@ -453,11 +463,18 @@ class VehicleMetricsManager:
         )
         soc_energy = (
             round(max(0, end_soc - start_soc) * capacity / 100, 3)
-            if start_soc is not None and end_soc is not None
+            if capacity is not None and start_soc is not None and end_soc is not None
             else None
         )
-        energy_kwh = residual_energy if residual_energy is not None else soc_energy
-        energy_source = "residual_energy_delta" if residual_energy is not None else "soc_delta"
+        if residual_energy is not None:
+            energy_kwh = residual_energy
+            energy_source = "residual_energy_delta"
+        elif soc_energy is not None:
+            energy_kwh = soc_energy
+            energy_source = "soc_delta"
+        else:
+            energy_kwh = None
+            energy_source = None
         powers = [self._as_float(item.get("derived_power_kw", item.get("power_kw"))) for item in samples]
         powers = [power for power in powers if power is not None]
         average_power = round(energy_kwh * 3600 / duration_seconds, 2) if energy_kwh is not None else None
@@ -471,7 +488,8 @@ class VehicleMetricsManager:
             "duration": self._duration_text(duration_seconds),
             "soc_start": start_soc,
             "soc_end": end_soc,
-            "capacity_kwh": round(capacity, 2),
+            "capacity_kwh": round(capacity, 2) if capacity is not None else None,
+            "capacity_source": active.get("capacity_source"),
             "energy_kwh": energy_kwh,
             "energy_source": energy_source,
             "average_power_kw": average_power,
@@ -479,7 +497,7 @@ class VehicleMetricsManager:
             "minimum_power_kw": round(min(powers), 2) if powers else average_power,
             "median_power_kw": round(median(powers), 2) if powers else average_power,
             "maximum_power_kw_estimated": True,
-            "power_estimated": True,
+            "power_estimated": energy_kwh is not None,
             "power_source": next(iter(power_sources)) if len(power_sources) == 1 else "mixed" if power_sources else None,
             "charge_type": active.get("charge_type") or "Unknown",
             "location": active.get("location"),
@@ -491,7 +509,7 @@ class VehicleMetricsManager:
             "sample_count": len(samples),
             "source_timestamp_count": timestamp_sources.count("stellantis"),
             "ha_fallback_timestamp_count": timestamp_sources.count("home_assistant"),
-            "estimated": True,
+            "estimated": energy_kwh is not None,
         }
         self.data["charges"] = [
             item for item in self.data.get("charges", []) if item.get("id") != charge["id"]
@@ -514,8 +532,8 @@ class VehicleMetricsManager:
             return None
         start_soc = self._as_float(active.get("start_soc"))
         current_soc = self._number("battery")
-        capacity = self._as_float(active.get("capacity_kwh")) or _FALLBACK_CAPACITY_KWH
-        if start_soc is None or current_soc is None:
+        capacity = self._as_float(active.get("capacity_kwh"))
+        if start_soc is None or current_soc is None or capacity is None:
             return None
         return round(max(0, start_soc - current_soc) * capacity / 100, 3)
 
@@ -558,6 +576,33 @@ class VehicleMetricsManager:
         if baseline is None or mileage is None:
             return None
         return round(max(0, mileage - baseline), 2)
+
+    def battery_capacity(self) -> tuple[float | None, str | None]:
+        """Return capacity and provenance without inventing a vehicle default."""
+        current = self._number("battery_capacity")
+        if current is not None and current > 0:
+            return round(current, 3), "api"
+
+        stored = self._as_float(self.data.get("last_valid_battery_capacity_kwh"))
+        if stored is not None and stored > 0:
+            return round(stored, 3), "last_api"
+
+        configured = self._as_float(self.entry.data.get(CONF_BATTERY_CAPACITY_KWH))
+        if configured is not None and configured > 0:
+            return round(configured, 3), "configured"
+
+        return None, None
+
+    async def _async_capture_capacity(self) -> None:
+        """Persist only a valid upstream/API capacity for later temporary gaps."""
+        current = self._number("battery_capacity")
+        if current is None or current <= 0:
+            return
+        current = round(current, 3)
+        if self._as_float(self.data.get("last_valid_battery_capacity_kwh")) == current:
+            return
+        self.data["last_valid_battery_capacity_kwh"] = current
+        await self._save_and_refresh()
 
     async def _async_seed_from_recorder(self) -> None:
         """Backfill safe local baselines from already-recorded upstream data.
@@ -702,6 +747,7 @@ class VehicleMetricsManager:
         if source_time is None:
             source_time = received_at
             timestamp_source = "received_at"
+        capacity, capacity_source = self.battery_capacity()
         return {
             "source_time": source_time.isoformat(),
             "received_at": received_at.isoformat(),
@@ -709,7 +755,8 @@ class VehicleMetricsManager:
             # Compatibility bridge for older stores/tools that used `time`.
             "time": source_time.isoformat(),
             "soc": self._as_float(state.state if state else None),
-            "capacity_kwh": self._capacity(),
+            "capacity_kwh": capacity,
+            "capacity_source": capacity_source,
             "residual_kwh": self._number("battery_residual"),
             "charging_rate_kmh": self._number("battery_charging_rate"),
             "charge_type": self._state("battery_charging_type") or "Unknown",
@@ -728,8 +775,9 @@ class VehicleMetricsManager:
     def _sample_time(self, sample: dict[str, Any]) -> datetime | None:
         return self._parse_sample_timestamp(sample.get("source_time") or sample.get("time"))
 
-    def _capacity(self) -> float:
-        return self._number("battery_capacity") or _FALLBACK_CAPACITY_KWH
+    def _capacity(self) -> float | None:
+        """Compatibility helper for existing callers; never invent a default."""
+        return self.battery_capacity()[0]
 
     def _current_position(self) -> dict[str, Any] | None:
         """Capture a live tracker point when the selected device exposes it.
