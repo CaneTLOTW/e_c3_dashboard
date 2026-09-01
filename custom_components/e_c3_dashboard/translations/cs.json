@@ -1,0 +1,96 @@
+{
+  "title": "e-C3 Dashboard",
+  "config": {
+    "step": {
+      "dashboard_cards": {
+        "title": "Předběžná kontrola karet přehledu",
+        "description": "e-C3 Dashboard vyžaduje Bubble Card, Button Card, ha-map-card a layout-card. Toto je orientační kontrola prostředků Lovelace registrovaných v Home Assistant:\n\n{card_status}\n\nRegistrovaný prostředek neznamená, že jej prohlížeč skutečně načetl. Chybějící karty nainstalujte pomocí HACS, ověřte, že je každá registrována jako modul JavaScript, restartujte Home Assistant a obnovte prohlížeč. Přehled před zobrazením provede konečnou kontrolu na straně prohlížeče.",
+        "data": {"dashboard_cards_confirmed": "Zkontroloval(a) jsem požadované karty přehledu"}
+      },
+      "user": {
+        "title": "Vybrat vozidlo",
+        "description": "Vyberte vozidlo, které je již nastavené v integraci Stellantis Vehicles. Identifikátor vozidla je volitelný; pokud jej necháte prázdný, odvodí se z vybraného vozidla a automaticky se zajistí jeho jedinečnost. Kapacita baterie slouží pouze jako náhradní hodnota pro konkrétní vozidlo, pokud Stellantis neposkytne použitelnou hodnotu.",
+        "data": {
+          "vehicle_device_id": "Vozidlo Stellantis",
+          "vehicle_slug": "Identifikátor vozidla (volitelný)",
+          "battery_capacity_kwh": "Náhradní kapacita baterie"
+        }
+      }
+    },
+    "error": {
+      "invalid_vehicle": "Vybrané zařízení nepatří do Stellantis Vehicles.",
+      "upstream_not_ready": "Dokončete nastavení Stellantis Vehicles a před přidáním tohoto přehledu počkejte na dostupnost entit baterie, počítadla kilometrů a sledování vozidla.",
+      "invalid_slug": "Zadejte platný identifikátor vozidla.",
+      "slug_in_use": "Tento identifikátor vozidla již používá jiná položka přehledu."
+    },
+    "abort": {
+      "missing_upstream": "Před přidáním tohoto přehledu nastavte Stellantis Vehicles a vozidlo.",
+      "already_configured": "Toto vozidlo již má položku e-C3 Dashboard.",
+      "unsupported_upstream_version": "Před přidáním tohoto přehledu aktualizujte Stellantis Vehicles na podporovanou verzi."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Moduly přehledu",
+        "data": {
+          "dashboard_name": "Zobrazovaný název přehledu (prázdné = automaticky)",
+          "battery_capacity_kwh": "Náhradní kapacita baterie",
+          "trips": "Historie jízd",
+          "charging": "Historie a křivky nabíjení",
+          "gps": "Historie GPS",
+          "wakeup": "Diagnostika probouzení",
+          "notifications": "Oznámení a příjemci",
+          "notification_recipients": "Volitelní příjemci Notify",
+          "history_hours": "Rozsah zobrazené historie"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "server_trip_history": {"name": "Serverová historie jízd"},
+      "server_gps_history": {"name": "Serverová historie GPS"},
+      "server_charge_history": {"name": "Serverová historie nabíjení"},
+      "vehicle_info": {"name": "Informace o vozidle"},
+      "trailing_consumption_500km": {"name": "Průměrná spotřeba (500 km)"},
+      "distance_since_charge": {"name": "Vzdálenost od posledního nabíjení"},
+      "current_trip_energy": {"name": "Energie aktuální jízdy"},
+      "current_charge_power": {"name": "Aktuální nabíjecí výkon"},
+      "last_trip_result": {"name": "Výsledek poslední místní jízdy"},
+      "last_charge_result": {"name": "Výsledek posledního místního nabíjení"}
+    },
+    "number": {
+      "range_warning_km": {"name": "Varování při nízkém dojezdu"},
+      "range_reset_km": {"name": "Reset nízkého dojezdu"},
+      "home_soc_warning": {"name": "Varování SOC doma"},
+      "home_soc_reset": {"name": "Reset SOC doma"},
+      "home_delay_minutes": {"name": "Zpoždění připomenutí nabíjení doma"},
+      "service_battery_warning": {"name": "Varování 12V baterie"},
+      "service_battery_reset": {"name": "Reset 12V baterie"},
+      "stale_home_hours": {"name": "Časový limit dostupnosti doma"},
+      "stale_away_hours": {"name": "Časový limit dostupnosti mimo domov"},
+      "probe_wait_minutes": {"name": "Čekání testu dostupnosti"},
+      "charge_start_delay_minutes": {"name": "Zpoždění oznámení o zahájení nabíjení"}
+    },
+    "time": {
+      "quiet_start": {"name": "Začátek tichého režimu"},
+      "quiet_end": {"name": "Konec tichého režimu"}
+    },
+    "switch": {
+      "notifications": {"name": "Oznámení"},
+      "trip_reports": {"name": "Přehledy jízd"},
+      "charge_reports": {"name": "Přehledy nabíjení"},
+      "alerts": {"name": "Upozornění vozidla"},
+      "wakeup_hourly": {"name": "Probuzení každou hodinu"},
+      "wakeup_charging": {"name": "Probuzení během nabíjení"},
+      "wakeup_probe": {"name": "Test dostupnosti s probuzením"},
+      "notify_recipient": {"name": "Příjemce Notify: {recipient}"}
+    },
+    "button": {
+      "manual_wakeup": {"name": "Probudit vozidlo nyní"},
+      "test_notification": {"name": "Testovací oznámení"},
+      "sync_server_history": {"name": "Synchronizovat serverovou historii"}
+    }
+  }
+}
