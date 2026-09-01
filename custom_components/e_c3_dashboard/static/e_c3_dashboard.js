@@ -379,9 +379,9 @@ class Ec3DashboardStrategy extends HTMLElement {
           title: strings.maintenance,
           show_header_toggle: false,
           entities: [
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Tage", name: strings.daysRemaining },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung verbleibende Kilometer", name: strings.mileageRemaining },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Wartung aktualisiert", name: strings.updated },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "maintenance_days_remaining", name: strings.daysRemaining },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "maintenance_mileage_remaining_km", name: strings.mileageRemaining },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "maintenance_updated_at", name: strings.updated, time_format: "relative" },
           ],
         },
         {
@@ -389,9 +389,9 @@ class Ec3DashboardStrategy extends HTMLElement {
           title: strings.vehicle,
           show_header_toggle: false,
           entities: [
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Marke", name: strings.brand },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "Antrieb", name: strings.powertrain },
-            { type: "attribute", entity: vehicleInfoEntity, attribute: "VIN", name: "VIN" },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "brand", name: strings.brand },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "powertrain", name: strings.powertrain },
+            { type: "attribute", entity: vehicleInfoEntity, attribute: "vin", name: "VIN" },
           ],
         },
       ],

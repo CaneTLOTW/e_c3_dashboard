@@ -192,3 +192,12 @@ test("wake-up action stays a real button press, shows command status, and views 
   assert.match(strategy, /const mappedEntityCount = Object\.keys\(mapped\)\.length/);
   assert.match(strategy, /target\.innerText='\$\{mappedEntityCount\}'/);
 });
+
+
+test("vehicle information popup uses neutral attributes and HA-native relative time", () => {
+  assert.match(strategy, /attribute: "maintenance_days_remaining", name: strings\.daysRemaining/);
+  assert.match(strategy, /attribute: "maintenance_mileage_remaining_km", name: strings\.mileageRemaining/);
+  assert.match(strategy, /attribute: "maintenance_updated_at", name: strings\.updated, time_format: "relative"/);
+  assert.match(strategy, /attribute: "brand", name: strings\.brand/);
+  assert.match(strategy, /attribute: "powertrain", name: strings\.powertrain/);
+});

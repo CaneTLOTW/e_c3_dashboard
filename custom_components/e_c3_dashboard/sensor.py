@@ -591,17 +591,39 @@ class Ec3VehicleInfoSensor(Ec3MetricSensor):
         # Native HA more-info is intentionally used here. Keep its attributes
         # compact and user-facing; raw HAL links and picture lists stay in the
         # server-history store and are not shown in the popup.
-        return {
-            "Marke": info.get("brand") or "—",
-            "Antrieb": info.get("motorization") or "—",
-            "VIN": info.get("vin") or "—",
-            "Bildanzahl": info.get("picture_count", 0),
-            "Wartung verbleibende Tage": maintenance.get("days_remaining") or "—",
-            "Wartung verbleibende Kilometer": maintenance.get("mileage_remaining_km")
+        updated_at = maintenance.get("updated_at")
+        data = {
+            # Stable, language-neutral attributes for cards, automations and
+            # future integrations. Timestamps stay raw so Home Assistant can
+            # render them in each user's locale.
+            "brand": info.get("brand") or "—",
+            "powertrain": info.get("motorization") or "—",
+            "vin": info.get("vin") or "—",
+            "picture_count": info.get("picture_count", 0),
+            "maintenance_days_remaining": maintenance.get("days_remaining") or "—",
+            "maintenance_mileage_remaining_km": maintenance.get("mileage_remaining_km")
             or "—",
-            "Wartung aktualisiert": _relative_age(maintenance.get("updated_at")),
-            "Datenquelle": "Stellantis Fahrzeug- und Wartungsdaten",
+            "maintenance_updated_at": updated_at,
+            "source": "stellantis_vehicle_maintenance",
         }
+        # Compatibility aliases from 0.5.x. Keep them for one compatibility
+        # cycle so existing templates/automations do not break while bundled
+        # UI moves to the neutral contract above.
+        data.update(
+            {
+                "Marke": data["brand"],
+                "Antrieb": data["powertrain"],
+                "VIN": data["vin"],
+                "Bildanzahl": data["picture_count"],
+                "Wartung verbleibende Tage": data["maintenance_days_remaining"],
+                "Wartung verbleibende Kilometer": data[
+                    "maintenance_mileage_remaining_km"
+                ],
+                "Wartung aktualisiert": _relative_age(updated_at),
+                "Datenquelle": "Stellantis Fahrzeug- und Wartungsdaten",
+            }
+        )
+        return data
 
 
 class Ec3TrailingConsumptionSensor(Ec3MetricSensor):
