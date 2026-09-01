@@ -1,0 +1,77 @@
+name: Dev capability UI polish once
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-capability-ui-polish-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Apply capability-specific notification and system UI gates
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('custom_components/e_c3_dashboard/static/e_c3_dashboard.js')
+          text = p.read_text()
+          replacements = {
+            '''      const warningThresholds = notificationSettingsCard(strings.notificationWarningThresholds, [
+        ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"],
+        ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"],
+        ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"],
+        ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"],
+        ["service_battery_warning", strings.battery12Warning, "mdi:car-battery"],
+        ["service_battery_reset", strings.battery12Reset, "mdi:car-battery"],
+      ]);''': '''      const warningThresholds = notificationSettingsCard(strings.notificationWarningThresholds, [
+        supportsElectric ? ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"] : null,
+        supportsElectric ? ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"] : null,
+        supportsElectric ? ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"] : null,
+        supportsElectric ? ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"] : null,
+        ["service_battery_warning", strings.battery12Warning, "mdi:car-battery"],
+        ["service_battery_reset", strings.battery12Reset, "mdi:car-battery"],
+      ].filter(Boolean));''',
+            '''      const timingAvailability = notificationSettingsCard(strings.notificationTimingAvailability, [
+        ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"],
+        ["stale_home_hours", strings.staleAtHome, "mdi:home-clock-outline"],
+        ["stale_away_hours", strings.staleAway, "mdi:car-clock"],
+        ["probe_wait_minutes", strings.probeWait, "mdi:timer-sand"],
+        ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"],
+      ]);''': '''      const timingAvailability = notificationSettingsCard(strings.notificationTimingAvailability, [
+        supportsElectric ? ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"] : null,
+        ["stale_home_hours", strings.staleAtHome, "mdi:home-clock-outline"],
+        ["stale_away_hours", strings.staleAway, "mdi:car-clock"],
+        ["probe_wait_minutes", strings.probeWait, "mdi:timer-sand"],
+        supportsCharging ? ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"] : null,
+      ].filter(Boolean));''',
+            '''        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,''': '''        supportsElectric && entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,''',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'strategy anchor mismatch: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+          p.write_text(text)
+
+          Path('.github/workflows/dev-capability-ui-polish-once.yml').unlink()
+      - name: Validate
+        run: |
+          python -m compileall -q custom_components/e_c3_dashboard
+          for file in custom_components/e_c3_dashboard/static/*.js; do node --check "$file"; done
+          node --test tests/*.test.mjs
+          git diff --check
+      - name: Commit
+        run: |
+          git config user.name "CaneTLOTW"
+          git config user.email "35076818+CaneTLOTW@users.noreply.github.com"
+          git add -A
+          git commit -m "vehicle: hide irrelevant thermic controls"
+          git push origin HEAD:develop
