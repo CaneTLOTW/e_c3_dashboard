@@ -43,6 +43,7 @@ test("hero creates a local stacking context without changing picture lifecycle",
 test("vehicle overview resolves every household value through the config-entry mapping", () => {
   for (const key of [
     "battery",
+    "battery_residual",
     "autonomy",
     "temperature",
     "battery_charging",
@@ -60,6 +61,16 @@ test("vehicle overview resolves every household value through the config-entry m
   assert.match(source, /metricEntity\(hass, attributes, "vehicle_info"\)/);
   assert.match(source, /attributes\.vehicle_tracker/);
   assert.match(source, /attributes\.vehicle_slug/);
+});
+
+test("battery bar keeps charging and driving semantics and adds trustworthy parked residual energy", () => {
+  assert.match(source, /const batteryResidual = mapped\.battery_residual/);
+  assert.match(source, /if \(isCharging\)[\s\S]*Wird geladen ·/);
+  assert.match(source, /if \(isDriving\)[\s\S]*In Fahrt ·/);
+  assert.match(source, /const residual = states\[/);
+  assert.match(source, /return 'Batterie · ' \+ Number\(residual\.state\).*' kWh'/);
+  assert.match(source, /return 'Batterie';/);
+  assert.match(source, /triggers_update: \[battery, batteryResidual, charging, engine, chargePower, tripEnergy\]/);
 });
 
 test("preconditioning visual follows live state and bridges a delayed upstream status", () => {
