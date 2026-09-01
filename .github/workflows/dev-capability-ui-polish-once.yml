@@ -22,45 +22,25 @@ jobs:
         run: |
           from pathlib import Path
 
-          p = Path('custom_components/e_c3_dashboard/static/e_c3_dashboard.js')
-          text = p.read_text()
-          replacements = {
-            '''      const warningThresholds = notificationSettingsCard(strings.notificationWarningThresholds, [
-        ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"],
-        ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"],
-        ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"],
-        ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"],
-        ["service_battery_warning", strings.battery12Warning, "mdi:car-battery"],
-        ["service_battery_reset", strings.battery12Reset, "mdi:car-battery"],
-      ]);''': '''      const warningThresholds = notificationSettingsCard(strings.notificationWarningThresholds, [
-        supportsElectric ? ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"] : null,
-        supportsElectric ? ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"] : null,
-        supportsElectric ? ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"] : null,
-        supportsElectric ? ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"] : null,
-        ["service_battery_warning", strings.battery12Warning, "mdi:car-battery"],
-        ["service_battery_reset", strings.battery12Reset, "mdi:car-battery"],
-      ].filter(Boolean));''',
-            '''      const timingAvailability = notificationSettingsCard(strings.notificationTimingAvailability, [
-        ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"],
-        ["stale_home_hours", strings.staleAtHome, "mdi:home-clock-outline"],
-        ["stale_away_hours", strings.staleAway, "mdi:car-clock"],
-        ["probe_wait_minutes", strings.probeWait, "mdi:timer-sand"],
-        ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"],
-      ]);''': '''      const timingAvailability = notificationSettingsCard(strings.notificationTimingAvailability, [
-        supportsElectric ? ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"] : null,
-        ["stale_home_hours", strings.staleAtHome, "mdi:home-clock-outline"],
-        ["stale_away_hours", strings.staleAway, "mdi:car-clock"],
-        ["probe_wait_minutes", strings.probeWait, "mdi:timer-sand"],
-        supportsCharging ? ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"] : null,
-      ].filter(Boolean));''',
-            '''        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,''': '''        supportsElectric && entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,''',
-          }
-          for old, new in replacements.items():
-              if text.count(old) != 1:
-                  raise SystemExit(f'strategy anchor mismatch: {old[:80]!r}')
+          path = Path('custom_components/e_c3_dashboard/static/e_c3_dashboard.js')
+          text = path.read_text()
+          replacements = [
+              ('        ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"],', '        supportsElectric ? ["range_warning_km", strings.rangeWarning, "mdi:map-marker-distance"] : null,'),
+              ('        ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"],', '        supportsElectric ? ["range_reset_km", strings.rangeReset, "mdi:map-marker-check"] : null,'),
+              ('        ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"],', '        supportsElectric ? ["home_soc_warning", strings.homeSocWarning, "mdi:battery-alert"] : null,'),
+              ('        ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"],', '        supportsElectric ? ["home_soc_reset", strings.homeSocReset, "mdi:battery-check"] : null,'),
+              ('        ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"],', '        supportsElectric ? ["home_delay_minutes", strings.homeWarningDelay, "mdi:timer-outline"] : null,'),
+              ('        ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"],', '        supportsCharging ? ["charge_start_delay_minutes", strings.chargeStartDelay, "mdi:timer-play-outline"] : null,'),
+              ('      ]);\n      const timingAvailability', '      ].filter(Boolean));\n      const timingAvailability'),
+              ('      ]);\n      const quietHours', '      ].filter(Boolean));\n      const quietHours'),
+              ('        entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,', '        supportsElectric && entity("battery_values_correction") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_values_correction"), name: strings.correctBatteryValues, icon: "mdi:auto-fix", show_state: true, force_icon: true } : null,'),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one strategy anchor, found {count}: {old!r}')
               text = text.replace(old, new, 1)
-          p.write_text(text)
-
+          path.write_text(text)
           Path('.github/workflows/dev-capability-ui-polish-once.yml').unlink()
       - name: Validate
         run: |
