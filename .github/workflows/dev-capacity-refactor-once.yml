@@ -90,7 +90,7 @@ jobs:
           )
 
           strategy = "custom_components/e_c3_dashboard/static/e_c3_dashboard.js"
-          replace_all(strategy, "fallback_capacity_kwh: 43.4", "fallback_capacity_kwh: null", 2)
+          replace_all(strategy, "fallback_capacity_kwh: 43.4", "fallback_capacity_kwh: null", 3)
 
           card = "custom_components/e_c3_dashboard/static/charge-history-card.js"
           replace_once(
