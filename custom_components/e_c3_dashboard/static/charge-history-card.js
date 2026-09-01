@@ -4,9 +4,14 @@ import { localeFor, textFor } from "./i18n.js?v=0.5.49";
 
 const SELECTION_QUERY_PARAM = "e_c3_charge";
 
-function deriveServerChargeDisplay(charge, fallbackCapacity = 43.4) {
+function deriveServerChargeDisplay(charge, fallbackCapacity = null) {
     const observed = charge.quality === "observed";
-    const capacity = Number(charge.capacity_kwh) > 0 ? Number(charge.capacity_kwh) : Number(fallbackCapacity);
+    const configuredFallback = Number(fallbackCapacity);
+    const capacity = Number(charge.capacity_kwh) > 0
+        ? Number(charge.capacity_kwh)
+        : Number.isFinite(configuredFallback) && configuredFallback > 0
+            ? configuredFallback
+            : null;
     return {
         ...charge,
         capacity_kwh: capacity,
@@ -67,7 +72,7 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
             language: "auto",
             hours_to_show: 2160,
             max_sessions: 50,
-            fallback_capacity_kwh: 43.4,
+            fallback_capacity_kwh: null,
             ...config,
         };
         if (this._hass) {
@@ -140,7 +145,7 @@ class CodexStellantisChargeHistoryCardV1 extends LitElement {
                 powerStates: this._statesFor(response, entityIds, this._config.power_entity),
                 modeStates: this._statesFor(response, entityIds, this._config.mode_entity),
                 capacityStates: this._statesFor(response, entityIds, this._config.capacity_entity),
-                fallbackCapacity: Number(this._config.fallback_capacity_kwh),
+                fallbackCapacity: this._config.fallback_capacity_kwh,
             });
             const localSessions = buildLocalChargeSessions(
                 this._statesFor(response, entityIds, this._config.result_entity)
@@ -325,7 +330,7 @@ class CodexStellantisChargeCurveCardV1 extends LitElement {
             if (!config[key]) throw new Error(`${key} must be specified`);
         }
         this._config = {
-            fallback_capacity_kwh: 43.4,
+            fallback_capacity_kwh: null,
             ...config,
         };
         if (this._hass) {
@@ -377,11 +382,14 @@ class CodexStellantisChargeCurveCardV1 extends LitElement {
 
         const resultCapacity = Number(result?.attributes?.capacity_kwh);
         const measuredCapacity = Number(this._hass.states[this._config.capacity_entity]?.state);
+        const configuredFallback = Number(this._config.fallback_capacity_kwh);
         const capacity = Number.isFinite(resultCapacity) && resultCapacity > 0 && !active
             ? resultCapacity
             : Number.isFinite(measuredCapacity) && measuredCapacity > 0
                 ? measuredCapacity
-                : Number(this._config.fallback_capacity_kwh);
+                : Number.isFinite(configuredFallback) && configuredFallback > 0
+                    ? configuredFallback
+                    : null;
         const type = active
             ? this._hass.states[this._config.mode_entity]?.state
             : result?.attributes?.charge_type;
@@ -496,6 +504,7 @@ class CodexStellantisChargeCurveCardV1 extends LitElement {
         const endSoc = curve?.end_soc;
         const durationSeconds = curve ? (curve.end - curve.start) / 1000 : 0;
         const energy = Number.isFinite(Number(startSoc)) && Number.isFinite(Number(endSoc))
+            && Number.isFinite(Number(curve?.capacity)) && Number(curve.capacity) > 0
             ? Math.max(0, (endSoc - startSoc) * curve.capacity / 100)
             : null;
         const average = energy !== null && durationSeconds > 0 ? energy / (durationSeconds / 3600) : null;
@@ -584,7 +593,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
         this._config = {
             hours_to_show: 2160,
             max_sessions: 50,
-            fallback_capacity_kwh: 43.4,
+            fallback_capacity_kwh: null,
             ...config,
         };
         if (this._hass) this._loadHistory();
@@ -668,7 +677,7 @@ class CodexStellantisChargeCurveBrowserCardV1 extends LitElement {
                 powerStates: this._statesFor(response, entityIds, this._config.power_entity),
                 modeStates: history.modes,
                 capacityStates: this._statesFor(response, entityIds, this._config.capacity_entity),
-                fallbackCapacity: Number(this._config.fallback_capacity_kwh),
+                fallbackCapacity: this._config.fallback_capacity_kwh,
                 includeActive: Boolean(this._config.include_active),
             });
             const localSessions = buildLocalChargeSessions(

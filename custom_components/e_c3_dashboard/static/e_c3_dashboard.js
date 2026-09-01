@@ -433,7 +433,7 @@ class Ec3DashboardStrategy extends HTMLElement {
         entity("battery_charging_limit_number") ? { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: entity("battery_charging_limit_number"), name: strings.chargeLimit, icon: "mdi:battery-charging-80", show_state: true, force_icon: true } : null,
         entity("battery_charging_limit_switch") ? { type: "custom:bubble-card", card_type: "button", button_type: "switch", entity: entity("battery_charging_limit_switch"), name: `${strings.chargeLimit} ${language(hass) === "de" ? "aktiv" : "enabled"}`, icon: "mdi:battery-lock", show_state: true, force_icon: true, grid_options: { columns: 6 } } : bubble("battery_charging_limit", strings.chargeLimit, "mdi:battery-lock", [], 6),
         bubble("battery_charging_start", strings.chargeStart, "mdi:clock-start", [], 6),
-        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: language(hass) === "de" ? "Ladekurve" : "Charge curve", charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), server_entity: serverChargeEntity, include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: 43.4 }, grid_options: { columns: "full" } } : null,
+        entity("battery_charging") ? { type: "conditional", conditions: [{ condition: "state", entity: entity("battery_charging"), state: "on" }], card: { type: "custom:e-c3-dashboard-charge-curve-browser-card", title: language(hass) === "de" ? "Ladekurve" : "Charge curve", charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), server_entity: serverChargeEntity, include_active: true, hours_to_show: historyHours, fallback_capacity_kwh: null }, grid_options: { columns: "full" } } : null,
       ]) },
       { type: "grid", cards: present([
         separator(strings.position, "mdi:map-marker"),
@@ -451,7 +451,7 @@ class Ec3DashboardStrategy extends HTMLElement {
         lastTripDisplayEntity ? bubble("last_trip", strings.lastTrip, "mdi:map-marker-distance", [], 6, lastTripDisplayEntity) : null,
         lastChargeDisplayEntity ? { ...bubble("last_charge", strings.lastCharge, "mdi:ev-station", [], 6, lastChargeDisplayEntity), styles: relativeEventStyles } : null,
         modules.trips && lastTripDisplayEntity ? { type: "custom:e-c3-dashboard-trip-history-card", entity: lastTripDisplayEntity, server_entity: serverTripEntity, trip_entities: [nativeLastTrip].filter(Boolean), energy_entities: [lastTripResult].filter(Boolean), title: strings.tripHistory, language: language(hass), compact_filters: true, filter_days: 30, hide_short_trips: true, show_zero_events: false, hours_to_show: historyHours, max_trips: 50, grid_options: { columns: "full" } } : null,
-        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, server_entity: serverChargeEntity, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: lastChargeResult, navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: 43.4, grid_options: { columns: "full" } } : null,
+        modules.charging && entity("battery_charging") && entity("battery") ? { type: "custom:e-c3-dashboard-charge-history-card", title: strings.chargeHistory, server_entity: serverChargeEntity, language: language(hass), charging_entity: entity("battery_charging"), soc_entity: entity("battery"), power_entity: currentChargePower, mode_entity: entity("battery_charging_type"), capacity_entity: entity("battery_capacity"), result_entity: lastChargeResult, navigation_path: chargeViewPath, selection_storage_key: chargeSelectionKey, hours_to_show: historyHours, max_sessions: 50, fallback_capacity_kwh: null, grid_options: { columns: "full" } } : null,
       ]) },
     ];
 
@@ -527,7 +527,7 @@ class Ec3DashboardStrategy extends HTMLElement {
                 navigation_path: chargeViewPath,
                 selection_storage_key: chargeSelectionKey,
                 hours_to_show: historyHours,
-                fallback_capacity_kwh: 43.4,
+                fallback_capacity_kwh: null,
                 grid_options: { columns: "full", rows: 6 },
               },
             ],

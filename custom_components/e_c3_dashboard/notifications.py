@@ -504,7 +504,9 @@ class VehicleNotificationManager:
         ):
             return
         soc = self._state_number("battery")
-        capacity = self._as_float(active.get("capacity_kwh")) or 43.4
+        capacity = self._as_float(active.get("capacity_kwh"))
+        if capacity is None:
+            capacity, _source = self.metrics.battery_capacity()
         power = self._recent_charge_power(active)
         target = self._charge_target()
         upstream_end = self._upstream_charge_end(start)
@@ -515,7 +517,7 @@ class VehicleNotificationManager:
         else:
             remaining = (
                 (target - soc) * capacity / 100 / power
-                if soc is not None and power and target > soc
+                if soc is not None and capacity is not None and power and target > soc
                 else None
             )
         if remaining is None or remaining <= 0:

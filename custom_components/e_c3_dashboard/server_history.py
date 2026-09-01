@@ -36,7 +36,6 @@ _LOGGER = logging.getLogger(__name__)
 # safe migration can run.
 _STORE_VERSION = 1
 _CURVE_STORE_VERSION = 1
-_FALLBACK_CAPACITY_KWH = 43.4
 _MIN_TRIP_DISTANCE_KM = 1.0
 _MAX_TRIP_DISTANCE_KM = 1000.0
 _MAX_TRIP_DURATION_SECONDS = 24 * 60 * 60
@@ -102,9 +101,9 @@ def _trip_soc(trip: dict[str, Any], key: str) -> float | None:
     return _number(electric.get("level")) if electric else None
 
 
-def _capacity(value: Any) -> float:
+def _capacity(value: Any) -> float | None:
     capacity = _number(value)
-    return round(capacity, 2) if capacity is not None and capacity > 0 else _FALLBACK_CAPACITY_KWH
+    return round(capacity, 2) if capacity is not None and capacity > 0 else None
 
 
 def _charge_type(value: Any, average_power_kw: Any = None) -> str:
@@ -206,7 +205,7 @@ def normalize_trip(raw: dict[str, Any], capacity_kwh: Any = None) -> dict[str, A
         or end_soc is None
         or end_soc >= start_soc
     )
-    if energy_kwh is None and not no_reliable_soc_energy:
+    if energy_kwh is None and not no_reliable_soc_energy and capacity is not None:
         energy_kwh = round((start_soc - end_soc) * capacity / 100, 3)
     if energy_kwh is None:
         energy_source = "not_reliable_short_or_no_soc_change"
@@ -339,7 +338,7 @@ def reconstruct_charge_windows(trips: list[dict[str, Any]]) -> list[dict[str, An
             continue
         delta_soc = round(soc_end - soc_start, 1)
         capacity = _capacity(following.get("capacity_kwh") or previous.get("capacity_kwh"))
-        energy = round(delta_soc * capacity / 100, 3)
+        energy = round(delta_soc * capacity / 100, 3) if capacity is not None else None
         charge_id = f"charge:{previous['id']}:{following['id']}"
         charges.append(
             {
@@ -900,7 +899,7 @@ class ServerHistoryManager:
         }
         self._update_archive_metadata()
 
-    def _capacity_for_trip(self, raw: dict[str, Any]) -> float:
+    def _capacity_for_trip(self, raw: dict[str, Any]) -> float | None:
         historic = self._historical_capacity(raw.get("startedAt"))
         if historic is not None:
             return historic
@@ -917,7 +916,10 @@ class ServerHistoryManager:
         current = self.hass.states.get(capacity_entity) if capacity_entity else None
         if current and _number(current.state) is not None:
             return _capacity(current.state)
-        return _capacity(None)
+        if self.metrics:
+            resolved, _source = self.metrics.battery_capacity()
+            return _capacity(resolved)
+        return None
 
     def _historical_capacity(self, timestamp: Any) -> float | None:
         event_time = _parse_time(timestamp)
@@ -1281,8 +1283,14 @@ class ServerHistoryManager:
             if start_soc is None or end_soc is None:
                 continue
             session_capacity = _capacity(self._number_at(capacity, begin))
+            if session_capacity is None and self.metrics:
+                session_capacity, _source = self.metrics.battery_capacity()
             duration = max(1, round((finish - begin).total_seconds()))
-            energy = round(max(0, end_soc - start_soc) * session_capacity / 100, 3)
+            energy = (
+                round(max(0, end_soc - start_soc) * session_capacity / 100, 3)
+                if session_capacity is not None
+                else None
+            )
             samples = [
                 {
                     "source_time": timestamp.isoformat(),
@@ -1299,7 +1307,9 @@ class ServerHistoryManager:
                 for timestamp, value in soc
                 if begin <= timestamp <= finish and _number(value) is not None
             ]
-            average_power = round(energy / (duration / 3600), 2)
+            average_power = (
+                round(energy / (duration / 3600), 2) if energy is not None else None
+            )
             sessions.append(
                 {
                     "id": f"recorder:{begin.isoformat()}",
