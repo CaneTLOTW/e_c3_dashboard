@@ -29,7 +29,14 @@ jobs:
       - name: Check frontend JavaScript
         run: |
           node --check custom_components/e_c3_dashboard/static/frontend.js
+          node --check custom_components/e_c3_dashboard/static/i18n-core.js
           node --check custom_components/e_c3_dashboard/static/i18n.js
+          node --check custom_components/e_c3_dashboard/static/i18n-extra-west.js
+          node --check custom_components/e_c3_dashboard/static/i18n-extra-north.js
+          node --check custom_components/e_c3_dashboard/static/i18n-extra-east.js
+          node --check custom_components/e_c3_dashboard/static/i18n-advanced-west.js
+          node --check custom_components/e_c3_dashboard/static/i18n-advanced-north.js
+          node --check custom_components/e_c3_dashboard/static/i18n-advanced-east.js
           node --check custom_components/e_c3_dashboard/static/e_c3_dashboard.js
           node --check custom_components/e_c3_dashboard/static/vehicle-overview-card.js
           node --check custom_components/e_c3_dashboard/static/gps-history-card.js
