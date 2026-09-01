@@ -1,0 +1,30 @@
+name: Dev test translation html
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - .github/workflows/dev-test-translate-html.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe HTML preservation
+        run: |
+          python <<'PY'
+          import json, urllib.parse, urllib.request
+          samples = [
+              'Energy and power are battery-side <span translate="no" data-k="0">SOC</span> estimates.',
+              'Charging until <span translate="no" data-k="1">{time}</span>.',
+              '<span translate="no" data-k="2">**</span>Home Assistant<span translate="no" data-k="3">**</span> dashboard',
+          ]
+          payload = '<div id="root">' + ''.join(f'<p id="s{i}">{value}</p>' for i, value in enumerate(samples)) + '</div>'
+          data = urllib.parse.urlencode({'client':'gtx','sl':'en','tl':'nl','dt':'t','format':'html','q':payload}).encode()
+          req = urllib.request.Request('https://translate.googleapis.com/translate_a/single', data=data, headers={'User-Agent':'Mozilla/5.0'}, method='POST')
+          with urllib.request.urlopen(req, timeout=30) as response:
+              parsed = json.loads(response.read().decode())
+          translated = ''.join(part[0] for part in parsed[0] if part and part[0])
+          print('INPUT:', payload)
+          print('OUTPUT:', translated)
+          PY
