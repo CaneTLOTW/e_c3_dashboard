@@ -24,6 +24,7 @@ from .const import (
 )
 from .coordinator import Ec3DashboardCoordinator
 from .dashboard import async_ensure_dashboard, async_remove_dashboard_marker
+from .entity_identity import async_migrate_package_entity_ids
 from .metrics import VehicleMetricsManager
 from .notifications import VehicleNotificationManager
 from .server_history import ServerHistoryManager
@@ -124,6 +125,11 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: Ec3DashboardConfigEntry
 ) -> bool:
     """Set up one selected upstream Stellantis vehicle."""
+    # Normalize only package-owned registry rows before platform setup. This
+    # gives existing test installs the same VIN + technical-key identity that a
+    # fresh install receives, without touching any Stellantis Vehicles entity.
+    async_migrate_package_entity_ids(hass, entry)
+
     coordinator = Ec3DashboardCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
 
