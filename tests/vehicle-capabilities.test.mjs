@@ -11,6 +11,7 @@ const metrics = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/met
 const sensorPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/sensor.py", import.meta.url), "utf8");
 const numberPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/number.py", import.meta.url), "utf8");
 const switchPlatform = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/switch.py", import.meta.url), "utf8");
+const notifications = fs.readFileSync(new URL("../custom_components/e_c3_dashboard/notifications.py", import.meta.url), "utf8");
 
 test("backend publishes powertrain capability contract without requiring a battery", () => {
   assert.match(coordinator, /_REQUIRED_ENTITY_KEYS = \{"vehicle", "mileage"\}/);
@@ -86,4 +87,14 @@ test("package-owned entity platforms only load powertrain-relevant entities", ()
   assert.match(switchPlatform, /if capabilities\.get\("charging", False\):/);
   assert.match(switchPlatform, /SWITCH_CHARGE_REPORTS/);
   assert.match(switchPlatform, /SWITCH_WAKEUP_CHARGING/);
+});
+
+
+test("notification business logic is capability-gated, not only hidden in UI", () => {
+  assert.match(notifications, /if self\.capabilities\.get\("electric_energy", False\):/);
+  assert.match(notifications, /if self\.capabilities\.get\("charging", False\):/);
+  assert.match(notifications, /trip_message_electric/);
+  assert.match(notifications, /has_electric_trip_data/);
+  assert.match(notifications, /availability_restored_message_electric/);
+  assert.match(notifications, /charging_inactive = not supports_charging or self\._is_off\("battery_charging"\)/);
 });

@@ -39,16 +39,11 @@ test("new package dashboard URLs are generic brand paths, not e-C3 paths", () =>
   assert.doesNotMatch(dashboardSource, /url_path = slugify\(f"e-c3-/);
 });
 
-test("legacy URL migration is package-owned, conflict-safe and copy-before-delete", () => {
-  assert.match(dashboardSource, /current_url_path\.startswith\("e-c3-"\)/);
-  assert.match(dashboardSource, /strategy\.get\("entry_id"\) != entry\.entry_id/);
-  assert.match(dashboardSource, /frontend\.async_panel_exists\(hass, candidate\)/);
-  assert.match(dashboardSource, /new_item = await dashboards\.async_create_item/);
-  assert.match(dashboardSource, /await new_dashboard\.async_save\(config\)/);
-  assert.match(dashboardSource, /frontend\.async_remove_panel\(hass, current_url_path/);
-  assert.match(dashboardSource, /await dashboards\.async_delete_item\(old_item\["id"\]\)/);
-  assert.match(dashboardSource, /await old_dashboard\.async_delete\(\)/);
-  assert.match(dashboardSource, /"previous_url_path": current_url_path/);
+test("existing package dashboard URLs remain stable while new installs use brand paths", () => {
+  assert.doesNotMatch(dashboardSource, /_async_migrate_generated_dashboard_url/);
+  assert.doesNotMatch(dashboardSource, /current_url_path\.startswith\("e-c3-"\)/);
+  assert.match(dashboardSource, /if marker\.get\("handled"\):/);
+  assert.match(dashboardSource, /url_path = marker\.get\("url_path"\)/);
 });
 
 test("actual dashboard path is published for frontend navigation", () => {
@@ -57,9 +52,17 @@ test("actual dashboard path is published for frontend navigation", () => {
   assert.match(dashboardSource, /return await _async_matching_strategy_url_path/);
 });
 
-test("dashboard display name remains a per-entry option and 0.5.53 cache version", () => {
+test("dashboard display name remains a per-entry option and 0.5.54 cache version", () => {
   assert.match(configFlowSource, /OPTION_DASHBOARD_NAME/);
   assert.match(configFlowSource, /normalized\[OPTION_DASHBOARD_NAME\]/);
   assert.match(constSource, /OPTION_DASHBOARD_NAME = "dashboard_name"/);
-  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.53"/);
+  assert.match(constSource, /FRONTEND_VERSION = "0\.5\.54"/);
+});
+
+
+test("dashboard icon follows powertrain without changing brand naming", () => {
+  assert.match(dashboardSource, /powertrain in \{POWERTRAIN_ELECTRIC, POWERTRAIN_HYBRID\}/);
+  assert.match(dashboardSource, /"mdi:car-electric"/);
+  assert.match(dashboardSource, /else "mdi:car"/);
+  assert.match(dashboardSource, /\{"title": desired_title, "icon": desired_icon\}/);
 });

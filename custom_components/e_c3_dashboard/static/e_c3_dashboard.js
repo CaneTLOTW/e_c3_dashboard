@@ -4,7 +4,7 @@
  * status entity created by the backend config entry. It never derives IDs from
  * VINs or friendly names.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.5.53";
+import { languageFor, textFor } from "./i18n.js?v=0.5.54";
 
 const STRATEGY_TYPE = "e-c3-dashboard";
 const STATUS_DOMAIN = "e_c3_dashboard";
@@ -32,7 +32,7 @@ function markdown(content) {
 function setupDashboard(hass, title, body) {
   return {
     title: t(hass).name,
-    icon: "mdi:car-electric",
+    icon: "mdi:car",
     views: [{
       title,
       path: "setup",
@@ -81,7 +81,7 @@ class Ec3DashboardStrategy extends HTMLElement {
   }
 
   static getCreateSuggestions() {
-    return { title: "e-C3 Dashboard", icon: "mdi:car-electric" };
+    return { title: "e-C3 Dashboard", icon: "mdi:car" };
   }
 
   static async generateDashboard({ hass, config }) {
@@ -161,6 +161,7 @@ class Ec3DashboardStrategy extends HTMLElement {
     const supportsFuel = capabilities.fuel ?? Boolean(entity("fuel"));
     const supportsCharging = capabilities.charging ?? Boolean(entity("battery_charging"));
     const supportsChargeHistory = capabilities.charge_history ?? (supportsCharging && Boolean(entity("battery")));
+    const vehicleIcon = supportsElectric ? "mdi:car-electric" : "mdi:car";
     const control = (key) => controls[key];
     const present = (cards) => cards.filter(Boolean);
     const literalText = (value) => JSON.stringify(String(value));
@@ -428,7 +429,7 @@ class Ec3DashboardStrategy extends HTMLElement {
       ]) },
       { type: "grid", cards: present([
         separator(strings.consumptionUsage, "mdi:chart-line"),
-        entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", "mdi:car-electric")]), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }`, grid_options: { columns: "full" } } : null,
+        entity("mileage") ? { ...bubble("mileage", strings.mileage, "mdi:counter", [subState("engine", "", vehicleIcon)]), button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, styles: `.bubble-sub-button-1 { background-color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'rgba(76,175,80,0.35)' : ''} !important; } .bubble-sub-button-1 > ha-icon { color:\${hass.states['${entity("engine")}']?.state === 'on' ? 'var(--success-color)' : ''} !important; }`, grid_options: { columns: "full" } } : null,
         supportsElectric && metric("trailing_consumption_500km") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("trailing_consumption_500km"), name: strings.trailingConsumption, icon: "mdi:lightning-bolt-circle", force_icon: true, card_layout: "large", button_action: { tap_action: { action: "navigate", navigation_path: statisticsViewPath } }, grid_options: { columns: 6 } } : null,
         supportsChargeHistory && metric("distance_since_charge") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("distance_since_charge"), name: strings.distanceSinceCharge, icon: "mdi:map-marker-distance", force_icon: true, card_layout: "large", grid_options: { columns: 6 } } : null,
         supportsElectric && metric("current_trip_energy") ? { type: "custom:bubble-card", card_type: "button", button_type: "state", entity: metric("current_trip_energy"), name: strings.currentTripEnergy, icon: "mdi:battery-minus", force_icon: true, card_layout: "large" } : null,
@@ -472,7 +473,7 @@ class Ec3DashboardStrategy extends HTMLElement {
     const views = [{
       title: strings.vehicle,
       path: "vehicle",
-      icon: "mdi:car-electric",
+      icon: vehicleIcon,
       type: "custom:horizontal-layout",
       layout: {
         width: 300,
@@ -786,7 +787,7 @@ class Ec3DashboardStrategy extends HTMLElement {
     // reading order: Help → System → Notifications → … → Vehicle.
     const viewOrder = ["vehicle", "charging", "statistics", "trips", "gps", "wakeup", "notifications", "system", "help"];
     views.sort((left, right) => viewOrder.indexOf(left.path) - viewOrder.indexOf(right.path));
-    return { title: strings.name, icon: "mdi:car-electric", views };
+    return { title: strings.name, icon: vehicleIcon, views };
   }
 }
 

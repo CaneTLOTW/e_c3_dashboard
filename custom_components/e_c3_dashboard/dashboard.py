@@ -13,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.storage import Store
 from homeassistant.util import slugify
 
+from .capabilities import POWERTRAIN_ELECTRIC, POWERTRAIN_HYBRID
 from .const import (
     AUTO_DASHBOARD_STORAGE_VERSION,
     AUTO_DASHBOARD_STRATEGY,
@@ -100,6 +101,17 @@ def _dashboard_url_base_for_entry(hass, entry) -> str:
     return f"{brand}-dashboard"
 
 
+def dashboard_icon_for_entry(hass, entry) -> str:
+    """Return an icon matching the resolved vehicle powertrain."""
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    powertrain = getattr(coordinator, "data", {}).get("powertrain") if coordinator else None
+    return (
+        "mdi:car-electric"
+        if powertrain in {POWERTRAIN_ELECTRIC, POWERTRAIN_HYBRID}
+        else "mdi:car"
+    )
+
+
 def _available_dashboard_url_path(hass, entry, *, ignore: str | None = None) -> str:
     """Return the first free stable brand path without touching user panels."""
     lovelace = hass.data.get(LOVELACE_DATA)
@@ -178,137 +190,6 @@ async def _async_repair_legacy_generated_dashboard(hass, entry, marker: dict[str
     _LOGGER.info("Repaired the e-C3 Dashboard strategy at /%s", url_path)
 
 
-async def _async_migrate_generated_dashboard_url(
-    hass, entry, marker: dict[str, Any]
-) -> dict[str, Any]:
-    """Move only a proven package-owned legacy dashboard to a brand path.
-
-    Home Assistant does not allow ``url_path`` in dashboard update fields, so
-    the safe migration is create-new -> copy strategy config -> register ->
-    remove-old. The marker and entry-bound strategy are both required before
-    any destructive step, and a conflicting user panel is never overwritten.
-    """
-    current_url_path = marker.get("url_path")
-    lovelace = hass.data.get(LOVELACE_DATA)
-    if (
-        not isinstance(current_url_path, str)
-        or not current_url_path.startswith("e-c3-")
-        or lovelace is None
-    ):
-        return marker
-
-    old_dashboard = lovelace.dashboards.get(current_url_path)
-    if old_dashboard is None:
-        return marker
-    try:
-        config = await old_dashboard.async_load(False)
-    except HomeAssistantError:
-        return marker
-    strategy = config.get("strategy")
-    if (
-        not isinstance(strategy, dict)
-        or strategy.get("type") not in {
-            AUTO_DASHBOARD_STRATEGY,
-            LEGACY_AUTO_DASHBOARD_STRATEGY,
-        }
-        or strategy.get("entry_id") != entry.entry_id
-    ):
-        return marker
-
-    desired_url_path = _available_dashboard_url_path(
-        hass, entry, ignore=current_url_path
-    )
-    if desired_url_path == current_url_path:
-        return marker
-
-    dashboards = lovelace_dashboard.DashboardsCollection(hass)
-    await dashboards.async_load()
-    old_item = next(
-        (
-            candidate
-            for candidate in dashboards.async_items()
-            if candidate.get("url_path") == current_url_path
-        ),
-        None,
-    )
-    if old_item is None:
-        return marker
-
-    title = dashboard_title_for_entry(hass, entry)
-    new_item = None
-    new_dashboard = None
-    new_panel_registered = False
-    try:
-        new_item = await dashboards.async_create_item(
-            {
-                "title": title,
-                "icon": old_item.get("icon", "mdi:car-electric"),
-                "show_in_sidebar": old_item.get("show_in_sidebar", True),
-                "require_admin": old_item.get("require_admin", False),
-                "url_path": desired_url_path,
-            }
-        )
-        new_dashboard = lovelace_dashboard.LovelaceStorage(hass, new_item)
-        await new_dashboard.async_save(config)
-        frontend.async_register_built_in_panel(
-            hass,
-            "lovelace",
-            frontend_url_path=desired_url_path,
-            require_admin=new_item["require_admin"],
-            show_in_sidebar=new_item["show_in_sidebar"],
-            sidebar_title=new_item["title"],
-            sidebar_icon=new_item.get("icon", "mdi:lovelace"),
-            config={"mode": MODE_STORAGE},
-        )
-        new_panel_registered = True
-    except (HomeAssistantError, ValueError):
-        _LOGGER.exception(
-            "Could not create brand dashboard path /%s; keeping /%s",
-            desired_url_path,
-            current_url_path,
-        )
-        if new_panel_registered:
-            frontend.async_remove_panel(
-                hass, desired_url_path, warn_if_unknown=False
-            )
-        if new_item is not None:
-            try:
-                await dashboards.async_delete_item(new_item["id"])
-            except HomeAssistantError:
-                _LOGGER.debug("Could not remove failed dashboard metadata", exc_info=True)
-        if new_dashboard is not None:
-            try:
-                await new_dashboard.async_delete()
-            except HomeAssistantError:
-                _LOGGER.debug("Could not remove failed dashboard config", exc_info=True)
-        return marker
-
-    lovelace.dashboards[desired_url_path] = new_dashboard
-    frontend.async_remove_panel(hass, current_url_path, warn_if_unknown=False)
-    lovelace.dashboards.pop(current_url_path, None)
-    try:
-        await dashboards.async_delete_item(old_item["id"])
-        await old_dashboard.async_delete()
-    except HomeAssistantError:
-        _LOGGER.warning(
-            "Brand dashboard /%s is active, but legacy metadata for /%s could not be fully removed",
-            desired_url_path,
-            current_url_path,
-            exc_info=True,
-        )
-
-    _LOGGER.info(
-        "Migrated package dashboard /%s to /%s",
-        current_url_path,
-        desired_url_path,
-    )
-    return {
-        **marker,
-        "url_path": desired_url_path,
-        "previous_url_path": current_url_path,
-        "url_migrated": True,
-    }
-
 
 async def _async_sync_generated_dashboard_metadata(
     hass, entry, marker: dict[str, Any]
@@ -329,8 +210,9 @@ async def _async_sync_generated_dashboard_metadata(
         return
 
     desired_title = dashboard_title_for_entry(hass, entry)
+    desired_icon = dashboard_icon_for_entry(hass, entry)
     current = dashboard_config.config
-    if current.get("title") == desired_title:
+    if current.get("title") == desired_title and current.get("icon") == desired_icon:
         return
 
     dashboards = lovelace_dashboard.DashboardsCollection(hass)
@@ -342,7 +224,9 @@ async def _async_sync_generated_dashboard_metadata(
     if item is None:
         return
 
-    updated = await dashboards.async_update_item(item["id"], {"title": desired_title})
+    updated = await dashboards.async_update_item(
+        item["id"], {"title": desired_title, "icon": desired_icon}
+    )
 
     # This local collection instance is intentionally not wired to Lovelace's
     # setup listener. Mirror the core listener's runtime side effects so the
@@ -374,10 +258,6 @@ async def async_ensure_dashboard(hass, entry) -> str | None:
     marker_store = _store(hass, entry.entry_id)
     marker = await marker_store.async_load() or {}
     if marker.get("handled"):
-        migrated = await _async_migrate_generated_dashboard_url(hass, entry, marker)
-        if migrated != marker:
-            marker = migrated
-            await marker_store.async_save(marker)
         await _async_repair_legacy_generated_dashboard(hass, entry, marker)
         await async_sync_generated_dashboard_metadata(hass)
         url_path = marker.get("url_path")
@@ -406,6 +286,7 @@ async def async_ensure_dashboard(hass, entry) -> str | None:
 
     url_path = _available_dashboard_url_path(hass, entry)
     title = dashboard_title_for_entry(hass, entry)
+    icon = dashboard_icon_for_entry(hass, entry)
 
     dashboards = lovelace_dashboard.DashboardsCollection(hass)
     await dashboards.async_load()
@@ -413,7 +294,7 @@ async def async_ensure_dashboard(hass, entry) -> str | None:
         item = await dashboards.async_create_item(
             {
                 "title": title,
-                "icon": "mdi:car-electric",
+                "icon": icon,
                 "show_in_sidebar": True,
                 "require_admin": False,
                 "url_path": url_path,
@@ -441,7 +322,7 @@ async def async_ensure_dashboard(hass, entry) -> str | None:
             require_admin=False,
             show_in_sidebar=True,
             sidebar_title=title,
-            sidebar_icon="mdi:car-electric",
+            sidebar_icon=icon,
             config={"mode": MODE_STORAGE},
         )
     except (HomeAssistantError, ValueError):

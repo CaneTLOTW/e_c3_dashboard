@@ -10,7 +10,7 @@
  * changes presentation (no heading/self-navigation, optional info button);
  * entity resolution, picture lifecycle and overlay rendering stay shared.
  */
-import { languageFor, textFor } from "./i18n.js?v=0.5.53";
+import { languageFor, textFor } from "./i18n.js?v=0.5.54";
 
 const STATUS_DOMAIN = "e_c3_dashboard";
 const CARD_TAG = "e-c3-dashboard-vehicle-overview-card";

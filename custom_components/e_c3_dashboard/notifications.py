@@ -92,6 +92,7 @@ class VehicleNotificationManager:
         self.entry = entry
         self.mapping = mapping
         self.metrics = metrics
+        self.capabilities = dict(getattr(metrics, "capabilities", {}) or {})
         slug = entry.data[CONF_VEHICLE_SLUG]
         self._store = Store(hass, _STORE_VERSION, f"{DOMAIN}_{slug}_notifications")
         self.data: dict[str, Any] = {
@@ -269,13 +270,15 @@ class VehicleNotificationManager:
         self.hass.async_create_task(self._evaluate())
 
     async def _evaluate(self) -> None:
-        """Run the same low-frequency checks as the reference dashboard."""
+        """Run only checks supported by this vehicle's capability contract."""
         await self._reset_daily_wakeup_counter()
-        await self._evaluate_range()
-        await self._evaluate_home_charge_reminder()
+        if self.capabilities.get("electric_energy", False):
+            await self._evaluate_range()
+            await self._evaluate_home_charge_reminder()
         await self._evaluate_service_battery()
         await self._evaluate_availability()
-        await self._evaluate_charge_start()
+        if self.capabilities.get("charging", False):
+            await self._evaluate_charge_start()
         await self._evaluate_scheduled_wakeup()
 
     async def _async_trip_notification(self, trip: dict[str, Any]) -> None:
@@ -283,17 +286,33 @@ class VehicleNotificationManager:
             return
         duration = self._duration(int(trip.get("duration_seconds") or 0))
         title = text(self.hass, "trip_title")
-        message = text(
-            self.hass,
-            "trip_message",
-            distance=self._number(trip.get("distance_km"), 1),
-            duration=duration,
-            average_speed=self._number(trip.get("average_speed"), 1),
-            soc_start=self._number(trip.get("soc_start"), 0),
-            soc_end=self._number(trip.get("soc_end"), 0),
-            energy=self._number(trip.get("energy_kwh"), 2),
-            consumption=self._number(trip.get("energy_per_100_km"), 2),
+        common = {
+            "distance": self._number(trip.get("distance_km"), 1),
+            "duration": duration,
+            "average_speed": self._number(trip.get("average_speed"), 1),
+        }
+        electric_values = (
+            trip.get("soc_start"),
+            trip.get("soc_end"),
+            trip.get("energy_kwh"),
+            trip.get("energy_per_100_km"),
         )
+        has_electric_trip_data = (
+            self.capabilities.get("electric_trip_metrics", False)
+            and all(self._as_float(value) is not None for value in electric_values)
+        )
+        if has_electric_trip_data:
+            message = text(
+                self.hass,
+                "trip_message_electric",
+                **common,
+                soc_start=self._number(trip.get("soc_start"), 0),
+                soc_end=self._number(trip.get("soc_end"), 0),
+                energy=self._number(trip.get("energy_kwh"), 2),
+                consumption=self._number(trip.get("energy_per_100_km"), 2),
+            )
+        else:
+            message = text(self.hass, "trip_message", **common)
         await self._async_notify(
             title,
             message,
@@ -302,7 +321,10 @@ class VehicleNotificationManager:
         )
 
     async def _async_charge_notification(self, charge: dict[str, Any]) -> None:
-        if not self.is_enabled(SWITCH_CHARGE_REPORTS):
+        if (
+            not self.capabilities.get("charging", False)
+            or not self.is_enabled(SWITCH_CHARGE_REPORTS)
+        ):
             return
         title = text(self.hass, "charge_completed_title")
         message = text(
@@ -434,15 +456,30 @@ class VehicleNotificationManager:
             outage_heartbeat = self._parse_time(self.data["markers"].get("outage_heartbeat"))
             if outage_heartbeat is None or fresh > outage_heartbeat:
                 if self.data["markers"].get("outage_reported"):
-                    await self._async_notify(
-                        text(self.hass, "availability_restored_title"),
-                        text(
+                    minutes = round((now - outage).total_seconds() / 60)
+                    soc = self._state_number("battery")
+                    electric_range = self._state_number("autonomy", "range")
+                    if (
+                        self.capabilities.get("electric_energy", False)
+                        and soc is not None
+                        and electric_range is not None
+                    ):
+                        restored_message = text(
+                            self.hass,
+                            "availability_restored_message_electric",
+                            minutes=minutes,
+                            soc=self._number(soc, 0),
+                            range=self._number(electric_range, 0),
+                        )
+                    else:
+                        restored_message = text(
                             self.hass,
                             "availability_restored_message",
-                            minutes=round((now - outage).total_seconds() / 60),
-                            soc=self._number(self._state_number("battery"), 0),
-                            range=self._number(self._state_number("autonomy", "range"), 0),
-                        ),
+                            minutes=minutes,
+                        )
+                    await self._async_notify(
+                        text(self.hass, "availability_restored_title"),
+                        restored_message,
                         "availability_restored",
                         SWITCH_ALERTS,
                     )
@@ -491,6 +528,8 @@ class VehicleNotificationManager:
                 await self._save()
 
     async def _evaluate_charge_start(self) -> None:
+        if not self.capabilities.get("charging", False):
+            return
         active = self.metrics.data.get("active_charge")
         if not self._is_on("battery_charging") or not isinstance(active, dict):
             self.data["markers"].pop("charge_start_reported", None)
@@ -546,14 +585,20 @@ class VehicleNotificationManager:
     async def _evaluate_scheduled_wakeup(self) -> None:
         now = dt_util.utcnow()
         last = self._parse_time(self.data.get("last_wakeup"))
-        if self.is_enabled(SWITCH_WAKEUP_CHARGING) and self._is_on("battery_charging"):
+        supports_charging = self.capabilities.get("charging", False)
+        if (
+            supports_charging
+            and self.is_enabled(SWITCH_WAKEUP_CHARGING)
+            and self._is_on("battery_charging")
+        ):
             if last is None or now - last >= timedelta(minutes=5):
                 await self._async_wakeup(text(self.hass, "wakeup_charging"))
             return
+        charging_inactive = not supports_charging or self._is_off("battery_charging")
         if (
             self.is_enabled(SWITCH_WAKEUP_HOURLY)
             and self._is_off("engine")
-            and self._is_off("battery_charging")
+            and charging_inactive
             and not self._parse_time(self.data["markers"].get("outage_since"))
             and (last is None or now - last >= timedelta(hours=1))
         ):
@@ -798,7 +843,7 @@ class VehicleNotificationManager:
         if numeric is None:
             return "—"
         formatted = f"{numeric:.{precision}f}"
-        return formatted.replace(".", ",") if language_for(self.hass) == "de" else formatted
+        return formatted if language_for(self.hass) == "en" else formatted.replace(".", ",")
 
     @staticmethod
     def _duration(seconds: int) -> str:

@@ -132,7 +132,7 @@ test("card editor persists the selected config entry instead of a VIN", () => {
 
 
 test("vehicle overview localizes runtime and editor text through the shared catalog", () => {
-  assert.match(source, /import \{ languageFor, textFor \} from "\.\/i18n\.js\?v=0\.5\.53"/);
+  assert.match(source, /import \{ languageFor, textFor \} from "\.\/i18n\.js\?v=0\.5\.54"/);
   assert.match(source, /textFor\(hass, "vehicleOverview"\)/);
   assert.match(source, /languageFor\(this\._hass\)/);
   assert.match(source, /registrationStrings\.cardName/);
