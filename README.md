@@ -2,7 +2,7 @@
 
 > [!CAUTION]
 > **This repository is obsolete and no longer maintained.**
-> The last legacy release is **v0.5.53**. It will receive **no further feature updates or routine bug fixes**.
+> The last legacy release was **v0.5.53**. **No further versions of e-C3 Dashboard will be released**, and it will receive no further feature updates or routine bug fixes.
 > **Use [SV Dashboard](https://github.com/CaneTLOTW/sv_dashboard) instead.**
 > SV Dashboard is a **separate Home Assistant / HACS integration**, **not an in-place update** of `e_c3_dashboard`.
 > HACS will not automatically replace this integration with SV Dashboard.
@@ -28,6 +28,6 @@
 
 ## Historical archive
 
-This repository is retained only for historical reference and existing issue links. The last published legacy package remains available under [v0.5.53](https://github.com/CaneTLOTW/e_c3_dashboard/releases/tag/v0.5.53); its original source, older documentation, and issue history are preserved in Git history.
+This repository is retained only for historical reference and existing issue links. Its original source, older documentation, and issue history are preserved in Git history.
 
 **Status:** Deprecated / unmaintained. Please do not submit new issues, PRs or dependabot updates here; use the actively maintained [SV Dashboard repository](https://github.com/CaneTLOTW/sv_dashboard).
