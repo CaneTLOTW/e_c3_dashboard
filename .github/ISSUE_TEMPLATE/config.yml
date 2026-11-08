@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Community discussions
-    url: https://github.com/CaneTLOTW/e_c3_dashboard/discussions
-    about: Ask setup and usage questions, share screenshots, discuss early ideas, or report compatibility observations.
-  - name: Setup and support guide
-    url: https://github.com/CaneTLOTW/e_c3_dashboard/blob/main/SUPPORT.md
-    about: Check installation, entity, capability, and privacy guidance before opening an issue.
-  - name: Security advisory
-    url: https://github.com/CaneTLOTW/e_c3_dashboard/security/advisories/new
-    about: Report vulnerabilities or private-data exposure privately.
+  - name: SV Dashboard (maintained successor) — file a bug or request a feature
+    url: https://github.com/CaneTLOTW/sv_dashboard/issues/new/choose
+    about: This e-C3 Dashboard repository is deprecated. Report new issues in SV Dashboard instead.
+  - name: SV Dashboard — questions and discussions
+    url: https://github.com/CaneTLOTW/sv_dashboard/discussions
+    about: Ask about installation, migration and compatibility in the actively maintained project.
+  - name: Install SV Dashboard
+    url: https://github.com/CaneTLOTW/sv_dashboard/blob/main/docs/INSTALLATION.en.md
+    about: SV Dashboard is a separate HACS integration, not an automatic update of e-C3 Dashboard.
